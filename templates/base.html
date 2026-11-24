@@ -1,0 +1,291 @@
+{% load i18n static %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'kk' }}" data-theme="dark" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  <title>{% block title %}ENT MASTER — ҰБТ-ға сенімді дайындық | Онлайн ҰБТ Платформасы{% endblock %}</title>
+  <meta name="description" content="Қазақстанның жетекші ҰБТ дайындық платформасы. Нақты ҰБТ симуляторы, 120 000+ өзекті сұрақ және тереңдетілген аналитика.">
+  
+  <!-- FOUC Prevention Script -->
+  <script>
+    (function() {
+      const storedTheme = localStorage.getItem("color-scheme") || "dark";
+      document.querySelector('meta[name="color-scheme"]').content = storedTheme;
+      document.documentElement.setAttribute('data-theme', storedTheme);
+      document.documentElement.setAttribute('data-bs-theme', storedTheme);
+    })();
+  </script>
+
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5.3.3 CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Custom Design System -->
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- ========================================================================
+       Global Navigation Bar
+       ======================================================================== -->
+  <nav class="navbar navbar-expand-lg ent-navbar">
+    <div class="container">
+      <!-- Brand Logo -->
+      <a class="navbar-brand navbar-brand-logo" href="{% url 'home' %}">
+        <div class="brand-icon-box">
+          <i class="bi bi-mortarboard-fill"></i>
+        </div>
+        <span>ENT <span class="text-gradient">MASTER</span></span>
+      </a>
+
+      <!-- Mobile Toggle Button -->
+      <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+        <i class="bi bi-list fs-2"></i>
+      </button>
+
+      <!-- Nav Links -->
+      <div class="collapse navbar-collapse" id="navbarContent">
+        <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-1">
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom {% if request.resolver_match.url_name == 'home' %}active{% endif %}" href="{% url 'home' %}">
+              Басты бет
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom {% if 'subjects' in request.path %}active{% endif %}" href="{% url 'subjects:subjects_list' %}">
+              Пәндер
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="{% url 'exams:start_full_simulation' %}">
+              Сынақ тесті
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom {% if 'leaderboard' in request.path %}active{% endif %}" href="{% url 'results:leaderboard' %}">
+              Рейтинг
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom {% if 'pricing' in request.path %}active{% endif %}" href="{% url 'payments:pricing' %}">
+              Тарифтер
+            </a>
+          </li>
+          {% if user.is_authenticated %}
+            <li class="nav-item">
+              <a class="nav-link nav-link-custom text-primary fw-bold" href="{% url 'dashboard_redirect' %}">
+                <i class="bi bi-speedometer2 me-1"></i>Кабинет
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+
+        <!-- Right Side Controls: Language, Theme Switcher, Auth -->
+        <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+          
+          <!-- Django Language Selector -->
+          <div class="dropdown">
+            <button class="lang-dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="currentLangLabel">
+              {% if LANGUAGE_CODE == 'ru' %}🇷🇺 Русский
+              {% elif LANGUAGE_CODE == 'en' %}🇬🇧 English
+              {% elif LANGUAGE_CODE == 'uz' %}🇺🇿 O'zbekcha
+              {% else %}🇰🇿 Қазақша{% endif %}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark-custom dropdown-menu-end shadow">
+              <form action="{% url 'set_language' %}" method="post" id="langForm">
+                {% csrf_token %}
+                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                <li><button class="dropdown-item" type="submit" name="language" value="kk">🇰🇿 Қазақша (KK)</button></li>
+                <li><button class="dropdown-item" type="submit" name="language" value="ru">🇷🇺 Русский (RU)</button></li>
+                <li><button class="dropdown-item" type="submit" name="language" value="en">🇬🇧 English (EN)</button></li>
+                <li><button class="dropdown-item" type="submit" name="language" value="uz">🇺🇿 O'zbekcha (UZ)</button></li>
+              </form>
+            </ul>
+          </div>
+
+          <!-- Theme Toggle Switcher -->
+          <button class="theme-toggle-btn" type="button" aria-label="Toggle color theme" title="Түсті тақырыпты ауыстыру">
+            <i class="bi bi-sun-fill theme-toggle-icon text-warning"></i>
+          </button>
+
+          <!-- Authentication Buttons / User Dropdown -->
+          {% if user.is_authenticated %}
+            <div class="dropdown">
+              <button class="btn btn-secondary-glass py-2 px-3 dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                <div class="brand-icon-box rounded-circle" style="width: 26px; height: 26px; font-size: 0.8rem;">
+                  <i class="bi bi-person-fill"></i>
+                </div>
+                <span>{{ user.first_name|default:user.username }}</span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-dark-custom dropdown-menu-end shadow">
+                <li><a class="dropdown-item" href="{% url 'dashboard_redirect' %}"><i class="bi bi-speedometer2 me-2"></i>Кабинет</a></li>
+                <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person-gear me-2"></i>Профиль</a></li>
+                {% if user.is_administrator %}
+                  <li><a class="dropdown-item text-warning" href="{% url 'admin_panel_dashboard' %}"><i class="bi bi-shield-lock me-2"></i>Әкімші тақтасы</a></li>
+                  <li><a class="dropdown-item text-warning" href="/admin/"><i class="bi bi-database-gear me-2"></i>Django Admin</a></li>
+                {% elif user.is_teacher %}
+                  <li><a class="dropdown-item text-primary" href="{% url 'teacher_questions_list' %}"><i class="bi bi-pencil-square me-2"></i>Мұғалім кабинеті</a></li>
+                {% else %}
+                  <li><a class="dropdown-item" href="{% url 'results:exam_history' %}"><i class="bi bi-clock-history me-2"></i>Емтихан тарихы</a></li>
+                  <li><a class="dropdown-item" href="{% url 'results:mistakes_notebook' %}"><i class="bi bi-journal-x me-2"></i>Қателер дәптері</a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider border-subtle"></li>
+                <li>
+                  <form action="{% url 'logout' %}" method="post" class="px-2">
+                    {% csrf_token %}
+                    <button type="submit" class="dropdown-item text-danger rounded"><i class="bi bi-box-arrow-right me-2"></i>Шығу</button>
+                  </form>
+                </li>
+              </ul>
+            </div>
+          {% else %}
+            <a href="{% url 'login' %}" class="btn btn-secondary-glass py-2 px-3">
+              Кіру
+            </a>
+            <a href="{% url 'register_student' %}" class="btn btn-primary-gradient py-2 px-3">
+              Тіркелу
+            </a>
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ========================================================================
+       Flash Messages
+       ======================================================================== -->
+  {% if messages %}
+    <div class="container mt-3">
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show border-0 shadow-sm" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- ========================================================================
+       Main Page Content
+       ======================================================================== -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ========================================================================
+       Footer
+       ======================================================================== -->
+  <footer class="ent-footer mt-5">
+    <div class="container">
+      <div class="row g-4 mb-5">
+        <div class="col-lg-4">
+          <a class="navbar-brand navbar-brand-logo mb-3 d-inline-flex" href="{% url 'home' %}">
+            <div class="brand-icon-box">
+              <i class="bi bi-mortarboard-fill"></i>
+            </div>
+            <span>ENT <span class="text-gradient">MASTER</span></span>
+          </a>
+          <p class="text-muted pe-lg-4">
+            Қазақстанның талапкерлеріне арналған №1 онлайн ҰБТ дайындық платформасы. Сенімді білім, үздік нәтиже, мемлекеттік грант кепілі.
+          </p>
+          <div class="d-flex align-items-center">
+            <a href="#" class="footer-social-icon" aria-label="Telegram"><i class="bi bi-telegram"></i></a>
+            <a href="#" class="footer-social-icon" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+            <a href="#" class="footer-social-icon" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+            <a href="#" class="footer-social-icon" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+          </div>
+        </div>
+
+        <div class="col-lg-2 col-6">
+          <h5 class="fs-6 fw-bold mb-3">Бөлімдер</h5>
+          <ul class="list-unstyled vstack gap-2 text-muted small">
+            <li><a href="{% url 'home' %}" class="text-muted text-decoration-none">Басты бет</a></li>
+            <li><a href="{% url 'subjects:subjects_list' %}" class="text-muted text-decoration-none">Пәндер</a></li>
+            <li><a href="{% url 'exams:start_full_simulation' %}" class="text-muted text-decoration-none">Сынақ тесті</a></li>
+            <li><a href="{% url 'results:leaderboard' %}" class="text-muted text-decoration-none">Рейтинг</a></li>
+            <li><a href="{% url 'payments:pricing' %}" class="text-muted text-decoration-none">Тарифтер</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3 col-6">
+          <h5 class="fs-6 fw-bold mb-3">Пәндер тізімі</h5>
+          <ul class="list-unstyled vstack gap-2 text-muted small">
+            <li><a href="{% url 'subjects:subjects_list' %}" class="text-muted text-decoration-none">Қазақстан тарихы</a></li>
+            <li><a href="{% url 'subjects:subjects_list' %}" class="text-muted text-decoration-none">Математикалық сауаттылық</a></li>
+            <li><a href="{% url 'subjects:subjects_list' %}" class="text-muted text-decoration-none">Оқу сауаттылығы</a></li>
+            <li><a href="{% url 'subjects:subjects_list' %}" class="text-muted text-decoration-none">Математика & Физика</a></li>
+            <li><a href="{% url 'subjects:subjects_list' %}" class="text-muted text-decoration-none">Химия & Биология</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3">
+          <h5 class="fs-6 fw-bold mb-3">Байланыс</h5>
+          <ul class="list-unstyled vstack gap-2 text-muted small">
+            <li><i class="bi bi-geo-alt me-2 text-purple"></i> Алматы қ., Әл-Фараби даңғылы, 71</li>
+            <li><i class="bi bi-envelope me-2 text-purple"></i> support@entmaster.kz</li>
+            <li><i class="bi bi-telephone me-2 text-purple"></i> +7 (727) 350-00-00</li>
+            <li><i class="bi bi-clock me-2 text-purple"></i> Дүйсенбі - Жұма: 09:00 - 20:00</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pt-4 border-top border-subtle d-flex flex-wrap justify-content-between align-items-center gap-3 text-muted small">
+        <p class="mb-0">© 2026-2027 ENT MASTER. Барлық құқықтар қорғалған.</p>
+        <div class="d-flex gap-4">
+          <a href="#" class="text-muted text-decoration-none">Құпиялылық саясаты</a>
+          <a href="#" class="text-muted text-decoration-none">Қолданушы келісімі</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Theme Switcher Script adhering to modern-web-guidance -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggleBtns = document.querySelectorAll('.theme-toggle-btn');
+      const icons = document.querySelectorAll('.theme-toggle-icon');
+
+      function syncIcon(theme) {
+        icons.forEach(icon => {
+          if (theme === 'dark') {
+            icon.className = 'bi bi-sun-fill theme-toggle-icon text-warning';
+          } else {
+            icon.className = 'bi bi-moon-stars-fill theme-toggle-icon text-primary';
+          }
+        });
+      }
+
+      const initialTheme = localStorage.getItem('color-scheme') || 'dark';
+      syncIcon(initialTheme);
+
+      toggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme') || 'dark';
+          const target = current === 'dark' ? 'light' : 'dark';
+          localStorage.setItem('color-scheme', target);
+          document.documentElement.setAttribute('data-theme', target);
+          document.documentElement.setAttribute('data-bs-theme', target);
+          const meta = document.querySelector('meta[name="color-scheme"]');
+          if (meta) meta.content = target;
+          syncIcon(target);
+        });
+      });
+    });
+  </script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Жүйеге кіру — ENT MASTER{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      
+      <div class="p-4 p-md-5 bg-surface rounded-4 border border-subtle shadow">
+        <div class="text-center mb-4">
+          <div class="brand-icon-box mx-auto mb-3" style="width: 54px; height: 54px; font-size: 1.5rem;">
+            <i class="bi bi-box-arrow-in-right"></i>
+          </div>
+          <h3 class="fw-bold">ENT MASTER-ге кіру</h3>
+          <p class="text-muted small">Жеке кабинетке кіру үшін логин мен құпия сөзді жазыңыз</p>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Логин (Username)</label>
+            <input type="text" name="username" class="form-control form-control-custom" placeholder="student" required autofocus>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label small fw-semibold">Құпия сөз (Password)</label>
+            <input type="password" name="password" class="form-control form-control-custom" placeholder="••••••••" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary-gradient w-100 py-3 mb-3">
+            Кіру <i class="bi bi-arrow-right ms-1"></i>
+          </button>
+
+          <div class="p-3 bg-surface-muted rounded-3 border border-subtle small text-muted mb-4">
+            <b>Демо аккаунттар:</b><br>
+            • Оқушы: <code>student</code> / <code>student123</code><br>
+            • Мұғалім: <code>teacher</code> / <code>teacher123</code><br>
+            • Әкімші: <code>admin</code> / <code>admin123</code>
+          </div>
+
+          <div class="text-center small text-muted">
+            Аккаунтыңыз жоқ па?
+            <a href="{% url 'register_student' %}" class="text-purple fw-semibold">Оқушы ретінде тіркелу</a>
+            немесе
+            <a href="{% url 'register_teacher' %}" class="text-purple fw-semibold">Мұғалім ретінде тіркелу</a>
+          </div>
+        </form>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

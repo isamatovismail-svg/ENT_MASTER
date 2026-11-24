@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Мұғалім ретінде тіркелу — ENT MASTER{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-6">
+      
+      <div class="p-4 p-md-5 bg-surface rounded-4 border border-subtle shadow">
+        <div class="text-center mb-4">
+          <div class="brand-icon-box mx-auto mb-3" style="width: 54px; height: 54px; font-size: 1.5rem; background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);">
+            <i class="bi bi-person-workspace"></i>
+          </div>
+          <h3 class="fw-bold">Мұғалім ретінде тіркелу</h3>
+          <p class="text-muted small">ҰБТ сұрақтарын құрастыру және модерация жүйесі</p>
+        </div>
+
+        <div class="alert alert-info small mb-4">
+          <i class="bi bi-info-circle-fill me-1"></i>
+          <b>Назар аударыңыз:</b> Мұғалім аккаунты сапа мен қауіпсіздікті қамтамасыз ету мақсатында әкімші тексерісінен өтеді. Расталғаннан кейін сұрақтарды басқару толық ашылады.
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.errors %}
+            <div class="alert alert-danger p-3 small mb-4">
+              Форманы толтыруда қателіктер бар:
+              {{ form.errors }}
+            </div>
+          {% endif %}
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold">Атыңыз</label>
+              {{ form.first_name }}
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold">Тегіңіз</label>
+              {{ form.last_name }}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Логин (Username)</label>
+            {{ form.username }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Жұмыс email поштасы</label>
+            {{ form.email }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Телефон нөмірі</label>
+            {{ form.phone }}
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold">Құпия сөз</label>
+              {{ form.password }}
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small fw-semibold">Құпия сөзді қайталаңыз</label>
+              {{ form.password_confirm }}
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary-gradient w-100 py-3 mb-3">
+            Мұғалім өтінішін жіберу <i class="bi bi-send ms-1"></i>
+          </button>
+
+          <div class="text-center small text-muted">
+            <a href="{% url 'login' %}" class="text-purple fw-semibold">Жүйеге кіру</a>
+          </div>
+        </form>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

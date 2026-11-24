@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}ENT MASTER — ҰБТ-ға сенімді дайындық | Онлайн ҰБТ Платформасы{% endblock %}
+
+{% block content %}
+<!-- ========================================================================
+     Hero Section
+     ======================================================================== -->
+<section class="hero-section" id="home">
+  <div class="hero-glow-bg"></div>
+  <div class="container position-relative" style="z-index: 1;">
+    <div class="row align-items-center g-5">
+      
+      <!-- Left Column: Copy & Actions -->
+      <div class="col-lg-6">
+        <div class="hero-badge-pill">
+          <span>🔥 2026-2027 ҰБТ Жаңа форматтағы тестілеу жүйесі</span>
+        </div>
+        <h1 class="hero-title">
+          <span>ҰБТ-ға сенімділікпен дайындал</span>
+          <span class="text-gradient d-block">ENT MASTER</span>
+        </h1>
+        <p class="hero-subtitle">
+          Қазақстанның жетекші білім гранттарына жол ашатын заманауи онлайн платформа. Нақты ҰБТ симуляторы, 5 пән бойынша тереңдетілген сұрақтар мен толық аналитика.
+        </p>
+
+        <div class="d-flex flex-wrap gap-3">
+          {% if user.is_authenticated %}
+            <a href="{% url 'exams:start_full_simulation' %}" class="btn btn-primary-gradient btn-lg">
+              <i class="bi bi-play-circle-fill"></i> Сынақ тестін бастау
+            </a>
+            <a href="{% url 'dashboard_redirect' %}" class="btn btn-secondary-glass btn-lg">
+              <i class="bi bi-speedometer2"></i> Жеке кабинетке өту
+            </a>
+          {% else %}
+            <a href="{% url 'register_student' %}" class="btn btn-primary-gradient btn-lg">
+              <i class="bi bi-rocket-takeoff-fill"></i> Тегін бастау
+            </a>
+            <a href="{% url 'login' %}" class="btn btn-secondary-glass btn-lg">
+              <i class="bi bi-box-arrow-in-right"></i> Жүйеге кіру
+            </a>
+          {% endif %}
+        </div>
+
+        <!-- Hero Metrics Strip -->
+        <div class="hero-metrics-strip">
+          <div class="metric-item">
+            <h4 class="text-gradient">140 / 140</h4>
+            <span>Максималды балл</span>
+          </div>
+          <div class="metric-item">
+            <h4 class="text-gradient-cyan">98.4%</h4>
+            <span>Грантқа түскендер</span>
+          </div>
+          <div class="metric-item">
+            <h4 class="text-gradient">120 000+</h4>
+            <span>Өзекті сұрақтар</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Interactive Window Preview -->
+      <div class="col-lg-6">
+        <div class="hero-preview-frame">
+          <div class="simulator-window-header">
+            <div class="d-flex align-items-center gap-3">
+              <div class="window-dots">
+                <div class="dot red"></div>
+                <div class="dot yellow"></div>
+                <div class="dot green"></div>
+              </div>
+              <span class="fw-semibold small text-muted">ҰБТ Ресми Симуляторы (ҰТО Стандарты)</span>
+            </div>
+            <div class="live-timer-badge">
+              <i class="bi bi-clock-history"></i>
+              <span>03:59:48</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-surface-muted rounded-3 border border-subtle">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="badge bg-primary-subtle text-primary fw-semibold px-2 py-1">№ 1 Сұрақ • Қазақстан тарихы</span>
+              <span class="badge bg-success-subtle text-success small"><i class="bi bi-shield-check me-1"></i>2026 Формат</span>
+            </div>
+            <p class="fw-bold mb-3 small">
+              1726 жылы қазақ үш жүзінің өкілдері жиналып, жоңғар басқыншылығына қарсы біріккен майдан құрған тарихи құрылтай қай жерде өтті?
+            </p>
+            <div class="vstack gap-2">
+              <div class="question-option-item selected py-2 px-3 small mb-0">
+                <span class="option-letter-badge" style="width: 26px; height: 26px; font-size: 0.75rem;">A</span>
+                <span>Ордабасы тауында</span>
+              </div>
+              <div class="question-option-item py-2 px-3 small mb-0">
+                <span class="option-letter-badge" style="width: 26px; height: 26px; font-size: 0.75rem;">B</span>
+                <span>Күлтөбеде өткен жиында</span>
+              </div>
+              <div class="question-option-item py-2 px-3 small mb-0">
+                <span class="option-letter-badge" style="width: 26px; height: 26px; font-size: 0.75rem;">C</span>
+                <span>Қарақұм құрылтайында</span>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-subtle">
+              <div class="d-flex gap-1">
+                <span class="badge bg-success small">1: Дұрыс</span>
+                <span class="badge bg-secondary small">2-120: Кезекте</span>
+              </div>
+              <a href="{% url 'exams:start_full_simulation' %}" class="btn btn-sm btn-primary-gradient px-3 py-1">
+                Толық симуляторды ашу <i class="bi bi-arrow-right ms-1"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     Subjects Section
+     ======================================================================== -->
+<section class="section-wrapper" id="subjects">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">5 ҰБТ ПӘНІ</span>
+      <h2 class="section-heading">Барлық негізгі және бейіндік пәндер</h2>
+      <p class="section-desc">
+        3 міндетті пән және өз таңдауыңыз бойынша 2 бейіндік пәнді қамтитын толыққанды тестілеу жүйесі.
+      </p>
+    </div>
+
+    <!-- Compulsory Subjects -->
+    <div class="row g-4 mb-4">
+      {% for subj in compulsory_subjects %}
+        <div class="col-lg-4 col-md-6">
+          <div class="subject-card">
+            <div class="subject-icon-box {{ subj.code|lower }}">
+              <i class="bi {{ subj.icon_class }}"></i>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <h3 class="subject-title mb-0">{{ subj.name }}</h3>
+              <span class="badge bg-warning-subtle text-warning small">Міндетті</span>
+            </div>
+            <p class="subject-desc">{{ subj.description }}</p>
+            <div class="subject-meta">
+              <span>{{ subj.default_question_count }} сұрақ • {{ subj.max_score }} балл</span>
+              <a href="{% url 'exams:start_practice' subj.id %}" class="btn btn-sm btn-secondary-glass py-1 px-3">
+                Жаттығу
+              </a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Profile Subject Combinations Showcase -->
+    <div class="p-4 bg-surface rounded-4 border border-subtle mt-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="fs-5 fw-bold mb-0">Танымал бейіндік пән жұптары</h4>
+        <a href="{% url 'subjects:subjects_list' %}" class="small text-purple">Барлық пәндерді көру <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <div class="row g-3">
+        {% for pair in profile_pairs %}
+          <div class="col-md-6 col-lg-4">
+            <div class="p-3 bg-surface-muted rounded-3 border border-subtle h-100 d-flex flex-column justify-content-between">
+              <div>
+                <span class="badge bg-purple-subtle text-purple mb-2">Бейіндік жұп</span>
+                <h6 class="fw-bold mb-1">{{ pair.name }}</h6>
+                <p class="text-muted small mb-3">{{ pair.description|default:"70 сұрақтан тұратын тереңдетілген арнайы бағыт." }}</p>
+              </div>
+              <a href="{% url 'subjects:select_subjects' %}" class="btn btn-sm btn-secondary-glass w-100">
+                Осы бағытты таңдау
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================================================================
+     How It Works Section
+     ======================================================================== -->
+<section class="section-wrapper bg-surface-muted">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">ДАЙЫНДЫҚ ҚАДАМДАРЫ</span>
+      <h2 class="section-heading">Грантқа жетудің 3 қарапайым қадамы</h2>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-4">
+        <div class="step-card">
+          <div class="step-number-tag">1</div>
+          <h3 class="fs-5 fw-bold mb-3">1. Жеке аккаунт ашыңыз</h3>
+          <p class="text-muted">
+            30 секундта тіркеліп, өзіңіздің мақсатты университетіңіз бен қалаған мамандығыңызды белгілеңіз.
+          </p>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="step-card">
+          <div class="step-number-tag">2</div>
+          <h3 class="fs-5 fw-bold mb-3">2. Бейіндік пәндерді таңдаңыз</h3>
+          <p class="text-muted">
+            Болашақ мамандығыңызға сай бейіндік жұпты таңдаңыз (мысалы, Математика + Физика).
+          </p>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="step-card">
+          <div class="step-number-tag">3</div>
+          <h3 class="fs-5 fw-bold mb-3">3. Тест тапсырып, нәтижені өсіріңіз</h3>
+          <p class="text-muted">
+            Нақты симуляторда тест тапсырып, қателерді егжей-тегжейлі талдап, мемлекеттік грантқа ие болыңыз.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     Pricing Section (Free Platform Notice)
+     ======================================================================== -->
+<section class="section-wrapper" id="pricing">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">ТАРИФТЕР</span>
+      <h2 class="section-heading">Әрбір талапкерге қолжетімді сапалы білім</h2>
+      <p class="section-desc">
+        Платформа іске қосылу кезеңінде барлық оқушылар үшін <b>толықтай тегін</b> жұмыс істейді.
+      </p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+      <!-- Free Plan -->
+      <div class="col-lg-5 col-md-6">
+        <div class="pricing-card">
+          <span class="badge bg-success-subtle text-success text-uppercase mb-3 w-fit-content px-3 py-1 fw-bold">АҒЫМДАҒЫ ТАРИФ</span>
+          <h3 class="fs-4 fw-bold">Free Тариф (Толық ашық)</h3>
+          <div class="pricing-price text-gradient">
+            0 ₸ <span class="fs-6 fw-normal text-muted">/ мерзімсіз</span>
+          </div>
+          <p class="text-muted small">ҰБТ-ға толыққанды дайындалуға арналған барлық функционал тегін қолжетімді.</p>
+          
+          <ul class="pricing-features-list">
+            <li><i class="bi bi-check-circle-fill text-success"></i> Шектеусіз толық ҰБТ симуляторлары</li>
+            <li><i class="bi bi-check-circle-fill text-success"></i> Барлық 5 пән бойынша сұрақтар</li>
+            <li><i class="bi bi-check-circle-fill text-success"></i> Әр сұрақтың дұрыс жауап түсіндірмесі</li>
+            <li><i class="bi bi-check-circle-fill text-success"></i> Жеке балл өсу аналитикасы & Қателер дәптері</li>
+            <li><i class="bi bi-check-circle-fill text-success"></i> Республикалық рейтинг</li>
+          </ul>
+
+          <a href="{% url 'register_student' %}" class="btn btn-primary-gradient w-100 py-3">
+            Қазір тегін тіркелу
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-muted small mt-4 mb-0">
+      * Бастапқы кезеңде ешқандай төлем алынбайды. Жүйені толық еркін қолдануға болады.
+    </p>
+  </div>
+</section>
+{% endblock %}

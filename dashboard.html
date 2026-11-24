@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="kk" data-theme="dark" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  
+  <title>Оқушы кабинеті — ENT MASTER | Аналитика және ҰБТ Нәтижелері</title>
+  
+  <!-- FOUC Prevention Script -->
+  <script>
+    (function() {
+      const storedTheme = localStorage.getItem("color-scheme") || "dark";
+      document.querySelector('meta[name="color-scheme"]').content = storedTheme;
+      document.documentElement.setAttribute('data-theme', storedTheme);
+      document.documentElement.setAttribute('data-bs-theme', storedTheme);
+    })();
+  </script>
+
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5.3.3 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Chart.js for SaaS Educational Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <div class="dashboard-layout">
+    
+    <!-- ====================================================================
+         Sidebar Navigation
+         ==================================================================== -->
+    <aside class="dash-sidebar">
+      <!-- Logo -->
+      <a class="navbar-brand navbar-brand-logo mb-4 px-2" href="index.html">
+        <div class="brand-icon-box">
+          <i class="bi bi-mortarboard-fill"></i>
+        </div>
+        <span>ENT <span class="text-gradient">MASTER</span></span>
+      </a>
+
+      <!-- Student Mini Profile in Sidebar -->
+      <div class="d-flex align-items-center gap-3 p-2 bg-surface-muted rounded-3 mb-4 border border-subtle">
+        <div class="position-relative">
+          <div class="brand-icon-box rounded-circle" style="width: 44px; height: 44px; font-size: 1.2rem;">
+            <i class="bi bi-person-fill"></i>
+          </div>
+          <span class="position-absolute bottom-0 end-0 p-1 bg-success border border-dark rounded-circle"></span>
+        </div>
+        <div class="overflow-hidden">
+          <h6 class="mb-0 fw-bold text-truncate" style="font-size: 0.9rem;">Айдос Тұрсынбай</h6>
+          <span class="badge bg-purple-subtle text-purple small">PRO Оқушы</span>
+        </div>
+      </div>
+
+      <!-- Navigation Menu -->
+      <nav class="nav flex-column mb-auto">
+        <a href="dashboard.html" class="dash-nav-link active">
+          <i class="bi bi-grid-fill"></i> <span data-i18n="dash.sidebar.metrics">Басты көрсеткіштер</span>
+        </a>
+        <a href="index.html#simulator" class="dash-nav-link">
+          <i class="bi bi-play-circle-fill"></i> <span data-i18n="dash.sidebar.mock">Сынақ емтиханы</span>
+        </a>
+        <a href="#analyticsSection" class="dash-nav-link">
+          <i class="bi bi-graph-up-arrow"></i> <span data-i18n="dash.sidebar.analytics">Балл аналитикасы</span>
+        </a>
+        <a href="#weakTopicsSection" class="dash-nav-link">
+          <i class="bi bi-exclamation-triangle-fill"></i> <span data-i18n="dash.sidebar.mistakes">Қателермен жұмыс</span>
+        </a>
+        <a href="#historySection" class="dash-nav-link">
+          <i class="bi bi-clock-history"></i> <span data-i18n="dash.sidebar.history">Тапсыру тарихы</span>
+        </a>
+        <a href="#leaderboardSection" class="dash-nav-link">
+          <i class="bi bi-trophy-fill"></i> <span data-i18n="dash.sidebar.ranking">Республикалық рейтинг</span>
+        </a>
+      </nav>
+
+      <!-- Sidebar Footer / Settings -->
+      <div class="pt-3 border-top border-subtle">
+        <a href="index.html" class="dash-nav-link text-muted">
+          <i class="bi bi-arrow-left-circle"></i> <span data-i18n="dash.sidebar.back">Басты бетке қайту</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- ====================================================================
+         Main Dashboard Content Area
+         ==================================================================== -->
+    <main class="dash-main-content">
+      
+      <!-- Top Bar: Title, Search, Language, Theme Switcher -->
+      <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom border-subtle">
+        <div>
+          <h2 class="fs-4 fw-bold mb-1" data-i18n="dash.title">Жеке Оқушы Кабинеті</h2>
+          <p class="text-muted small mb-0" data-i18n="dash.subtitle">ҰБТ 2026-2027 дайындық барысы мен прогресс көрсеткіші</p>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+          <!-- Language Selector -->
+          <div class="dropdown">
+            <button class="lang-dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="currentLangLabel">
+              🇰🇿 Қазақша
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark-custom dropdown-menu-end">
+              <li><a class="dropdown-item" href="#" data-lang-choice="kk">🇰🇿 Қазақша</a></li>
+              <li><a class="dropdown-item" href="#" data-lang-choice="ru">🇷🇺 Русский</a></li>
+              <li><a class="dropdown-item" href="#" data-lang-choice="en">🇬🇧 English</a></li>
+              <li><a class="dropdown-item" href="#" data-lang-choice="uz">🇺🇿 O'zbekcha</a></li>
+            </ul>
+          </div>
+
+          <!-- Theme Switcher -->
+          <button class="theme-toggle-btn" type="button" aria-label="Toggle theme">
+            <i class="bi bi-sun-fill theme-toggle-icon text-warning"></i>
+          </button>
+
+          <!-- Notification Bell -->
+          <button class="theme-toggle-btn position-relative" type="button" title="Хабарламалар">
+            <i class="bi bi-bell"></i>
+            <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-dark rounded-circle"></span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Welcome Banner -->
+      <section class="dash-welcome-banner">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-warning-subtle text-warning fw-bold px-3 py-1" data-i18n="dash.streak">
+              🔥 14 күн қатарынан дайындық!
+            </span>
+            <span class="badge bg-purple-subtle text-purple fw-bold px-3 py-1" data-i18n="dash.days_badge">
+              ҰБТ-ға дейін: 42 күн
+            </span>
+          </div>
+          <h3 class="fs-3 fw-bold mb-2">
+            <span data-i18n="dash.welcome_title">Қош келдіңіз</span>, <span class="text-gradient">Айдос Тұрсынбай!</span>
+          </h3>
+          <p class="text-muted mb-0 small max-w-md" data-i18n="dash.welcome_desc">
+            Соңғы сынақ емтиханы бойынша сіздің нәтижеңіз 118 / 140 баллға жетті. Мақсатты 130+ баллға жету үшін Физика және Математика пәндері бойынша тағы 3 сынақ тапсыру ұсынылады.
+          </p>
+        </div>
+
+        <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0">
+          <a href="index.html#simulator" class="btn btn-primary-gradient py-3 px-4 shadow">
+            <i class="bi bi-play-circle-fill fs-5"></i> <span data-i18n="dash.start_new">Жаңа тест бастау</span>
+          </a>
+          <span class="text-muted small" data-i18n="dash.version_ready">Нұсқа №4829 дайын</span>
+        </div>
+      </section>
+
+      <!-- Student Key Info Row: Target University, Progress Score, Subscription Status -->
+      <div class="row g-4 mb-4">
+        
+        <!-- Metric 1: Current vs Target Score -->
+        <div class="col-lg-4 col-md-6">
+          <div class="stat-card text-start">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-muted small fw-semibold" data-i18n="dash.current_score">Ағымдағы балл / Мақсат</span>
+              <span class="badge bg-success-subtle text-success small" data-i18n="dash.growth_badge">+12 балл өсім</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2 mb-2">
+              <span class="fs-2 fw-bold text-gradient">118</span>
+              <span class="fs-5 text-muted fw-semibold">/ 140 (мақсат: 132)</span>
+            </div>
+            <div class="progress progress-custom mb-2">
+              <div class="progress-bar progress-bar-custom" style="width: 84%"></div>
+            </div>
+            <span class="text-muted" style="font-size: 0.8rem;" data-i18n="dash.grant_prob">Грантқа түсу ықтималдығы: 91.5%</span>
+          </div>
+        </div>
+
+        <!-- Metric 2: Target University & Specialty -->
+        <div class="col-lg-4 col-md-6">
+          <div class="stat-card text-start">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-muted small fw-semibold" data-i18n="dash.target_uni">Мақсатты Университет</span>
+              <i class="bi bi-building text-purple fs-5"></i>
+            </div>
+            <h5 class="fw-bold mb-1 fs-6">Әл-Фараби атындағы ҚазҰУ</h5>
+            <p class="text-muted small mb-2" data-i18n="dash.target_spec">B057 — Ақпараттық қауіпсіздік</p>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-primary-subtle text-primary small" data-i18n="dash.last_year_score">Өткен жылғы шекті балл: 114</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metric 3: Subscription Status Card -->
+        <div class="col-lg-4 col-md-12">
+          <div class="stat-card text-start" style="border-color: rgba(124, 58, 237, 0.4);">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-muted small fw-semibold" data-i18n="dash.sub_status">Жазылым мәртебесі</span>
+              <span class="badge bg-success text-white small" data-i18n="dash.sub_active">БЕЛСЕНДІ</span>
+            </div>
+            <h5 class="fw-bold mb-1 fs-6 text-gradient">ENT MASTER PRO</h5>
+            <p class="text-muted small mb-2" data-i18n="dash.sub_exp">Мерзімі: 2027 жылдың 30 маусымына дейін</p>
+            <span class="text-muted" style="font-size: 0.8rem;" data-i18n="dash.sub_note">Барлық 120 000+ сұрақтар мен симуляторлар ашық</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 5 Selected Subjects Progress Cards -->
+      <section class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="fs-5 fw-bold mb-0" data-i18n="dash.subjects_title">Менің 5 ҰБТ Пәнім (Математика + Физика)</h4>
+          <span class="badge bg-purple-subtle text-purple" data-i18n="dash.pair_badge">Бейіндік жұп: Техникалық бағыт</span>
+        </div>
+
+        <div class="row g-3">
+          <!-- Subject 1 -->
+          <div class="col-lg col-md-4 col-6">
+            <div class="p-3 bg-surface rounded-3 border border-subtle h-100">
+              <span class="text-warning fs-4 d-block mb-1"><i class="bi bi-landmark-fill"></i></span>
+              <h6 class="fw-bold mb-1 small" data-i18n="subjects.history.title">Қазақстан тарихы</h6>
+              <span class="fs-5 fw-bold text-main">18 / 20</span>
+              <div class="progress progress-custom mt-2">
+                <div class="progress-bar bg-warning" style="width: 90%"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Subject 2 -->
+          <div class="col-lg col-md-4 col-6">
+            <div class="p-3 bg-surface rounded-3 border border-subtle h-100">
+              <span class="text-success fs-4 d-block mb-1"><i class="bi bi-calculator-fill"></i></span>
+              <h6 class="fw-bold mb-1 small" data-i18n="subjects.mathlit.title">Мат. сауаттылық</h6>
+              <span class="fs-5 fw-bold text-main">14 / 15</span>
+              <div class="progress progress-custom mt-2">
+                <div class="progress-bar bg-success" style="width: 93%"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Subject 3 -->
+          <div class="col-lg col-md-4 col-6">
+            <div class="p-3 bg-surface rounded-3 border border-subtle h-100">
+              <span class="text-cyan fs-4 d-block mb-1"><i class="bi bi-book-half"></i></span>
+              <h6 class="fw-bold mb-1 small" data-i18n="subjects.readlit.title">Оқу сауаттылығы</h6>
+              <span class="fs-5 fw-bold text-main">15 / 15</span>
+              <div class="progress progress-custom mt-2">
+                <div class="progress-bar bg-info" style="width: 100%"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Subject 4 -->
+          <div class="col-lg col-md-6 col-6">
+            <div class="p-3 bg-surface rounded-3 border border-subtle h-100">
+              <span class="text-purple fs-4 d-block mb-1"><i class="bi bi-infinity"></i></span>
+              <h6 class="fw-bold mb-1 small">Математика (Бейіндік)</h6>
+              <span class="fs-5 fw-bold text-main">36 / 45</span>
+              <div class="progress progress-custom mt-2">
+                <div class="progress-bar bg-primary" style="width: 80%"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Subject 5 -->
+          <div class="col-lg col-md-6 col-12">
+            <div class="p-3 bg-surface rounded-3 border border-subtle h-100">
+              <span class="text-primary fs-4 d-block mb-1"><i class="bi bi-lightning-charge-fill"></i></span>
+              <h6 class="fw-bold mb-1 small">Физика (Бейіндік)</h6>
+              <span class="fs-5 fw-bold text-main">35 / 45</span>
+              <div class="progress progress-custom mt-2">
+                <div class="progress-bar bg-danger" style="width: 77%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts & Analytics Section -->
+      <section class="row g-4 mb-5" id="analyticsSection">
+        
+        <!-- Score Progression Chart -->
+        <div class="col-lg-8">
+          <div class="p-4 bg-surface rounded-4 border border-subtle h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h5 class="fs-6 fw-bold mb-0" data-i18n="dash.chart_title">Сынақ емтихандары балының өсу динамикасы</h5>
+                <span class="text-muted small" data-i18n="dash.chart_sub">Соңғы 7 ресми сынақ тесті нәтижесі</span>
+              </div>
+              <span class="badge bg-purple-subtle text-purple">+26 балл өсім</span>
+            </div>
+            
+            <div style="height: 280px;">
+              <canvas id="scoreChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weak Topics / Focus Areas -->
+        <div class="col-lg-4" id="weakTopicsSection">
+          <div class="p-4 bg-surface rounded-4 border border-subtle h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fs-6 fw-bold mb-0" data-i18n="dash.weak_title">Әлсіз тақырыптар</h5>
+              <i class="bi bi-exclamation-circle text-warning"></i>
+            </div>
+            <p class="text-muted small mb-3" data-i18n="dash.weak_sub">Қателер жиі кездесетін тақырыптар бойынша арнайы жаттығулар ұсынылады:</p>
+
+            <div class="vstack gap-2">
+              <div class="p-2 bg-surface-muted rounded-2 border border-subtle">
+                <div class="d-flex justify-content-between align-items-center small">
+                  <span class="fw-bold text-primary">Физика: Термодинамика</span>
+                  <span class="badge bg-danger-subtle text-danger">54% дәлдік</span>
+                </div>
+                <span class="text-muted" style="font-size: 0.75rem;">Идеал газ заңдары, Карно циклі</span>
+              </div>
+
+              <div class="p-2 bg-surface-muted rounded-2 border border-subtle">
+                <div class="d-flex justify-content-between align-items-center small">
+                  <span class="fw-bold text-primary">Математика: Стереометрия</span>
+                  <span class="badge bg-danger-subtle text-danger">61% дәлдік</span>
+                </div>
+                <span class="text-muted" style="font-size: 0.75rem;">Қиық конус, пирамида көлемі</span>
+              </div>
+
+              <div class="p-2 bg-surface-muted rounded-2 border border-subtle">
+                <div class="d-flex justify-content-between align-items-center small">
+                  <span class="fw-bold text-primary">Тарих: 1916 жылғы көтеріліс</span>
+                  <span class="badge bg-warning-subtle text-warning">68% дәлдік</span>
+                </div>
+                <span class="text-muted" style="font-size: 0.75rem;">Жетісу және Торғай ошақтары</span>
+              </div>
+            </div>
+
+            <a href="index.html#simulator" class="btn btn-sm btn-secondary-glass w-100 mt-3 py-2">
+              <i class="bi bi-arrow-repeat me-1"></i> <span data-i18n="dash.btn_retake_errors">Қателерді қайта тапсыру</span>
+            </a>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Exam History Table & National Leaderboard Preview -->
+      <div class="row g-4">
+        
+        <!-- Exam History Table -->
+        <div class="col-lg-8" id="historySection">
+          <div class="p-4 bg-surface rounded-4 border border-subtle">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fs-6 fw-bold mb-0" data-i18n="dash.history_title">Тапсырылған сынақ тестілерінің тарихы</h5>
+              <span class="text-muted small" data-i18n="dash.history_total">Барлығы: 18 тест</span>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-borderless align-middle mb-0 text-main">
+                <thead class="border-bottom border-subtle text-muted small">
+                  <tr>
+                    <th data-i18n="dash.th_test">№ Тест</th>
+                    <th data-i18n="dash.th_date">Күні</th>
+                    <th data-i18n="dash.th_subjects">Пәндер</th>
+                    <th data-i18n="dash.th_duration">Уақыты</th>
+                    <th data-i18n="dash.th_score">Баллы</th>
+                    <th data-i18n="dash.th_action">Әрекет</th>
+                  </tr>
+                </thead>
+                <tbody class="small">
+                  <tr class="border-bottom border-subtle">
+                    <td class="fw-bold">#4828</td>
+                    <td>23 қараша, 2026</td>
+                    <td>Мат + Физ</td>
+                    <td>3 сағ 12 мин</td>
+                    <td><span class="badge bg-success-subtle text-success fw-bold px-2 py-1 fs-7">118 / 140</span></td>
+                    <td><a href="index.html#simulator" class="btn btn-sm btn-secondary-glass py-1 px-2" data-i18n="dash.btn_review">Талдау</a></td>
+                  </tr>
+                  <tr class="border-bottom border-subtle">
+                    <td class="fw-bold">#4815</td>
+                    <td>20 қараша, 2026</td>
+                    <td>Мат + Физ</td>
+                    <td>3 сағ 35 мин</td>
+                    <td><span class="badge bg-success-subtle text-success fw-bold px-2 py-1 fs-7">114 / 140</span></td>
+                    <td><a href="index.html#simulator" class="btn btn-sm btn-secondary-glass py-1 px-2" data-i18n="dash.btn_review">Талдау</a></td>
+                  </tr>
+                  <tr class="border-bottom border-subtle">
+                    <td class="fw-bold">#4792</td>
+                    <td>16 қараша, 2026</td>
+                    <td>Мат + Физ</td>
+                    <td>3 сағ 44 мин</td>
+                    <td><span class="badge bg-warning-subtle text-warning fw-bold px-2 py-1 fs-7">106 / 140</span></td>
+                    <td><a href="index.html#simulator" class="btn btn-sm btn-secondary-glass py-1 px-2" data-i18n="dash.btn_review">Талдау</a></td>
+                  </tr>
+                  <tr>
+                    <td class="fw-bold">#4750</td>
+                    <td>11 қараша, 2026</td>
+                    <td>Мат + Физ</td>
+                    <td>3 сағ 50 мин</td>
+                    <td><span class="badge bg-secondary-subtle text-muted fw-bold px-2 py-1 fs-7">98 / 140</span></td>
+                    <td><a href="index.html#simulator" class="btn btn-sm btn-secondary-glass py-1 px-2" data-i18n="dash.btn_review">Талдау</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Leaderboard Preview -->
+        <div class="col-lg-4" id="leaderboardSection">
+          <div class="p-4 bg-surface rounded-4 border border-subtle">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="fs-6 fw-bold mb-0" data-i18n="dash.leaderboard_title">Республикалық рейтинг (Топ-5)</h5>
+              <span class="badge bg-purple-subtle text-purple small" data-i18n="dash.month_badge">Қараша айы</span>
+            </div>
+
+            <div class="vstack gap-3">
+              <!-- Rank 1 -->
+              <div class="d-flex align-items-center justify-content-between p-2 rounded-3 bg-surface-muted border border-subtle">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-warning text-dark fw-bold">1</span>
+                  <div>
+                    <h6 class="mb-0 fw-bold small">Аружан Сейітхан</h6>
+                    <span class="text-muted" style="font-size: 0.75rem;">Алматы қ. • РФМШ</span>
+                  </div>
+                </div>
+                <span class="fw-bold text-gradient">138 балл</span>
+              </div>
+
+              <!-- Rank 2 -->
+              <div class="d-flex align-items-center justify-content-between p-2 rounded-3 bg-surface-muted border border-subtle">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-secondary text-white fw-bold">2</span>
+                  <div>
+                    <h6 class="mb-0 fw-bold small">Нұрлан Әлімов</h6>
+                    <span class="text-muted" style="font-size: 0.75rem;">Астана қ. • БИЛ</span>
+                  </div>
+                </div>
+                <span class="fw-bold text-gradient">137 балл</span>
+              </div>
+
+              <!-- Rank 3 -->
+              <div class="d-flex align-items-center justify-content-between p-2 rounded-3 bg-surface-muted border border-subtle">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-secondary-subtle text-muted fw-bold">3</span>
+                  <div>
+                    <h6 class="mb-0 fw-bold small">Динара Қайрат</h6>
+                    <span class="text-muted" style="font-size: 0.75rem;">Шымкент қ. • №1 Лицей</span>
+                  </div>
+                </div>
+                <span class="fw-bold text-gradient">135 балл</span>
+              </div>
+
+              <!-- Current User Rank in Leaderboard -->
+              <div class="d-flex align-items-center justify-content-between p-2 rounded-3 border border-purple" style="background: rgba(124, 58, 237, 0.08);">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-purple text-white fw-bold">42</span>
+                  <div>
+                    <h6 class="mb-0 fw-bold small text-purple">Айдос Тұрсынбай (Сіз)</h6>
+                    <span class="text-muted" style="font-size: 0.75rem;">Алматы қ. • №178 Лицей</span>
+                  </div>
+                </div>
+                <span class="fw-bold text-purple">118 балл</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Translations Dictionary -->
+  <script src="assets/js/translations.js"></script>
+  <!-- Main Script -->
+  <script src="assets/js/main.js"></script>
+
+  <!-- Dashboard Chart Initialization -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const ctx = document.getElementById('scoreChart');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: ['Тест 1 (Қаз)', 'Тест 2 (Қаз)', 'Тест 3 (Қар)', 'Тест 4 (Қар)', 'Тест 5 (Қар)', 'Тест 6 (Қар)', 'Тест 7 (Бүгін)'],
+            datasets: [{
+              label: 'ҰБТ Жалпы балы',
+              data: [92, 98, 102, 106, 111, 114, 118],
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.15)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.35,
+              pointBackgroundColor: '#8b5cf6',
+              pointRadius: 5
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+              y: {
+                min: 80,
+                max: 140,
+                grid: {
+                  color: 'rgba(255, 255, 255, 0.06)'
+                },
+                ticks: {
+                  color: '#94a3b8'
+                }
+              },
+              x: {
+                grid: {
+                  display: false
+                },
+                ticks: {
+                  color: '#94a3b8'
+                }
+              }
+            }
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

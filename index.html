@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="kk" data-theme="dark" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- MANDATORY: Declare support for both light and dark themes (modern-web-guidance) -->
+  <meta name="color-scheme" content="light dark">
+  
+  <title>ENT MASTER — ҰБТ-ға сенімді дайындық | Онлайн ҰБТ Платформасы</title>
+  <meta name="description" content="Қазақстанның жетекші ҰБТ дайындық платформасы. 120 000+ тест сұрақтары, нақты ҰБТ симуляторы, 5 пән бойынша аналитика.">
+  
+  <!-- FOUC Prevention Script (modern-web-guidance) -->
+  <script>
+    (function() {
+      const storedTheme = localStorage.getItem("color-scheme") || "dark";
+      document.querySelector('meta[name="color-scheme"]').content = storedTheme;
+      document.documentElement.setAttribute('data-theme', storedTheme);
+      document.documentElement.setAttribute('data-bs-theme', storedTheme);
+    })();
+  </script>
+
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5.3.3 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <!-- ========================================================================
+       Navigation Bar
+       ======================================================================== -->
+  <nav class="navbar navbar-expand-lg ent-navbar">
+    <div class="container">
+      <!-- Brand Logo -->
+      <a class="navbar-brand navbar-brand-logo" href="index.html">
+        <div class="brand-icon-box">
+          <i class="bi bi-mortarboard-fill"></i>
+        </div>
+        <span>ENT <span class="text-gradient">MASTER</span></span>
+      </a>
+
+      <!-- Mobile Toggle Button -->
+      <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+        <i class="bi bi-list fs-2"></i>
+      </button>
+
+      <!-- Nav Links & Actions -->
+      <div class="collapse navbar-collapse" id="navbarContent">
+        <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-1">
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom active" href="#home" data-i18n="nav.home">Басты бет</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="#subjects" data-i18n="nav.subjects">Пәндер</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="#simulator" data-i18n="nav.mock">Сынақ тесті</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="#rankings" data-i18n="nav.rankings">Рейтинг</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="#pricing" data-i18n="nav.pricing">Тарифтер</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="dashboard.html" data-i18n="nav.dashboard">
+              <i class="bi bi-speedometer2 me-1 text-primary"></i>Оқушы кабинеті
+            </a>
+          </li>
+        </ul>
+
+        <!-- Right Side Controls: Language, Theme Switcher, Auth -->
+        <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+          <!-- Language Selector Dropdown -->
+          <div class="dropdown">
+            <button class="lang-dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="currentLangLabel">
+              🇰🇿 Қазақша
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark-custom dropdown-menu-end">
+              <li><a class="dropdown-item" href="#" data-lang-choice="kk">🇰🇿 Қазақша (KK)</a></li>
+              <li><a class="dropdown-item" href="#" data-lang-choice="ru">🇷🇺 Русский (RU)</a></li>
+              <li><a class="dropdown-item" href="#" data-lang-choice="en">🇬🇧 English (EN)</a></li>
+              <li><a class="dropdown-item" href="#" data-lang-choice="uz">🇺🇿 O'zbekcha (UZ)</a></li>
+            </ul>
+          </div>
+
+          <!-- Theme Toggle Switcher -->
+          <button class="theme-toggle-btn" type="button" aria-label="Toggle color theme" title="Түсті тақырыпты ауыстыру">
+            <i class="bi bi-sun-fill theme-toggle-icon text-warning"></i>
+          </button>
+
+          <!-- Login / Register Buttons -->
+          <button class="btn btn-secondary-glass py-2 px-3" data-bs-toggle="modal" data-bs-target="#authModal" data-i18n="nav.login">
+            Кіру
+          </button>
+          <button class="btn btn-primary-gradient py-2 px-3" data-bs-toggle="modal" data-bs-target="#authModal" data-i18n="nav.register">
+            Тіркелу
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ========================================================================
+       Hero Section
+       ======================================================================== -->
+  <section class="hero-section" id="home">
+    <div class="hero-glow-bg"></div>
+    <div class="container position-relative" style="z-index: 1;">
+      <div class="row align-items-center g-5">
+        
+        <!-- Left Column: Copy & CTAs -->
+        <div class="col-lg-6">
+          <div class="hero-badge-pill">
+            <span data-i18n="hero.badge">🔥 2026-2027 ҰБТ Жаңа форматтағы тестілеу базасы</span>
+          </div>
+          <h1 class="hero-title">
+            <span data-i18n="hero.title">ҰБТ-ға сенімділікпен дайындал</span>
+            <span class="text-gradient d-block">ENT MASTER</span>
+          </h1>
+          <p class="hero-subtitle" data-i18n="hero.subtitle">
+            Қазақстанның жетекші білім гранттарына жол ашатын заманауи онлайн платформа. Нақты ҰБТ симуляторы, 120 000+ өзекті сұрақ және тереңдетілген аналитика.
+          </p>
+
+          <div class="d-flex flex-wrap gap-3">
+            <a href="#simulator" class="btn btn-primary-gradient btn-lg">
+              <i class="bi bi-play-circle-fill"></i>
+              <span data-i18n="hero.cta.start">Тестті бастау</span>
+            </a>
+            <a href="#subjects" class="btn btn-secondary-glass btn-lg">
+              <i class="bi bi-journal-bookmark"></i>
+              <span data-i18n="hero.cta.explore">Пәндерді таңдау</span>
+            </a>
+          </div>
+
+          <!-- Hero Metrics Strip -->
+          <div class="hero-metrics-strip">
+            <div class="metric-item">
+              <h4 class="text-gradient" data-i18n="hero.stat1.val">140 / 140</h4>
+              <span data-i18n="hero.stat1.lbl">Максималды балл</span>
+            </div>
+            <div class="metric-item">
+              <h4 class="text-gradient-cyan" data-i18n="hero.stat2.val">98.4%</h4>
+              <span data-i18n="hero.stat2.lbl">Грантқа түскендер</span>
+            </div>
+            <div class="metric-item">
+              <h4 class="text-gradient" data-i18n="hero.stat3.val">120 000+</h4>
+              <span data-i18n="hero.stat3.lbl">Өзекті сұрақтар</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Live Simulator Window Preview -->
+        <div class="col-lg-6">
+          <div class="hero-preview-frame">
+            <div class="simulator-window-header">
+              <div class="d-flex align-items-center gap-3">
+                <div class="window-dots">
+                  <div class="dot red"></div>
+                  <div class="dot yellow"></div>
+                  <div class="dot green"></div>
+                </div>
+                <span class="fw-semibold small text-muted">ҰБТ Ресми Симуляторы (ҰТО Стандарты)</span>
+              </div>
+              <div class="live-timer-badge">
+                <i class="bi bi-clock-history"></i>
+                <span id="heroClockPreview">03:59:48</span>
+              </div>
+            </div>
+
+            <!-- Mini Live Interactive Teaser Card -->
+            <div class="p-3 bg-surface-muted rounded-3 border border-subtle">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge bg-primary-subtle text-primary fw-semibold px-2 py-1">№ 1 Сұрақ • Қазақстан тарихы</span>
+                <span class="badge bg-success-subtle text-success small"><i class="bi bi-shield-check me-1"></i>2026 Формат</span>
+              </div>
+              <p class="fw-bold mb-3 small">
+                1726 жылы қазақ үш жүзінің өкілдері жиналып, жоңғар басқыншылығына қарсы біріккен майдан құрған тарихи құрылтай қай жерде өтті?
+              </p>
+              <div class="vstack gap-2">
+                <div class="question-option-item selected py-2 px-3 small mb-0">
+                  <span class="option-letter-badge" style="width: 26px; height: 26px; font-size: 0.75rem;">A</span>
+                  <span>Ордабасы тауында</span>
+                </div>
+                <div class="question-option-item py-2 px-3 small mb-0">
+                  <span class="option-letter-badge" style="width: 26px; height: 26px; font-size: 0.75rem;">B</span>
+                  <span>Күлтөбеде өткен жиында</span>
+                </div>
+                <div class="question-option-item py-2 px-3 small mb-0">
+                  <span class="option-letter-badge" style="width: 26px; height: 26px; font-size: 0.75rem;">C</span>
+                  <span>Қарақұм құрылтайында</span>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-subtle">
+                <div class="d-flex gap-1">
+                  <span class="badge bg-success small">1: Дұрыс</span>
+                  <span class="badge bg-secondary small">2-120: Кезекте</span>
+                </div>
+                <a href="#simulator" class="btn btn-sm btn-primary-gradient px-3 py-1">
+                  Толық симуляторды ашу <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       Subjects Section (5 Subjects)
+       ======================================================================== -->
+  <section class="section-wrapper" id="subjects">
+    <div class="container">
+      
+      <div class="text-center mb-4">
+        <span class="section-tag" data-i18n="subjects.tag">5 ҰБТ ПӘНІ</span>
+        <h2 class="section-heading" data-i18n="subjects.title">Барлық негізгі және бейіндік пәндер</h2>
+        <p class="section-desc" data-i18n="subjects.subtitle">
+          3 міндетті пән және өз таңдауыңыз бойынша 2 бейіндік пәнді қамтитын толыққанды дайындық курстары
+        </p>
+
+        <!-- Profile Pair Switcher -->
+        <div class="profile-pair-selector-wrap">
+          <i class="bi bi-sliders text-purple fs-5"></i>
+          <span class="fw-semibold small" data-i18n="subjects.select_pair">Бейіндік жұпты таңдаңыз:</span>
+          <select class="form-select form-select-sm bg-surface-muted text-main border-subtle w-auto" id="profilePairSelect">
+            <option value="math-phys" selected>Математика + Физика (Инженерия & IT)</option>
+            <option value="bio-chem">Биология + Химия (Медицина & Фармация)</option>
+            <option value="geog-math">География + Математика (Экономика & Логистика)</option>
+            <option value="cs-math">Информатика + Математика (Киберқауіпсіздік & AI)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 5 Subject Cards Grid -->
+      <div class="row g-4">
+        
+        <!-- Subject 1: Kazakhstan History -->
+        <div class="col-lg-4 col-md-6">
+          <div class="subject-card">
+            <div class="subject-icon-box history">
+              <i class="bi bi-landmark-fill"></i>
+            </div>
+            <h3 class="subject-title" data-i18n="subjects.history.title">Қазақстан тарихы</h3>
+            <p class="subject-desc" data-i18n="subjects.history.desc">
+              Ежелгі дәуірден бүгінгі күнге дейінгі кезеңдер, хронологиялық кестелер мен карталар.
+            </p>
+            <div class="subject-meta">
+              <span data-i18n="subjects.history.meta">20 сұрақ • 40 тақырып</span>
+              <a href="#simulator" class="btn btn-sm btn-secondary-glass py-1 px-3" data-i18n="subjects.explore_btn">Пәнді ашу</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject 2: Mathematical Literacy -->
+        <div class="col-lg-4 col-md-6">
+          <div class="subject-card">
+            <div class="subject-icon-box mathlit">
+              <i class="bi bi-calculator-fill"></i>
+            </div>
+            <h3 class="subject-title" data-i18n="subjects.mathlit.title">Математикалық сауаттылық</h3>
+            <p class="subject-desc" data-i18n="subjects.mathlit.desc">
+              Логика, диаграммалар мен графиктерді талдау, практикалық есептерді шешу алгоритмдері.
+            </p>
+            <div class="subject-meta">
+              <span data-i18n="subjects.mathlit.meta">15 сұрақ • 25 тақырып</span>
+              <a href="#simulator" class="btn btn-sm btn-secondary-glass py-1 px-3" data-i18n="subjects.explore_btn">Пәнді ашу</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject 3: Reading Literacy -->
+        <div class="col-lg-4 col-md-6">
+          <div class="subject-card">
+            <div class="subject-icon-box readlit">
+              <i class="bi bi-book-half"></i>
+            </div>
+            <h3 class="subject-title" data-i18n="subjects.readlit.title">Оқу сауаттылығы</h3>
+            <p class="subject-desc" data-i18n="subjects.readlit.desc">
+              Күрделі мәтіндермен жұмыс, тұжырым жасау, идея мен автор көзқарасын анықтау.
+            </p>
+            <div class="subject-meta">
+              <span data-i18n="subjects.readlit.meta">15 сұрақ • 30 мәтін түрі</span>
+              <a href="#simulator" class="btn btn-sm btn-secondary-glass py-1 px-3" data-i18n="subjects.explore_btn">Пәнді ашу</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject 4: Profile 1 (Dynamic) -->
+        <div class="col-lg-6 col-md-6">
+          <div class="subject-card">
+            <div class="subject-icon-box math">
+              <i class="bi bi-infinity"></i>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h3 class="subject-title mb-0" id="prof1Title" data-i18n="subjects.prof1.title">Бейіндік пән 1 (Математика)</h3>
+              <span class="badge bg-purple-subtle text-purple border border-purple">Бейіндік №1</span>
+            </div>
+            <p class="subject-desc" id="prof1Desc" data-i18n="subjects.prof1.desc">
+              Алгебра, тригонометрия, планиметрия және стереометрия есептері, функциялар мен туындылар.
+            </p>
+            <div class="subject-meta">
+              <span data-i18n="subjects.prof1.meta">35 сұрақ • 50 тақырып</span>
+              <a href="#simulator" class="btn btn-sm btn-secondary-glass py-1 px-3" data-i18n="subjects.explore_btn">Пәнді ашу</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject 5: Profile 2 (Dynamic) -->
+        <div class="col-lg-6 col-md-12">
+          <div class="subject-card">
+            <div class="subject-icon-box physics">
+              <i class="bi bi-lightning-charge-fill"></i>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h3 class="subject-title mb-0" id="prof2Title" data-i18n="subjects.prof2.title">Бейіндік пән 2 (Физика)</h3>
+              <span class="badge bg-primary-subtle text-primary border border-primary">Бейіндік №2</span>
+            </div>
+            <p class="subject-desc" id="prof2Desc" data-i18n="subjects.prof2.desc">
+              Механика, термодинамика, электродинамика, кванттық және атомдық физика бөлімдері.
+            </p>
+            <div class="subject-meta">
+              <span data-i18n="subjects.prof2.meta">35 сұрақ • 45 тақырып</span>
+              <a href="#simulator" class="btn btn-sm btn-secondary-glass py-1 px-3" data-i18n="subjects.explore_btn">Пәнді ашу</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       Exam Simulation Section (test-ent.kz / edutest.kz Inspired)
+       ======================================================================== -->
+  <section class="section-wrapper" id="simulator">
+    <div class="container">
+      
+      <div class="text-center mb-5">
+        <span class="section-tag" data-i18n="exam.badge">НАҚТЫ СИМУЛЯТОР</span>
+        <h2 class="section-heading" data-i18n="exam.title">Нағыз ҰБТ атмосферасы мен интерфейсі</h2>
+        <p class="section-desc" data-i18n="exam.subtitle">
+          test-ent.kz және ҰТО стандартына сәйкес жасалған интерфейс. Уақытты сезініп, стресске бой алдырмай, жоғары нәтиже көрсетіңіз.
+        </p>
+      </div>
+
+      <!-- Simulation Core Showcase -->
+      <div class="simulation-box">
+        
+        <!-- Simulator Top Control Bar -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3 mb-4 border-bottom border-subtle">
+          <div class="d-flex align-items-center gap-3">
+            <div class="badge bg-danger-subtle text-danger px-3 py-2 fs-6 rounded-3 fw-bold d-flex align-items-center gap-2">
+              <i class="bi bi-hourglass-split"></i>
+              <span id="liveExamTimer">03:59:42</span>
+            </div>
+            <span class="text-muted small d-none d-sm-inline" id="autoSaveIndicator">
+              <i class="bi bi-cloud-check text-success"></i> Авто-сақтау қосулы
+            </span>
+          </div>
+
+          <div class="d-flex align-items-center gap-2">
+            <!-- Calculator Modal Trigger -->
+            <button class="btn btn-sm btn-secondary-glass" type="button" data-bs-toggle="modal" data-bs-target="#calculatorModal">
+              <i class="bi bi-calculator"></i> <span class="d-none d-md-inline" data-i18n="exam.calc">Калькулятор</span>
+            </button>
+            <!-- Formula Sheet Trigger -->
+            <button class="btn btn-sm btn-secondary-glass" type="button" data-bs-toggle="modal" data-bs-target="#formulaModal">
+              <i class="bi bi-file-earmark-ruled"></i> <span class="d-none d-md-inline" data-i18n="exam.formulas">Формулалар</span>
+            </button>
+            <!-- Finish Exam CTA -->
+            <button class="btn btn-sm btn-danger px-3" type="button" id="finishExamBtn">
+              <i class="bi bi-check2-all me-1"></i> Тестті аяқтау
+            </button>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          
+          <!-- Left: Question & Options Engine -->
+          <div class="col-lg-8">
+            <div class="ent-test-engine-card">
+              
+              <!-- Question Header Meta -->
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="badge bg-purple-subtle text-purple px-3 py-1 fs-6 fw-bold" id="examQSubject">
+                  Қазақстан тарихы
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="text-muted small fw-semibold" id="examQNumber">Сұрақ 1 / 10</span>
+                  <button class="btn btn-sm btn-secondary-glass py-1 px-2" id="flagQuestionBtn" title="Сұраққа белгі қою">
+                    <i class="bi bi-flag"></i> Белгі қою
+                  </button>
+                </div>
+              </div>
+
+              <!-- Question Prompt Text -->
+              <div class="p-3 bg-surface rounded-3 border border-subtle mb-4">
+                <p class="fs-6 fw-bold mb-0 text-main" id="examQuestionText">
+                  1726 жылы қазақ үш жүзінің өкілдері жиналып, жоңғарларға қарсы ортақ майдан құру туралы шешім қабылдаған құрылтай қай жерде өтті?
+                </p>
+              </div>
+
+              <!-- Options Container (Dynamic) -->
+              <div id="examOptionsContainer" class="mb-4">
+                <!-- Dynamically populated by main.js -->
+              </div>
+
+              <!-- Prev / Next Navigation -->
+              <div class="d-flex justify-content-between align-items-center pt-3 border-top border-subtle">
+                <button class="btn btn-secondary-glass px-4" id="examPrevBtn" disabled>
+                  <i class="bi bi-chevron-left me-1"></i> Алдыңғы
+                </button>
+                <button class="btn btn-primary-gradient px-4" id="examNextBtn">
+                  Келесі <i class="bi bi-chevron-right ms-1"></i>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Right: 120 Question Palette & Simulation Features -->
+          <div class="col-lg-4">
+            <div class="bg-surface-muted p-3 rounded-4 border border-subtle mb-4">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="fw-bold small">Сұрақтар палитрасы</span>
+                <span class="badge bg-secondary-subtle text-muted small">10 сұрақ (Демо)</span>
+              </div>
+              
+              <!-- Palette Grid -->
+              <div class="question-nav-grid" id="examQuestionPalette">
+                <!-- Populated by JS -->
+              </div>
+
+              <!-- Palette Legend -->
+              <div class="d-flex flex-wrap gap-3 pt-3 border-top border-subtle small text-muted">
+                <div class="d-flex align-items-center gap-1">
+                  <span class="dot green"></span> <span>Жауап берілген</span>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                  <span class="dot yellow"></span> <span>Белгіленген</span>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                  <span class="dot" style="background: #3b82f6;"></span> <span>Ағымдағы</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Simulation Value Props -->
+            <div class="vstack gap-2">
+              <div class="d-flex align-items-start gap-3 p-3 bg-surface rounded-3 border border-subtle">
+                <i class="bi bi-stopwatch text-purple fs-4"></i>
+                <div>
+                  <h6 class="mb-1 fw-bold small" data-i18n="exam.f1.title">Жалпы кері санақ таймері</h6>
+                  <p class="mb-0 text-muted" style="font-size: 0.8rem;" data-i18n="exam.f1.desc">
+                    Ресми 240 минуттық емтихан уақытын нақты бақылау жүйесі.
+                  </p>
+                </div>
+              </div>
+              <div class="d-flex align-items-start gap-3 p-3 bg-surface rounded-3 border border-subtle">
+                <i class="bi bi-cloud-arrow-up text-cyan fs-4"></i>
+                <div>
+                  <h6 class="mb-1 fw-bold small" data-i18n="exam.f3.title">Жауаптарды автоматты сақтау</h6>
+                  <p class="mb-0 text-muted" style="font-size: 0.8rem;" data-i18n="exam.f3.desc">
+                    Әрбір таңдалған нұсқа лезде қауіпсіз серверде сақталады.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       Statistics Section
+       ======================================================================== -->
+  <section class="section-wrapper bg-surface-muted" id="rankings">
+    <div class="container">
+      
+      <div class="text-center mb-5">
+        <span class="section-tag" data-i18n="stats.tag">ПЛАТФОРМА КӨРСЕТКІШТЕРІ</span>
+        <h2 class="section-heading" data-i18n="stats.title">Сандар біздің сапамызды айғақтайды</h2>
+      </div>
+
+      <div class="row g-4">
+        <!-- Stat 1 -->
+        <div class="col-lg-3 col-sm-6">
+          <div class="stat-card">
+            <div class="stat-card-number text-gradient" data-i18n="stats.c1.val">45 000+</div>
+            <div class="stat-card-label" data-i18n="stats.c1.lbl">Тіркелген оқушы</div>
+          </div>
+        </div>
+        <!-- Stat 2 -->
+        <div class="col-lg-3 col-sm-6">
+          <div class="stat-card">
+            <div class="stat-card-number text-gradient-cyan" data-i18n="stats.c2.val">120 000+</div>
+            <div class="stat-card-label" data-i18n="stats.c2.lbl">Сұрақтар базасы</div>
+          </div>
+        </div>
+        <!-- Stat 3 -->
+        <div class="col-lg-3 col-sm-6">
+          <div class="stat-card">
+            <div class="stat-card-number text-gradient" data-i18n="stats.c3.val">380 000+</div>
+            <div class="stat-card-label" data-i18n="stats.c3.lbl">Тапсырылған емтихан</div>
+          </div>
+        </div>
+        <!-- Stat 4 -->
+        <div class="col-lg-3 col-sm-6">
+          <div class="stat-card">
+            <div class="stat-card-number text-gradient-cyan" data-i18n="stats.c4.val">114.8</div>
+            <div class="stat-card-label" data-i18n="stats.c4.lbl">Орташа оқушы балы</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mandatory Realistic Disclaimer -->
+      <p class="text-center text-muted small mt-4 mb-0" data-i18n="stats.disclaimer">
+        * Көрсеткіштер демо мақсатында ұсынылған көрнекі мысал болып табылады.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       How It Works Section (3 Steps)
+       ======================================================================== -->
+  <section class="section-wrapper">
+    <div class="container">
+      
+      <div class="text-center mb-5">
+        <span class="section-tag" data-i18n="how.tag">ДАЙЫНДЫҚ ҚАДАМДАРЫ</span>
+        <h2 class="section-heading" data-i18n="how.title">Грантқа жетудің 3 қарапайым қадамы</h2>
+      </div>
+
+      <div class="row g-4">
+        <!-- Step 1 -->
+        <div class="col-lg-4">
+          <div class="step-card">
+            <div class="step-number-tag">1</div>
+            <h3 class="fs-5 fw-bold mb-3" data-i18n="how.s1.title">1. Жеке аккаунт ашыңыз</h3>
+            <p class="text-muted" data-i18n="how.s1.desc">
+              30 секундта тіркеліп, өзіңіздің мақсатты университетіңіз бен қалаған мамандығыңызды белгілеңіз.
+            </p>
+          </div>
+        </div>
+        <!-- Step 2 -->
+        <div class="col-lg-4">
+          <div class="step-card">
+            <div class="step-number-tag">2</div>
+            <h3 class="fs-5 fw-bold mb-3" data-i18n="how.s2.title">2. Бейіндік пәндерді таңдаңыз</h3>
+            <p class="text-muted" data-i18n="how.s2.desc">
+              Болашақ мамандығыңызға сай бейіндік жұпты таңдап, деңгей анықтау тестінен өтіңіз.
+            </p>
+          </div>
+        </div>
+        <!-- Step 3 -->
+        <div class="col-lg-4">
+          <div class="step-card">
+            <div class="step-number-tag">3</div>
+            <h3 class="fs-5 fw-bold mb-3" data-i18n="how.s3.title">3. Тест тапсырып, нәтижені өсіріңіз</h3>
+            <p class="text-muted" data-i18n="how.s3.desc">
+              Күнделікті сынама тестілерді тапсырып, қателерді егжей-тегжейлі талдап, баллыңызды арттырыңыз.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       Pricing Section
+       ======================================================================== -->
+  <section class="section-wrapper bg-surface-muted" id="pricing">
+    <div class="container">
+      
+      <div class="text-center mb-5">
+        <span class="section-tag" data-i18n="pricing.tag">ТАРИФТЕР</span>
+        <h2 class="section-heading" data-i18n="pricing.title">Әрбір талапкерге қолжетімді білім</h2>
+        <p class="section-desc" data-i18n="pricing.subtitle">
+          Өзіңізге ыңғайлы жоспарды таңдап, ҰБТ-ға нәтижелі дайындықты бүгіннен бастаңыз.
+        </p>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        
+        <!-- Free Plan -->
+        <div class="col-lg-5 col-md-6">
+          <div class="pricing-card">
+            <span class="badge bg-secondary-subtle text-muted text-uppercase mb-3 w-fit-content px-3 py-1 fw-bold" data-i18n="pricing.free.badge">БАЗАЛЫҚ</span>
+            <h3 class="fs-4 fw-bold" data-i18n="pricing.free.title">Free Тариф</h3>
+            <div class="pricing-price">
+              <span data-i18n="pricing.free.price">0 ₸</span>
+              <span class="fs-6 fw-normal text-muted" data-i18n="pricing.free.period">/ мерзімсіз</span>
+            </div>
+            <p class="text-muted small">Платформамен танысу және алғашқы сынама тесттер үшін тамаша таңдау.</p>
+            
+            <ul class="pricing-features-list">
+              <li><i class="bi bi-check-circle-fill"></i> <span data-i18n="pricing.free.f1">Күніне 1 толық сынақ тесті</span></li>
+              <li><i class="bi bi-check-circle-fill"></i> <span data-i18n="pricing.free.f2">3 міндетті пән сұрақтары</span></li>
+              <li><i class="bi bi-check-circle-fill"></i> <span data-i18n="pricing.free.f3">Жалпы балл көрсеткіші</span></li>
+              <li><i class="bi bi-check-circle-fill"></i> <span data-i18n="pricing.free.f4">Негізгі сұрақтар банкі</span></li>
+            </ul>
+
+            <button class="btn btn-secondary-glass w-100 py-3" data-bs-toggle="modal" data-bs-target="#authModal" data-i18n="pricing.free.btn">
+              Тегін бастау
+            </button>
+          </div>
+        </div>
+
+        <!-- Pro Plan (Featured) -->
+        <div class="col-lg-5 col-md-6">
+          <div class="pricing-card featured">
+            <div class="pricing-badge-pill" data-i18n="pricing.pro.badge">ЕҢ ТАНЫМАЛ</div>
+            <h3 class="fs-4 fw-bold mt-2" data-i18n="pricing.pro.title">ENT Master PRO</h3>
+            <div class="pricing-price text-gradient">
+              <span data-i18n="pricing.pro.price">4 990 ₸</span>
+              <span class="fs-6 fw-normal text-muted" data-i18n="pricing.pro.period">/ айына</span>
+            </div>
+            <p class="text-muted small">Мемлекеттік грантты көздеген талапкерлерге арналған толық кешенді құралдар.</p>
+            
+            <ul class="pricing-features-list">
+              <li><i class="bi bi-check-circle-fill text-purple"></i> <span data-i18n="pricing.pro.f1">Шектеусіз толық ҰБТ симуляторлары</span></li>
+              <li><i class="bi bi-check-circle-fill text-purple"></i> <span data-i18n="pricing.pro.f2">Барлық 5 пән бойынша тереңдетілген сұрақтар</span></li>
+              <li><i class="bi bi-check-circle-fill text-purple"></i> <span data-i18n="pricing.pro.f3">Әр сұрақтың толық бейне және мәтіндік түсіндірмесі</span></li>
+              <li><i class="bi bi-check-circle-fill text-purple"></i> <span data-i18n="pricing.pro.f4">Әлсіз тақырыптарды анықтайтын жеке аналитика</span></li>
+              <li><i class="bi bi-check-circle-fill text-purple"></i> <span data-i18n="pricing.pro.f5">Республикалық рейтинг және грант калькуляторы</span></li>
+            </ul>
+
+            <button class="btn btn-primary-gradient w-100 py-3" data-bs-toggle="modal" data-bs-target="#authModal" data-i18n="pricing.pro.btn">
+              PRO нұсқаны қосу
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Pricing Demo Notice -->
+      <p class="text-center text-muted small mt-4 mb-0" data-i18n="pricing.notice">
+        Ескерту: Тарифтер демо үлгіде көрсетілген, төлем жүйесі қосылмаған.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       Footer
+       ======================================================================== -->
+  <footer class="ent-footer">
+    <div class="container">
+      <div class="row g-4 mb-5">
+        
+        <div class="col-lg-4">
+          <a class="navbar-brand navbar-brand-logo mb-3 d-inline-flex" href="index.html">
+            <div class="brand-icon-box">
+              <i class="bi bi-mortarboard-fill"></i>
+            </div>
+            <span>ENT <span class="text-gradient">MASTER</span></span>
+          </a>
+          <p class="text-muted pe-lg-4" data-i18n="footer.desc">
+            Қазақстанның талапкерлеріне арналған №1 онлайн ҰБТ дайындық платформасы. Сенімді білім, үздік нәтиже, мемлекеттік грант кепілі.
+          </p>
+          <div class="d-flex align-items-center">
+            <a href="#" class="footer-social-icon" aria-label="Telegram"><i class="bi bi-telegram"></i></a>
+            <a href="#" class="footer-social-icon" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+            <a href="#" class="footer-social-icon" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+            <a href="#" class="footer-social-icon" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+          </div>
+        </div>
+
+        <div class="col-lg-2 col-6">
+          <h5 class="fs-6 fw-bold mb-3" data-i18n="footer.quick_links">Бөлімдер</h5>
+          <ul class="list-unstyled vstack gap-2 text-muted small">
+            <li><a href="#home" class="text-muted text-decoration-none">Басты бет</a></li>
+            <li><a href="#subjects" class="text-muted text-decoration-none">Пәндер</a></li>
+            <li><a href="#simulator" class="text-muted text-decoration-none">Сынақ тесті</a></li>
+            <li><a href="#pricing" class="text-muted text-decoration-none">Тарифтер</a></li>
+            <li><a href="dashboard.html" class="text-muted text-decoration-none">Оқушы кабинеті</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3 col-6">
+          <h5 class="fs-6 fw-bold mb-3" data-i18n="footer.subjects">Пәндер тізімі</h5>
+          <ul class="list-unstyled vstack gap-2 text-muted small">
+            <li><a href="#subjects" class="text-muted text-decoration-none">Қазақстан тарихы</a></li>
+            <li><a href="#subjects" class="text-muted text-decoration-none">Математикалық сауаттылық</a></li>
+            <li><a href="#subjects" class="text-muted text-decoration-none">Оқу сауаттылығы</a></li>
+            <li><a href="#subjects" class="text-muted text-decoration-none">Математика & Физика</a></li>
+            <li><a href="#subjects" class="text-muted text-decoration-none">Химия & Биология</a></li>
+          </ul>
+        </div>
+
+        <div class="col-lg-3">
+          <h5 class="fs-6 fw-bold mb-3" data-i18n="footer.contacts">Байланыс</h5>
+          <ul class="list-unstyled vstack gap-2 text-muted small">
+            <li><i class="bi bi-geo-alt me-2 text-purple"></i> Алматы қ., Әл-Фараби даңғылы, 71</li>
+            <li><i class="bi bi-envelope me-2 text-purple"></i> support@entmaster.kz</li>
+            <li><i class="bi bi-telephone me-2 text-purple"></i> +7 (727) 350-00-00</li>
+            <li><i class="bi bi-clock me-2 text-purple"></i> Дүйсенбі - Жұма: 09:00 - 20:00</li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="pt-4 border-top border-subtle d-flex flex-wrap justify-content-between align-items-center gap-3 text-muted small">
+        <p class="mb-0">© 2026-2027 ENT MASTER. <span data-i18n="footer.rights">Барлық құқықтар қорғалған.</span></p>
+        <div class="d-flex gap-4">
+          <a href="#" class="text-muted text-decoration-none">Құпиялылық саясаты</a>
+          <a href="#" class="text-muted text-decoration-none">Қолданушы келісімі</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================
+       MODALS: Authentication, Exam Results, Calculator, Formulas
+       ======================================================================== -->
+  
+  <!-- Auth Modal (Login / Register) -->
+  <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-content-custom p-4">
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 class="modal-title fw-bold" id="authModalLabel">ENT MASTER-ге кіру</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <!-- Auth Tabs -->
+        <div class="d-flex gap-2 mb-4">
+          <button class="btn btn-primary-gradient flex-fill active py-2" id="authLoginTab">Кіру</button>
+          <button class="btn btn-secondary-glass flex-fill py-2" id="authRegisterTab">Тіркелу</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="authLoginForm">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Email немесе Телефон</label>
+            <input type="text" class="form-control form-control-custom" placeholder="student@mail.kz" required>
+          </div>
+          <div class="mb-4">
+            <label class="form-label small fw-semibold">Құпия сөз</label>
+            <input type="password" class="form-control form-control-custom" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary-gradient w-100 py-3 auth-submit-btn">
+            Жүйеге кіру <i class="bi bi-box-arrow-in-right ms-1"></i>
+          </button>
+        </form>
+
+        <!-- Register Form (Hidden by default) -->
+        <form id="authRegisterForm" class="d-none">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Аты-жөніңіз</label>
+            <input type="text" class="form-control form-control-custom" placeholder="Айдос Тұрсынбай" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Email немесе Телефон</label>
+            <input type="email" class="form-control form-control-custom" placeholder="student@mail.kz" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Сынып / Статус</label>
+            <select class="form-select form-control-custom">
+              <option value="11" selected>11-сынып оқушысы (Түлек)</option>
+              <option value="10">10-сынып оқушысы</option>
+              <option value="college">Колледж түлегі</option>
+            </select>
+          </div>
+          <div class="mb-4">
+            <label class="form-label small fw-semibold">Құпия сөз ойлап табыңыз</label>
+            <input type="password" class="form-control form-control-custom" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary-gradient w-100 py-3 auth-submit-btn">
+            Тіркелу және Бастау <i class="bi bi-arrow-right ms-1"></i>
+          </button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Exam Result Modal -->
+  <div class="modal fade" id="examResultModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-content-custom p-4 text-center">
+        <div class="brand-icon-box mx-auto mb-3" style="width: 60px; height: 60px; font-size: 2rem;">
+          <i class="bi bi-award-fill"></i>
+        </div>
+        <h4 class="fw-bold mb-1">Сынақ тесті аяқталды!</h4>
+        <p class="text-muted small mb-4">Нәтижелер нақты ҰБТ шкаласы бойынша есептелді</p>
+
+        <div class="p-4 bg-surface-muted rounded-4 border border-subtle mb-4">
+          <div class="row g-3">
+            <div class="col-6 border-end border-subtle">
+              <span class="text-muted small d-block">Жалпы балл</span>
+              <span class="fs-2 fw-bold text-gradient" id="resScoreTotal">126 / 140</span>
+            </div>
+            <div class="col-6">
+              <span class="text-muted small d-block">Дәлдік көрсеткіші</span>
+              <span class="fs-2 fw-bold text-success" id="resAccuracy">90% (9/10)</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="fw-semibold text-purple mb-4" id="resFeedbackMsg">
+          🏆 Керемет нәтиже! Мемлекеттік грант алу мүмкіндігіңіз өте жоғары!
+        </p>
+
+        <div class="d-flex gap-2">
+          <a href="dashboard.html" class="btn btn-primary-gradient flex-fill py-2">
+            Толық аналитиканы көру <i class="bi bi-graph-up ms-1"></i>
+          </a>
+          <button type="button" class="btn btn-secondary-glass py-2" data-bs-dismiss="modal">
+            Жабу
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calculator Modal -->
+  <div class="modal fade" id="calculatorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content modal-content-custom p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="fw-bold"><i class="bi bi-calculator me-1"></i> ҰБТ Калькуляторы</span>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="p-3 bg-surface text-end fs-4 fw-bold rounded-3 border border-subtle mb-3" id="calcDisplay">
+          0
+        </div>
+        <div class="row g-2 text-center">
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="document.getElementById('calcDisplay').textContent='0'">C</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="document.getElementById('calcDisplay').textContent+='/'">/</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="document.getElementById('calcDisplay').textContent+='*'">*</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="document.getElementById('calcDisplay').textContent+='-'">-</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="if(document.getElementById('calcDisplay').textContent=='0')document.getElementById('calcDisplay').textContent='7';else document.getElementById('calcDisplay').textContent+='7'">7</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="if(document.getElementById('calcDisplay').textContent=='0')document.getElementById('calcDisplay').textContent='8';else document.getElementById('calcDisplay').textContent+='8'">8</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="if(document.getElementById('calcDisplay').textContent=='0')document.getElementById('calcDisplay').textContent='9';else document.getElementById('calcDisplay').textContent+='9'">9</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="document.getElementById('calcDisplay').textContent+='+'">+</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="if(document.getElementById('calcDisplay').textContent=='0')document.getElementById('calcDisplay').textContent='4';else document.getElementById('calcDisplay').textContent+='4'">4</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="if(document.getElementById('calcDisplay').textContent=='0')document.getElementById('calcDisplay').textContent='5';else document.getElementById('calcDisplay').textContent+='5'">5</button></div>
+          <div class="col-3"><button class="btn btn-secondary-glass w-100 py-2" onclick="if(document.getElementById('calcDisplay').textContent=='0')document.getElementById('calcDisplay').textContent='6';else document.getElementById('calcDisplay').textContent+='6'">6</button></div>
+          <div class="col-3"><button class="btn btn-primary-gradient w-100 py-2" onclick="try{document.getElementById('calcDisplay').textContent=eval(document.getElementById('calcDisplay').textContent)}catch(e){document.getElementById('calcDisplay').textContent='Қате'}">=</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formula Sheet Modal -->
+  <div class="modal fade" id="formulaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content modal-content-custom p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="fw-bold mb-0"><i class="bi bi-file-earmark-ruled me-2 text-purple"></i> ҰБТ Негізгі Формулалар Анықтамалығы</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="p-3 bg-surface-muted rounded-3 border border-subtle">
+              <h6 class="fw-bold text-purple mb-2">Математика & Тригонометрия</h6>
+              <ul class="list-unstyled small mb-0 font-monospace">
+                <li>• sin²(x) + cos²(x) = 1</li>
+                <li>• sin(2x) = 2·sin(x)·cos(x)</li>
+                <li>• (u · v)' = u'·v + u·v'</li>
+                <li>• S = ½·a·h (Үшбұрыш ауданы)</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 bg-surface-muted rounded-3 border border-subtle">
+              <h6 class="fw-bold text-cyan mb-2">Физика Заңдары</h6>
+              <ul class="list-unstyled small mb-0 font-monospace">
+                <li>• F = m · a (Ньютонның 2-заңы)</li>
+                <li>• I = U / R (Ом заңы)</li>
+                <li>• E_k = ½·m·v² (Кинетикалық энергия)</li>
+                <li>• p = m / V (Тығыздық)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Translations Dictionary -->
+  <script src="assets/js/translations.js"></script>
+  <!-- Main Script -->
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
