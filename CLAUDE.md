@@ -1,0 +1,41 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+ENT MASTER — a website for preparing for the ЕНТ (Kazakhstan's Unified National Test): full mock exams, per-subject practice, answer review, attempt history. UI text, comments, docstrings and the README are in Russian; keep new code consistent with that.
+
+**Hard constraint:** Python 3.11+ standard library, HTML and CSS only. No JavaScript (the CSP header forbids all scripts), no frameworks, no third-party packages / `pip install`.
+
+## Commands
+
+```bash
+python seed.py      # validate data/questions/*.json and upsert into SQLite (idempotent, keyed on subject+text)
+python main.py      # init DB and serve on http://localhost:8000 (127.0.0.1:8000 from config.py)
+
+python -m unittest                                              # all tests
+python -m unittest tests.test_auth                              # one module
+python -m unittest tests.test_scoring.ScoreTests.test_matching  # one test
+```
+
+The local DB is `ent_master.sqlite3` in the repo root (gitignored). There is no linter/build config.
+
+## Architecture
+
+Request flow: `app/server.py` (`ThreadingHTTPServer` handler: parses request/cookies, serves `/static`, sets security headers, turns exceptions into a generic error page) → `auth.attach_user` resolves the session cookie → `router.dispatch` matches the `ROUTES` table (`<int:x>` / `<x>` path params; more specific paths must come first; path-match-but-wrong-method → 405) → view function in `app/views.py` → returns `web.Response`.
+
+- **`config.py` is the single source of truth for exam structure**: subjects (`SubjectInfo` with per-question-type quotas), allowed profile pairs, points per question type, durations, security params. Totals (120 questions / 140 points) are derived from quotas — change the format here, not in logic code.
+- **`app/database.py` holds all SQL** (parameterized only) and the dataclasses `User`, `Attempt`, `AttemptQuestion`. JSON columns (`options_json`, `correct_json`, `answer_json`, `subjects_json`, `shortage_json`) store lists. `database.configure(path)` swaps the DB file (used by tests).
+- **`app/ent_logic.py`**: building attempts and scoring. `build_mock` picks random questions per subject per quota; if the bank is short it uses what exists and records a `shortage` list on the attempt, which the UI displays. Scoring: single/context = 1 point; matching/multiple = 2 points with no mistakes, 1 with one mistake. Timer is server-side: `deadline` stored on the attempt, expired attempts are auto-finished on the user's next request (`finish_expired_attempts`).
+- **Mock test UI without JS**: each subject section is one HTML form; the subject tabs and Back/Next/Save/Finish are submit buttons of that same form, so every navigation POSTs and saves the section's answers first (`section_submit`), then redirects.
+- **`app/templates.py`**: `string.Template` files in `templates/` with `$name` placeholders. Every substituted value is `html.escape`d unless it is a `SafeHTML` instance. Build HTML fragments with `fragment()`/`join()`/`render()` so escaping is preserved — never wrap untrusted strings in `SafeHTML`. Missing placeholders raise `KeyError`. Views wrap content via `views.page()` into `base.html`.
+- **Auth (`app/auth.py`)**: PBKDF2-SHA256 passwords; session cookie holds a random token, DB stores only its SHA-256. `views.login_required` redirects anonymous users to `/login?next=…` and enforces the CSRF token on all POSTs — new POST forms for logged-in users must include `_csrf_field(request)`. Queries for attempts must always filter by `user_id`.
+
+## Question bank
+
+`data/questions/<subject>.json` — one file per subject, `"subject"` must be a code from `config.SUBJECTS`. Types: `single`, `context` (adds `context`), `matching` (adds `left`; `correct` has one letter per `left` row, in order), `multiple`. Options are lettered A–H by position. `seed.py` validates and rejects malformed questions. See README.md for the full format.
+
+## Tests
+
+`tests/base.py::DatabaseTestCase` gives each test a fresh temp DB and lowers `PBKDF2_ITERATIONS` for speed; `add_questions` / `fill_full_bank` create synthetic questions. `tests/test_pages.py` starts the real server in a thread on a free port with the real question bank seeded and drives it via a urllib-based `Browser` (cookies, CSRF extraction from forms).
