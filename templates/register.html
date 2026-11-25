@@ -1,0 +1,33 @@
+<section class="auth">
+  <div class="card auth-card">
+    <h1>Регистрация</h1>
+    <p class="muted">Создайте аккаунт, чтобы сохранять результаты и историю попыток.</p>
+    $errors
+    <form method="post" action="/register" class="form" novalidate>
+      <label class="field">
+        <span>Имя</span>
+        <input type="text" name="name" value="$name" maxlength="60" autocomplete="name" required>
+      </label>
+      <label class="field">
+        <span>Почта или номер телефона</span>
+        <input type="text" name="login" value="$login" maxlength="254" autocomplete="username"
+               placeholder="aru@mail.kz или +77011234567" required>
+      </label>
+      <label class="field">
+        <span>Пароль</span>
+        <input type="password" name="password" minlength="$min_length" autocomplete="new-password" required>
+        <small class="muted">Не короче $min_length символов.</small>
+      </label>
+      <label class="field">
+        <span>Повторите пароль</span>
+        <input type="password" name="password2" minlength="$min_length" autocomplete="new-password" required>
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Зарегистрироваться</button>
+    </form>
+    <div class="divider"><span>или</span></div>
+    <button type="button" class="btn btn-google btn-block" disabled>
+      <span class="google-mark">G</span> Войти через Google <span class="soon">скоро</span>
+    </button>
+    <p class="auth-switch">Уже есть аккаунт? <a class="link" href="/login">Войти</a></p>
+  </div>
+</section>

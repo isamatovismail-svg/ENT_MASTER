@@ -1,0 +1,29 @@
+<section class="page-head">
+  <div>
+    <span class="eyebrow">Личный кабинет</span>
+    <h1>Здравствуйте, $name!</h1>
+    <p class="muted">Завершённых попыток: $attempts_count</p>
+  </div>
+</section>
+
+$continue_block
+
+<section class="grid-2">
+  $best_card
+  $last_card
+</section>
+
+<section class="grid-2 actions">
+  <a class="card action-card" href="/mock">
+    <span class="feature-icon">ЕНТ</span>
+    <h3>Пробный ЕНТ</h3>
+    <p class="muted">$total_questions заданий, $duration_hours часа, выбор пары профильных предметов.</p>
+    <span class="btn btn-primary">Начать пробный ЕНТ</span>
+  </a>
+  <a class="card action-card" href="/practice">
+    <span class="feature-icon">10</span>
+    <h3>Тренировка</h3>
+    <p class="muted">$practice_count случайных заданий по одному предмету и сразу результат.</p>
+    <span class="btn btn-secondary">Начать тренировку</span>
+  </a>
+</section>

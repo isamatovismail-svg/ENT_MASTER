@@ -1,0 +1,21 @@
+<section class="confirm">
+  <div class="card confirm-card">
+    <span class="eyebrow">Пробный ЕНТ</span>
+    <h1>Завершить тест?</h1>
+    $timer
+    $warning
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Предмет</th><th>Отвечено</th></tr></thead>
+        <tbody>$rows</tbody>
+      </table>
+    </div>
+    <div class="confirm-actions">
+      <a class="btn btn-ghost" href="$back_href">Вернуться к тесту</a>
+      <form method="post" action="$action">
+        $csrf
+        <button type="submit" class="btn btn-danger">Да, завершить тест</button>
+      </form>
+    </div>
+  </div>
+</section>

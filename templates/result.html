@@ -1,0 +1,40 @@
+<section class="page-head">
+  <div>
+    <span class="eyebrow">$mode_label · $date</span>
+    <h1>$heading</h1>
+    <p class="muted">Затрачено времени: $duration</p>
+  </div>
+</section>
+
+<section class="result-summary">
+  <div class="card score-card">
+    <p class="muted">Итоговый балл</p>
+    <p class="score-big">$score <span>из $max_score</span></p>
+    <progress max="$max_score" value="$score"></progress>
+    <p class="score-percent">$percent%</p>
+    $official_note
+  </div>
+  <div class="card">
+    <h2>Баллы по предметам</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Предмет</th><th>Баллы</th><th>Шкала</th></tr></thead>
+        <tbody>$score_rows</tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>Разбор ответов</h2>
+  <p class="muted">Нажмите на предмет, чтобы раскрыть задания.
+    <span class="legend legend-ok">верно</span>
+    <span class="legend legend-partial">частично</span>
+    <span class="legend legend-wrong">неверно</span></p>
+  $review
+</section>
+
+<div class="hero-actions">
+  <a class="btn btn-primary" href="/dashboard">В кабинет</a>
+  <a class="btn btn-ghost" href="/history">История попыток</a>
+</div>

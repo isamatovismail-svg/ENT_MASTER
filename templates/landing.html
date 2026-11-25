@@ -1,0 +1,58 @@
+<section class="hero">
+  <div class="hero-text">
+    <span class="eyebrow">Подготовка к ЕНТ 2026</span>
+    <h1>Сдай ЕНТ уверенно — <span class="accent">тренируйся как на настоящем экзамене</span></h1>
+    <p class="lead">Пробный ЕНТ в официальном формате: $total_questions заданий, $max_score баллов, $duration_hours часа.
+      Подробный разбор каждой ошибки и история всех попыток.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href="$cta_href">$cta_label</a>
+      <a class="btn btn-ghost btn-lg" href="#structure">Структура ЕНТ</a>
+    </div>
+  </div>
+  <div class="hero-card card">
+    <p class="muted">Максимальный балл</p>
+    <p class="hero-score">$max_score</p>
+    <ul class="hero-list">
+      <li><span>Заданий</span><strong>$total_questions</strong></li>
+      <li><span>Время</span><strong>$duration_hours ч</strong></li>
+      <li><span>Предметов</span><strong>$subjects_count</strong></li>
+      <li><span>Профильных пар</span><strong>$pairs_count</strong></li>
+    </ul>
+  </div>
+</section>
+
+<section class="features">
+  <article class="card feature">
+    <span class="feature-icon">1</span>
+    <h3>Пробный ЕНТ</h3>
+    <p>Три обязательных предмета и пара профильных. Время считает сервер — как на настоящем экзамене.</p>
+  </article>
+  <article class="card feature">
+    <span class="feature-icon">2</span>
+    <h3>Все типы заданий</h3>
+    <p>Один ответ, задания по тексту, соответствие и несколько правильных ответов — с честным подсчётом баллов.</p>
+  </article>
+  <article class="card feature">
+    <span class="feature-icon">3</span>
+    <h3>Разбор ошибок</h3>
+    <p>После теста — баллы по каждому предмету и сравнение: ваш ответ и правильный ответ.</p>
+  </article>
+  <article class="card feature">
+    <span class="feature-icon">4</span>
+    <h3>Тренировка</h3>
+    <p>Десять случайных заданий по одному предмету — быстрый способ закрепить тему.</p>
+  </article>
+</section>
+
+<section class="section" id="structure">
+  <h2>Структура ЕНТ</h2>
+  <p class="muted">Профильные предметы выбираются парой. Задания профильных предметов: 25 с одним ответом,
+    5 по контексту, 5 на соответствие и 5 с несколькими ответами (по 2 балла).</p>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Предмет</th><th>Тип</th><th>Заданий</th><th>Баллов</th></tr></thead>
+      <tbody>$structure_rows</tbody>
+      <tfoot><tr><th>Итого</th><th></th><th>$total_questions</th><th>$max_score</th></tr></tfoot>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,20 @@
+<section class="auth">
+  <div class="card auth-card">
+    <h1>Вход</h1>
+    <p class="muted">Войдите по почте или номеру телефона.</p>
+    $errors
+    <form method="post" action="/login" class="form" novalidate>
+      <input type="hidden" name="next" value="$next">
+      <label class="field">
+        <span>Почта или номер телефона</span>
+        <input type="text" name="login" value="$login" maxlength="254" autocomplete="username" required>
+      </label>
+      <label class="field">
+        <span>Пароль</span>
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Войти</button>
+    </form>
+    <p class="auth-switch">Нет аккаунта? <a class="link" href="/register">Зарегистрироваться</a></p>
+  </div>
+</section>
