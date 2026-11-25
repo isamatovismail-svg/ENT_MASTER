@@ -11,9 +11,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from html import escape as html_escape
+
 import config
 import seed
-from app import database
+from app import database, ent_logic
 from app.server import create_server
 from tests.base import DatabaseTestCase
 
@@ -117,6 +119,20 @@ class PagesTests(DatabaseTestCase):
                 form[f"q{aq.id}"] = list(aq.correct)
         return form
 
+    @staticmethod
+    def answer_form(aq: database.AttemptQuestion, right: bool) -> dict[str, list[str]]:
+        """Форма ответа на одно задание: правильный или заведомо неверный ответ."""
+        letters = config.OPTION_LETTERS[: len(aq.options)]
+        if aq.qtype == config.MATCHING:
+            return {
+                f"q{aq.id}_{index}": [letter if right else next(x for x in letters if x != letter)]
+                for index, letter in enumerate(aq.correct)
+            }
+        if right:
+            return {f"q{aq.id}": list(aq.correct)}
+        # Один неверный вариант: для «нескольких ответов» это минимум 2 ошибки → 0 баллов.
+        return {f"q{aq.id}": [next(x for x in letters if x not in aq.correct)]}
+
     # ── тесты ────────────────────────────────────────────────────────────────
 
     def test_public_pages_static_and_404(self) -> None:
@@ -125,6 +141,10 @@ class PagesTests(DatabaseTestCase):
         status, _, html, headers = browser.get("/")
         self.assertEqual(status, 200)
         self.assertIn("Попробовать бесплатно", html)
+        self.assertIn("Как устроен ЕНТ", html)
+        self.assertIn("Что такое профильная пара?", html)
+        self.assertIn("Математика</span><b>+</b>", html)  # список пар
+        self.assertNotIn(' style="', html)  # CSP запрещает инлайн-стили
         self.assertNotIn("<script", html.lower())
         self.assertIn("default-src 'none'", headers["Content-Security-Policy"])
 
@@ -138,6 +158,7 @@ class PagesTests(DatabaseTestCase):
         self.assertEqual(status, 200)
         self.assertIn("text/css", headers["Content-Type"])
         self.assertIn("--color-primary", css)
+        self.assertIn("prefers-color-scheme: dark", css)
 
         self.assertEqual(browser.get("/static/../config.py")[0], 404)
         self.assertEqual(browser.get("/static/%2e%2e/config.py")[0], 404)
@@ -177,11 +198,15 @@ class PagesTests(DatabaseTestCase):
         browser = Browser(self.base_url)
         self.register_and_login(browser, "+77011234567", name="Данияр")
 
-        # Выбор пары: честно показано, что банк неполный.
+        # Выбор пары: честно показано, что банк неполный, и сколько будет времени.
         status, _, html, _ = browser.get("/mock")
         self.assertEqual(status, 200)
         self.assertIn("Математика + Физика", html)
         self.assertIn("тест будет собран из имеющихся", html)
+        # 16 + 10 + 10 + 15 + 15 = 66 заданий → 240 × 66 / 120 = 132 мин.
+        self.assertIn("<b>66</b> заданий", html)
+        self.assertIn("2 ч 12 мин", html)
+        self.assertIn("Как считается время", html)
 
         status, path, html, _ = browser.post(
             "/mock/start", {"pair": "0", "csrf_token": self.csrf(html)}
@@ -192,6 +217,12 @@ class PagesTests(DatabaseTestCase):
         attempt_id = int(match.group(1))
         self.assertIn("Осталось времени", html)
         self.assertIn("Банк вопросов неполный", html)
+        # Во время пробного ЕНТ правильные ответы и объяснения не показываются.
+        self.assertNotIn("Почему так", html)
+        self.assertNotIn("ro-correct", html)
+        attempt = database.get_attempt(attempt_id, 1)
+        assert attempt is not None
+        self.assertAlmostEqual(attempt.deadline - attempt.started_at, 132 * 60)
 
         # Отвечаем на историю правильно и переходим по вкладке — ответы сохраняются.
         form = self.correct_form(attempt_id, "kz_history")
@@ -220,10 +251,15 @@ class PagesTests(DatabaseTestCase):
         self.assertEqual((status, path), (200, f"/result/{attempt_id}"))
         self.assertIn("Итоговый балл", html)
         self.assertIn("Разбор ответов", html)
-        self.assertIn("Правильный ответ", html)
+        # На результате — подсветка, объяснения и пометка о пропущенных заданиях.
+        self.assertIn("✓ ваш ответ — верно", html)
+        self.assertIn("Почему так", html)
+        self.assertIn("Вы не ответили на это задание", html)
+        self.assertIn('id="only-mistakes"', html)
         # История Казахстана: 16 верных из 16; математика: 9 + 2 + 2·2 + 2·2 = 19.
-        self.assertRegex(html, r"История Казахстана</td><td><strong>16</strong> из 16")
-        self.assertRegex(html, r"Математика</td><td><strong>19</strong> из 19")
+        score_re = r"<span>{}</span><span class=\"subject-score\"><strong>{}</strong> из {}"
+        self.assertRegex(html, score_re.format("История Казахстана", 16, 16))
+        self.assertRegex(html, score_re.format("Математика", 19, 19))
         self.assertIn("Официальный максимум ЕНТ — 140 баллов", html)
 
         # Завершённый тест нельзя изменить: раздел перенаправляет на результат.
@@ -237,8 +273,15 @@ class PagesTests(DatabaseTestCase):
         self.assertIn("<strong>35</strong> /", html)
 
         status, _, html, _ = browser.get("/dashboard")
-        self.assertIn("Лучший пробный ЕНТ", html)
-        self.assertIn("35 <span>из", html)
+        self.assertIn("Лучший балл", html)
+        self.assertIn("35 <span>из 140</span>", html)
+        self.assertIn("пробных: 1 · тренировок: 0", html)
+        self.assertIn("До максимума осталось 105 баллов", html)
+        # Сильные предметы: история и математика решены на 100%.
+        strong = html.split("Сильные предметы", 1)[1].split("Что подтянуть", 1)[0]
+        self.assertIn("История Казахстана", strong)
+        self.assertIn("<b>100%</b>", strong)
+        self.assertIn("Последние попытки", html)
 
         # Выход: после него кабинет снова закрыт.
         status, path, html, _ = browser.post("/logout", {"csrf_token": self.csrf(html)})
@@ -247,29 +290,88 @@ class PagesTests(DatabaseTestCase):
         status, path, _, _ = browser.get("/dashboard")
         self.assertTrue(path.startswith("/login"), path)
 
-    def test_practice_shows_result_immediately(self) -> None:
-        """Тренировка: 10 заданий, «Проверить ответы» сразу ведёт к результату."""
+    def test_practice_one_question_at_a_time(self) -> None:
+        """Тренировка: вопрос → проверка с подсветкой и объяснением → следующий → итог."""
         browser = Browser(self.base_url)
         self.register_and_login(browser, "practice@mail.kz")
         status, _, html, _ = browser.get("/practice")
         self.assertEqual(status, 200)
+        self.assertIn("Химия", html)
         status, path, html, _ = browser.post(
             "/practice/start", {"subject": "chemistry", "csrf_token": self.csrf(html)}
         )
-        match = re.fullmatch(r"/attempt/(\d+)/chemistry", path)
+        match = re.fullmatch(r"/practice/(\d+)", path)
         self.assertIsNotNone(match, path)
         attempt_id = int(match.group(1))
-        self.assertEqual(html.count('class="card question"'), config.PRACTICE_QUESTION_COUNT)
-        self.assertIn("без ограничения по времени", html)
+        self.assertEqual(html.count('class="card question"'), 1)
+        self.assertIn("Вопрос <b>1</b> из 10", html)
+        self.assertIn("Проверить ответ", html)
+        self.assertNotIn("Почему так", html)
+        questions = database.get_attempt_questions(attempt_id)
+        self.assertEqual(len(questions), config.PRACTICE_QUESTION_COUNT)
 
-        form = self.correct_form(attempt_id, "chemistry")
-        form.update({"csrf_token": [self.csrf(html)], "section": ["chemistry"], "finish": ["1"]})
-        status, path, html, _ = browser.post(f"/attempt/{attempt_id}/chemistry", form)
+        # Вопрос 1 — верно: зелёная подсветка и объяснение из банка.
+        form = self.answer_form(questions[0], right=True)
+        form.update({"csrf_token": [self.csrf(html)], "question": [str(questions[0].id)]})
+        status, path, html, _ = browser.post(f"/practice/{attempt_id}", form)
+        self.assertEqual(path, f"/practice/{attempt_id}/review/1")
+        self.assertIn("Верно!", html)
+        self.assertIn("Почему так", html)
+        self.assertIn(html_escape(questions[0].explanation), html)
+        self.assertIn("Следующий вопрос", html)
+
+        # Повторная отправка того же вопроса (например, «Назад» в браузере) ничего не меняет.
+        bad = self.answer_form(questions[0], right=False)
+        bad.update({"csrf_token": [self.csrf(html)], "question": [str(questions[0].id)]})
+        browser.post(f"/practice/{attempt_id}", bad)
+        self.assertEqual(
+            database.get_attempt_questions(attempt_id)[0].points,
+            ent_logic.question_max_points(questions[0].qtype),
+        )
+
+        # Вопрос 2 — неверно: выбранный ответ красный, правильный зелёный.
+        status, path, html, _ = browser.get(f"/practice/{attempt_id}")
+        self.assertIn("Вопрос <b>2</b> из 10", html)
+        self.assertIn("step-ok", html)  # первый шаг отмечен зелёным
+        form = self.answer_form(questions[1], right=False)
+        form.update({"csrf_token": [self.csrf(html)], "question": [str(questions[1].id)]})
+        status, path, html, _ = browser.post(f"/practice/{attempt_id}", form)
+        self.assertEqual(path, f"/practice/{attempt_id}/review/2")
+        self.assertIn("Неверно", html)
+        self.assertRegex(html, r"ro-wrong|mr-wrong")
+        self.assertRegex(html, r"ro-correct|mr-right")
+
+        # Остальные пропускаем — «Без ответа»; после последнего — кнопка итога.
+        for number in range(3, config.PRACTICE_QUESTION_COUNT + 1):
+            status, path, html, _ = browser.get(f"/practice/{attempt_id}")
+            self.assertIn(f"Вопрос <b>{number}</b>", html)
+            aq = questions[number - 1]
+            status, path, html, _ = browser.post(f"/practice/{attempt_id}", {
+                "csrf_token": self.csrf(html), "question": str(aq.id), "skip": "1",
+            })
+            self.assertEqual(path, f"/practice/{attempt_id}/review/{number}")
+            self.assertIn("Без ответа", html)
+        self.assertIn("Посмотреть итог", html)
+        self.assertNotIn("Следующий вопрос", html)
+
+        # Тренировку нельзя открыть как раздел пробного ЕНТ.
+        _, path, _, _ = browser.get(f"/attempt/{attempt_id}/chemistry")
+        self.assertTrue(path.startswith(f"/practice/{attempt_id}"), path)
+
+        status, path, html, _ = browser.post(
+            f"/attempt/{attempt_id}/finish", {"csrf_token": self.csrf(html)}
+        )
         self.assertEqual(path, f"/result/{attempt_id}")
         attempt = database.get_attempt(attempt_id, 1)
         assert attempt is not None
-        self.assertEqual(attempt.score, attempt.max_score)
-        self.assertIn("100%", html)
+        self.assertEqual(attempt.score, ent_logic.question_max_points(questions[0].qtype))
+        self.assertIn("Итоговый балл", html)
+        self.assertIn("Почему так", html)
+        self.assertIn("Ещё 10 вопросов", html)
+
+        # Завершённую тренировку больше нельзя отвечать: ведёт на результат.
+        _, path, _, _ = browser.get(f"/practice/{attempt_id}")
+        self.assertEqual(path, f"/result/{attempt_id}")
 
     def test_expired_test_finishes_on_next_request(self) -> None:
         """Если время вышло, следующий запрос завершает тест и показывает результат."""

@@ -1,7 +1,7 @@
 """Загрузка вопросов из data/questions/*.json в базу данных.
 
 Запуск: python seed.py
-Каждый вопрос проверяется (тип, число вариантов, правильные ответы).
+Каждый вопрос проверяется (тип, число вариантов, правильные ответы, объяснение).
 Ошибочные вопросы не загружаются, а список ошибок выводится в конце.
 Скрипт можно запускать повторно: вопросы обновляются, дубликаты не появляются.
 """
@@ -24,10 +24,14 @@ def validate_question(question: dict) -> list[str]:
     options = question.get("options")
     correct = question.get("correct")
 
+    explanation = question.get("explanation")
+
     if qtype not in config.QUESTION_TYPES:
         return [f"неизвестный тип «{qtype}»"]
     if not isinstance(text, str) or not text.strip():
         errors.append("пустой текст вопроса")
+    if not isinstance(explanation, str) or not explanation.strip():
+        errors.append("нет объяснения explanation (почему ответ правильный)")
     if not isinstance(options, list) or not all(isinstance(o, str) and o.strip() for o in options):
         return errors + ["options должен быть списком непустых строк"]
     if not MIN_OPTIONS <= len(options) <= len(config.OPTION_LETTERS):
@@ -82,6 +86,7 @@ def load_file(path: Path) -> tuple[int, list[str]]:
             options=question["options"],
             left=question.get("left", []),
             correct=question["correct"],
+            explanation=question["explanation"].strip(),
         )
         loaded += 1
     return loaded, errors

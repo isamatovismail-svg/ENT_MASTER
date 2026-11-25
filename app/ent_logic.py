@@ -4,8 +4,14 @@
 - один ответ / по контексту: 1 балл за верный ответ;
 - соответствие и несколько ответов: 2 балла без ошибок, 1 балл при одной ошибке,
   0 баллов при двух и более ошибках.
+
+Порядок заданий внутри предмета и порядок вариантов ответа случайные. Порядок
+вариантов запоминается для каждого задания попытки (database.option_order_json),
+поэтому вся логика ниже работает с буквами в том порядке, который видит ученик.
 """
 
+import math
+import random
 import time
 from dataclasses import dataclass
 
@@ -37,6 +43,17 @@ class SubjectAvailability:
 
 
 @dataclass
+class SubjectStrength:
+    """Насколько хорошо ученик знает предмет: процент баллов по всем попыткам."""
+
+    code: str
+    name: str
+    icon: str
+    percent: int
+    questions: int
+
+
+@dataclass
 class SubjectScore:
     """Результат по одному предмету в попытке."""
 
@@ -63,6 +80,15 @@ def _two_point_score(mistakes: int) -> int:
     if mistakes == 1:
         return 1
     return 0
+
+
+def question_state(aq: AttemptQuestion) -> str:
+    """Итог задания для подсветки: ok — полный балл, partial — часть, wrong — ноль."""
+    if aq.points >= question_max_points(aq.qtype):
+        return "ok"
+    if aq.points > 0:
+        return "partial"
+    return "wrong"
 
 
 def score_answer(qtype: str, correct: list[str], answer: list[str] | None) -> int:
@@ -126,28 +152,6 @@ def parse_section_answers(
     return {aq.id: parse_answer(aq, form) for aq in questions}
 
 
-def format_answer(aq: AttemptQuestion, answer: list[str] | None) -> str:
-    """Человекочитаемый ответ для страницы разбора, например «B) 1991»."""
-    if not answer:
-        return "нет ответа"
-    if aq.qtype == config.MATCHING:
-        parts = []
-        for index, left_item in enumerate(aq.left):
-            letter = answer[index] if index < len(answer) else ""
-            right = _option_text(aq, letter) if letter else "—"
-            parts.append(f"{index + 1}) {left_item} → {right}")
-        return "; ".join(parts)
-    return "; ".join(_option_text(aq, letter) for letter in answer)
-
-
-def _option_text(aq: AttemptQuestion, letter: str) -> str:
-    """Текст варианта ответа по букве в виде «B) текст»."""
-    index = config.OPTION_LETTERS.find(letter)
-    if 0 <= index < len(aq.options):
-        return f"{letter}) {aq.options[index]}"
-    return letter
-
-
 # ── Банк вопросов и сборка теста ─────────────────────────────────────────────
 
 def availability(subject_code: str, counts: dict[tuple[str, str], int]) -> SubjectAvailability:
@@ -164,32 +168,66 @@ def mock_subjects(pair_index: int) -> list[str]:
     return list(config.COMPULSORY_CODES) + list(config.PROFILE_PAIRS[pair_index])
 
 
+def mock_duration_minutes(question_count: int) -> int:
+    """Время пробного ЕНТ: 240 минут × (заданий в тесте / 120), с округлением вверх.
+
+    Полный тест получает все 240 минут, неполный — пропорционально меньше.
+    """
+    minutes = config.MOCK_DURATION_MINUTES * question_count / config.MOCK_TOTAL_QUESTIONS
+    return min(config.MOCK_DURATION_MINUTES, math.ceil(minutes))
+
+
+def pair_question_count(pair_index: int, counts: dict[tuple[str, str], int]) -> int:
+    """Сколько заданий будет в пробном ЕНТ по паре при текущем банке вопросов."""
+    return sum(availability(code, counts).have for code in mock_subjects(pair_index))
+
+
+def _shuffled(items: list) -> list:
+    """Новый список с теми же элементами в случайном порядке."""
+    result = list(items)
+    random.shuffle(result)
+    return result
+
+
+def _with_option_order(
+    refs: list[database.QuestionRef], subject: str
+) -> list[tuple[int, str, list[int]]]:
+    """Задания в случайном порядке, у каждого — случайный порядок вариантов ответа."""
+    return [
+        (ref.id, subject, _shuffled(list(range(ref.option_count))))
+        for ref in _shuffled(refs)
+    ]
+
+
 def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
     """Собирает пробный ЕНТ по квотам и возвращает id попытки.
 
     Если в банке не хватает заданий какого-то типа, берётся всё, что есть,
-    а нехватка записывается в попытку, чтобы честно показать её ученику.
+    нехватка записывается в попытку, а время сокращается пропорционально.
+    Предметы идут разделами по порядку, задания внутри предмета перемешаны.
     """
     now = time.time() if now is None else now
     subjects = mock_subjects(pair_index)
-    chosen: list[tuple[int, str]] = []
+    chosen: list[tuple[int, str, list[int]]] = []
     shortage: list[dict] = []
     max_score = 0
 
     for code in subjects:
+        subject_refs: list[database.QuestionRef] = []
         for qtype, need in config.SUBJECTS[code].quota:
             found = database.random_questions(code, qtype, need)
-            chosen.extend((question_id, code) for question_id, _ in found)
+            subject_refs.extend(found)
             max_score += len(found) * question_max_points(qtype)
             if len(found) < need:
                 shortage.append(
                     {"subject": code, "type": qtype, "have": len(found), "need": need}
                 )
+        chosen.extend(_with_option_order(subject_refs, code))
 
     if not chosen:
         raise TestBuildError("В банке пока нет вопросов. Запустите python seed.py.")
 
-    deadline = now + config.MOCK_DURATION_MINUTES * 60
+    deadline = now + mock_duration_minutes(len(chosen)) * 60
     return database.create_attempt(
         user_id, MOCK, subjects, now, deadline, max_score, shortage, chosen
     )
@@ -204,11 +242,23 @@ def build_practice(user_id: int, subject_code: str, now: float | None = None) ->
     if not found:
         raise TestBuildError("По этому предмету пока нет вопросов в банке.")
 
-    chosen = [(question_id, subject_code) for question_id, _ in found]
-    max_score = sum(question_max_points(qtype) for _, qtype in found)
+    max_score = sum(question_max_points(ref.qtype) for ref in found)
     return database.create_attempt(
-        user_id, PRACTICE, [subject_code], now, None, max_score, [], chosen
+        user_id, PRACTICE, [subject_code], now, None, max_score, [],
+        _with_option_order(found, subject_code),
     )
+
+
+def check_practice_answer(
+    attempt: Attempt, aq: AttemptQuestion, form: dict[str, list[str]]
+) -> bool:
+    """Тренировка: оценивает ответ на одно задание и сохраняет его вместе с баллами.
+
+    Возвращает False, если задание уже было проверено раньше.
+    """
+    answer = parse_answer(aq, form)
+    points = score_answer(aq.qtype, aq.correct, answer)
+    return database.check_question(attempt.id, aq.id, answer, points)
 
 
 # ── Время и завершение ───────────────────────────────────────────────────────
@@ -221,6 +271,13 @@ def is_expired(attempt: Attempt, now: float | None = None) -> bool:
         and attempt.deadline is not None
         and now >= attempt.deadline
     )
+
+
+def total_seconds(attempt: Attempt) -> int:
+    """Сколько всего времени было отведено на тест (0 — без ограничения)."""
+    if attempt.deadline is None:
+        return 0
+    return max(0, int(attempt.deadline - attempt.started_at))
 
 
 def remaining_seconds(attempt: Attempt, now: float | None = None) -> int:
@@ -271,4 +328,33 @@ def subject_scores(attempt: Attempt, questions: list[AttemptQuestion]) -> list[S
                 total=len(subject_questions),
             )
         )
+    return result
+
+
+def subject_strengths(user_id: int) -> list[SubjectStrength]:
+    """Процент набранных баллов по каждому предмету во всех завершённых попытках.
+
+    Список отсортирован от сильного предмета к слабому.
+    """
+    points: dict[str, int] = {}
+    maximum: dict[str, int] = {}
+    count: dict[str, int] = {}
+    for row in database.get_subject_results(user_id):
+        code = row["subject"]
+        if code not in config.SUBJECTS or row["qtype"] not in config.QUESTION_POINTS:
+            continue
+        points[code] = points.get(code, 0) + (row["points"] or 0)
+        maximum[code] = maximum.get(code, 0) + row["n"] * question_max_points(row["qtype"])
+        count[code] = count.get(code, 0) + row["n"]
+    result = [
+        SubjectStrength(
+            code=code,
+            name=config.SUBJECTS[code].name,
+            icon=config.SUBJECTS[code].icon,
+            percent=round(points[code] * 100 / maximum[code]) if maximum[code] else 0,
+            questions=count[code],
+        )
+        for code in points
+    ]
+    result.sort(key=lambda item: (-item.percent, -item.questions, item.name))
     return result

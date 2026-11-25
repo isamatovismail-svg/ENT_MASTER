@@ -3,16 +3,18 @@
     <span class="eyebrow">Пробный ЕНТ</span>
     <h1>Выберите пару профильных предметов</h1>
     <p class="muted">Полный тест: $total_questions заданий, максимум $max_score баллов, $duration_hours часа.
-      Время пойдёт сразу после нажатия «Начать тест».</p>
+      Время пойдёт сразу после нажатия «Начать тест». Во время теста правильные ответы не подсвечиваются —
+      как на настоящем ЕНТ. Разбор будет на странице результата.</p>
   </div>
 </section>
 
 $resume_block
+$time_note
 
 <section class="card compulsory">
   <h2>Обязательные предметы</h2>
   <p class="muted">Входят в каждый вариант. Рядом — сколько заданий есть в банке из нужного количества.</p>
-  <ul class="avail-list">$compulsory_rows</ul>
+  <ul class="avail-list avail-row">$compulsory_rows</ul>
 </section>
 
 <section class="pair-grid">

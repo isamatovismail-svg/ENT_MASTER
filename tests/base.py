@@ -42,7 +42,8 @@ class DatabaseTestCase(unittest.TestCase):
             elif qtype == config.CONTEXT:
                 context = "Небольшой текст для задания."
             database.upsert_question(
-                subject, qtype, f"{subject} {qtype} №{number}", context, options, left, correct
+                subject, qtype, f"{subject} {qtype} №{number}", context, options, left, correct,
+                explanation=f"Объяснение к заданию №{number}.",
             )
 
     def fill_full_bank(self, subjects: list[str]) -> None:

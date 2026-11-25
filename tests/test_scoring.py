@@ -3,7 +3,7 @@
 import unittest
 
 import config
-from app import ent_logic
+from app import database, ent_logic
 from app.database import AttemptQuestion
 
 
@@ -84,15 +84,48 @@ class ParseAnswerTests(unittest.TestCase):
         self.assertEqual(parse(question, {"q7_0": ["B"], "q7_1": [""]}), ["B", ""])
         self.assertIsNone(ent_logic.parse_answer(question, {"q7_0": [""], "q7_1": ["Q"]}))
 
-    def test_format_answer(self) -> None:
-        """Ответ показывается вместе с текстом варианта."""
-        question = make_question(config.MATCHING, ["B", "D"], left=2)
-        self.assertEqual(
-            ent_logic.format_answer(question, ["B", ""]),
-            "1) строка 0 → B) вариант 1; 2) строка 1 → —",
-        )
-        self.assertEqual(ent_logic.format_answer(question, None), "нет ответа")
+    def test_question_state(self) -> None:
+        """Состояние для подсветки: полный балл, частичный или ноль."""
+        question = make_question(config.MULTIPLE, ["A", "C"], options=6)
+        for points, state in ((2, "ok"), (1, "partial"), (0, "wrong")):
+            question.points = points
+            self.assertEqual(ent_logic.question_state(question), state)
 
+
+class OptionOrderTests(unittest.TestCase):
+    """Перестановка вариантов: правильный ответ остаётся тем же текстом."""
+
+    def test_single_correct_follows_its_text(self) -> None:
+        """Правильный вариант «B» после перестановки получает новую букву."""
+        options, correct = database._apply_option_order(
+            ["a", "b", "c", "d"], ["B"], config.SINGLE, "[3, 1, 0, 2]"
+        )
+        self.assertEqual(options, ["d", "b", "a", "c"])
+        self.assertEqual(correct, ["B"])
+        options, correct = database._apply_option_order(
+            ["a", "b", "c", "d"], ["B"], config.SINGLE, "[1, 0, 2, 3]"
+        )
+        self.assertEqual((options[0], correct), ("b", ["A"]))
+
+    def test_multiple_and_matching(self) -> None:
+        """У нескольких ответов буквы сортируются, у соответствия — порядок строк сохраняется."""
+        options, correct = database._apply_option_order(
+            ["a", "b", "c", "d"], ["A", "C"], config.MULTIPLE, "[2, 3, 0, 1]"
+        )
+        self.assertEqual(sorted(options[ord(x) - 65] for x in correct), ["a", "c"])
+        self.assertEqual(correct, sorted(correct))
+        options, correct = database._apply_option_order(
+            ["a", "b", "c", "d"], ["B", "A"], config.MATCHING, "[2, 3, 0, 1]"
+        )
+        self.assertEqual([options[ord(x) - 65] for x in correct], ["b", "a"])
+
+    def test_bad_order_is_ignored(self) -> None:
+        """Пустой или битый порядок — остаётся исходный."""
+        for order in (None, "[0, 0, 1, 2]", "[0, 1]", "{}"):
+            self.assertEqual(
+                database._apply_option_order(["a", "b", "c", "d"], ["B"], config.SINGLE, order),
+                (["a", "b", "c", "d"], ["B"]),
+            )
 
 if __name__ == "__main__":
     unittest.main()

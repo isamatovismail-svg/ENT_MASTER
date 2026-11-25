@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS questions (
     options_json TEXT NOT NULL,
     left_json    TEXT NOT NULL DEFAULT '[]',
     correct_json TEXT NOT NULL,
+    explanation  TEXT NOT NULL DEFAULT '',
     UNIQUE (subject, text)
 );
 
@@ -69,6 +70,11 @@ CREATE TABLE IF NOT EXISTS attempt_questions (
     position    INTEGER NOT NULL,
     answer_json TEXT,
     points      INTEGER NOT NULL DEFAULT 0,
+    -- Порядок вариантов, в котором их видит ученик: [индекс исходного варианта, ...].
+    -- NULL — исходный порядок. Ответ ученика хранится в буквах ПОКАЗАННОГО порядка.
+    option_order_json TEXT,
+    -- Тренировка: 1 — ученик уже ответил на задание и увидел разбор.
+    checked     INTEGER NOT NULL DEFAULT 0,
     UNIQUE (attempt_id, question_id)
 );
 
@@ -76,6 +82,14 @@ CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_attempt_questions_attempt ON attempt_questions(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject, qtype);
 """
+
+# Колонки, добавленные после первой версии. init_db() добавляет их в старую базу,
+# чтобы существующие пользователи и попытки сохранились.
+_ADDED_COLUMNS = (
+    ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
+    ("attempt_questions", "option_order_json", "TEXT"),
+    ("attempt_questions", "checked", "INTEGER NOT NULL DEFAULT 0"),
+)
 
 
 # ── Классы данных, которые возвращают запросы ────────────────────────────────
@@ -112,6 +126,15 @@ class Attempt:
 
 
 @dataclass
+class QuestionRef:
+    """Вопрос из банка при сборке теста: id, тип и число вариантов ответа."""
+
+    id: int
+    qtype: str
+    option_count: int
+
+
+@dataclass
 class AttemptQuestion:
     """Задание внутри попытки: сам вопрос + ответ ученика и полученные баллы."""
 
@@ -128,6 +151,8 @@ class AttemptQuestion:
     correct: list[str]
     answer: list[str] | None
     points: int
+    explanation: str = ""
+    checked: bool = False
 
 
 # ── Подключение ──────────────────────────────────────────────────────────────
@@ -159,9 +184,14 @@ def connect() -> Iterator[sqlite3.Connection]:
 
 
 def init_db() -> None:
-    """Создаёт таблицы и индексы, если их ещё нет."""
+    """Создаёт таблицы и индексы, если их ещё нет, и добавляет новые колонки в старую базу."""
     with connect() as connection:
         connection.executescript(SCHEMA)
+        for table, column, definition in _ADDED_COLUMNS:
+            existing = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+            if column not in existing:
+                # Имена таблиц и колонок — константы этого модуля, не данные пользователя.
+                connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 # ── Пользователи ─────────────────────────────────────────────────────────────
@@ -244,6 +274,7 @@ def upsert_question(
     options: list[str],
     left: list[str],
     correct: list[str],
+    explanation: str = "",
 ) -> None:
     """Добавляет вопрос или обновляет существующий с тем же предметом и текстом.
 
@@ -253,12 +284,12 @@ def upsert_question(
     with connect() as connection:
         connection.execute(
             "INSERT INTO questions "
-            "(subject, qtype, text, context, options_json, left_json, correct_json) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "(subject, qtype, text, context, options_json, left_json, correct_json, explanation) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT (subject, text) DO UPDATE SET "
             "qtype = excluded.qtype, context = excluded.context, "
             "options_json = excluded.options_json, left_json = excluded.left_json, "
-            "correct_json = excluded.correct_json",
+            "correct_json = excluded.correct_json, explanation = excluded.explanation",
             (
                 subject,
                 qtype,
@@ -267,6 +298,7 @@ def upsert_question(
                 json.dumps(options, ensure_ascii=False),
                 json.dumps(left, ensure_ascii=False),
                 json.dumps(correct),
+                explanation,
             ),
         )
 
@@ -280,24 +312,28 @@ def question_counts() -> dict[tuple[str, str], int]:
     return {(row["subject"], row["qtype"]): row["n"] for row in rows}
 
 
-def random_questions(subject: str, qtype: str | None, limit: int) -> list[tuple[int, str]]:
-    """Возвращает до limit случайных вопросов предмета в виде пар (id, тип).
+def random_questions(subject: str, qtype: str | None, limit: int) -> list[QuestionRef]:
+    """Возвращает до limit случайных вопросов предмета.
 
     Если qtype указан, выбираются только вопросы этого типа.
     """
     with connect() as connection:
         if qtype is None:
             rows = connection.execute(
-                "SELECT id, qtype FROM questions WHERE subject = ? ORDER BY RANDOM() LIMIT ?",
+                "SELECT id, qtype, options_json FROM questions WHERE subject = ? "
+                "ORDER BY RANDOM() LIMIT ?",
                 (subject, limit),
             ).fetchall()
         else:
             rows = connection.execute(
-                "SELECT id, qtype FROM questions WHERE subject = ? AND qtype = ? "
+                "SELECT id, qtype, options_json FROM questions WHERE subject = ? AND qtype = ? "
                 "ORDER BY RANDOM() LIMIT ?",
                 (subject, qtype, limit),
             ).fetchall()
-    return [(row["id"], row["qtype"]) for row in rows]
+    return [
+        QuestionRef(row["id"], row["qtype"], len(json.loads(row["options_json"])))
+        for row in rows
+    ]
 
 
 # ── Попытки ──────────────────────────────────────────────────────────────────
@@ -333,11 +369,11 @@ def create_attempt(
     deadline: float | None,
     max_score: int,
     shortage: list[dict],
-    questions: list[tuple[int, str]],
+    questions: list[tuple[int, str, list[int]]],
 ) -> int:
     """Создаёт попытку вместе со всеми её заданиями в одной транзакции.
 
-    questions — список пар (id вопроса, код предмета) в нужном порядке.
+    questions — список (id вопроса, код предмета, порядок вариантов) в нужном порядке.
     """
     with connect() as connection:
         cursor = connection.execute(
@@ -356,11 +392,12 @@ def create_attempt(
         )
         attempt_id = int(cursor.lastrowid)
         connection.executemany(
-            "INSERT INTO attempt_questions (attempt_id, question_id, subject, position) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO attempt_questions "
+            "(attempt_id, question_id, subject, position, option_order_json) "
+            "VALUES (?, ?, ?, ?, ?)",
             [
-                (attempt_id, question_id, subject, position)
-                for position, (question_id, subject) in enumerate(questions, start=1)
+                (attempt_id, question_id, subject, position, json.dumps(order))
+                for position, (question_id, subject, order) in enumerate(questions, start=1)
             ],
         )
     return attempt_id
@@ -434,19 +471,51 @@ def get_last_attempt(user_id: int) -> Attempt | None:
     return _attempt_from_row(row) if row else None
 
 
+def _apply_option_order(
+    options: list[str], correct: list[str], qtype: str, order_json: str | None
+) -> tuple[list[str], list[str]]:
+    """Переставляет варианты в показанный ученику порядок и пересчитывает буквы ответа.
+
+    order[i] — индекс исходного варианта, который показан под буквой номер i.
+    Битый или устаревший порядок игнорируется — тогда остаётся исходный.
+    """
+    order = json.loads(order_json) if order_json else None
+    if not isinstance(order, list) or sorted(order) != list(range(len(options))):
+        return options, correct
+    letters = config.OPTION_LETTERS
+    new_letter = {letters[original]: letters[shown] for shown, original in enumerate(order)}
+    shown_options = [options[original] for original in order]
+    shown_correct = [new_letter.get(letter, letter) for letter in correct]
+    if qtype != config.MATCHING:
+        # Для соответствия порядок букв важен (по строкам), для остальных — нет.
+        shown_correct.sort()
+    return shown_options, shown_correct
+
+
 def get_attempt_questions(attempt_id: int) -> list[AttemptQuestion]:
-    """Все задания попытки в порядке их следования, вместе с текстом вопросов."""
+    """Все задания попытки в порядке их следования, вместе с текстом вопросов.
+
+    Варианты ответа и правильные буквы уже приведены к порядку, который видит ученик.
+    """
     with connect() as connection:
         rows = connection.execute(
             "SELECT aq.id, aq.attempt_id, aq.question_id, aq.subject, aq.position, "
-            "aq.answer_json, aq.points, q.qtype, q.text, q.context, q.options_json, "
-            "q.left_json, q.correct_json "
+            "aq.answer_json, aq.points, aq.option_order_json, aq.checked, "
+            "q.qtype, q.text, q.context, q.options_json, q.left_json, q.correct_json, "
+            "q.explanation "
             "FROM attempt_questions aq JOIN questions q ON q.id = aq.question_id "
             "WHERE aq.attempt_id = ? ORDER BY aq.position",
             (attempt_id,),
         ).fetchall()
-    return [
-        AttemptQuestion(
+    result = []
+    for row in rows:
+        options, correct = _apply_option_order(
+            json.loads(row["options_json"]),
+            json.loads(row["correct_json"]),
+            row["qtype"],
+            row["option_order_json"],
+        )
+        result.append(AttemptQuestion(
             id=row["id"],
             attempt_id=row["attempt_id"],
             question_id=row["question_id"],
@@ -455,14 +524,15 @@ def get_attempt_questions(attempt_id: int) -> list[AttemptQuestion]:
             qtype=row["qtype"],
             text=row["text"],
             context=row["context"],
-            options=json.loads(row["options_json"]),
+            options=options,
             left=json.loads(row["left_json"]),
-            correct=json.loads(row["correct_json"]),
+            correct=correct,
             answer=json.loads(row["answer_json"]) if row["answer_json"] else None,
             points=row["points"],
-        )
-        for row in rows
-    ]
+            explanation=row["explanation"],
+            checked=bool(row["checked"]),
+        ))
+    return result
 
 
 def save_answers(attempt_id: int, answers: dict[int, list[str] | None]) -> None:
@@ -480,6 +550,36 @@ def save_answers(attempt_id: int, answers: dict[int, list[str] | None]) -> None:
                 for aq_id, answer in answers.items()
             ],
         )
+
+
+def check_question(attempt_id: int, aq_id: int, answer: list[str] | None, points: int) -> bool:
+    """Тренировка: сохраняет ответ на одно задание, его баллы и отметку «проверено».
+
+    Ответ на уже проверенное задание или в завершённой попытке не меняется
+    (возвращается False) — повторная отправка формы ничего не испортит.
+    """
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE attempt_questions SET answer_json = ?, points = ?, checked = 1 "
+            "WHERE id = ? AND attempt_id = ? AND checked = 0 AND attempt_id IN "
+            "(SELECT id FROM attempts WHERE status = 'in_progress')",
+            (json.dumps(answer) if answer is not None else None, points, aq_id, attempt_id),
+        )
+        return cursor.rowcount == 1
+
+
+def get_subject_results(user_id: int) -> list[sqlite3.Row]:
+    """Итоги пользователя по всем завершённым попыткам: предмет, тип, число заданий, баллы."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT aq.subject, q.qtype, COUNT(*) AS n, SUM(aq.points) AS points "
+            "FROM attempt_questions aq "
+            "JOIN attempts a ON a.id = aq.attempt_id "
+            "JOIN questions q ON q.id = aq.question_id "
+            "WHERE a.user_id = ? AND a.status = 'finished' "
+            "GROUP BY aq.subject, q.qtype",
+            (user_id,),
+        ).fetchall()
 
 
 def complete_attempt(

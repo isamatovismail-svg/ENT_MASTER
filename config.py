@@ -24,8 +24,8 @@ PASSWORD_MIN_LENGTH = 8
 MAX_REQUEST_BODY_BYTES = 1_000_000            # защита от слишком больших POST-запросов
 
 # ── Режимы тестирования ──────────────────────────────────────────────────────
-MOCK_DURATION_MINUTES = 240   # пробный ЕНТ — 4 часа
-PRACTICE_QUESTION_COUNT = 10  # тренировка — 10 случайных заданий
+MOCK_DURATION_MINUTES = 240   # пробный ЕНТ — 4 часа на полные 120 заданий
+PRACTICE_QUESTION_COUNT = 10  # тренировка — 10 случайных заданий по одному на странице
 
 # ── Типы заданий и баллы ─────────────────────────────────────────────────────
 SINGLE = "single"        # один правильный ответ
@@ -56,6 +56,7 @@ class SubjectInfo:
 
     code: str
     name: str
+    icon: str                           # эмодзи-иконка предмета (цвет задан в style.css)
     compulsory: bool
     quota: tuple[tuple[str, int], ...]  # пары (тип задания, количество)
 
@@ -75,30 +76,30 @@ class SubjectInfo:
 PROFILE_QUOTA = ((SINGLE, 25), (CONTEXT, 5), (MATCHING, 5), (MULTIPLE, 5))
 
 
-def _profile(code: str, name: str) -> SubjectInfo:
+def _profile(code: str, name: str, icon: str) -> SubjectInfo:
     """Создаёт описание профильного предмета со стандартной квотой."""
-    return SubjectInfo(code, name, False, PROFILE_QUOTA)
+    return SubjectInfo(code, name, icon, False, PROFILE_QUOTA)
 
 
 _ALL_SUBJECTS = (
     # Обязательные предметы
-    SubjectInfo("kz_history", "История Казахстана", True, ((SINGLE, 20),)),
-    SubjectInfo("math_literacy", "Математическая грамотность", True, ((SINGLE, 10),)),
-    SubjectInfo("reading_literacy", "Грамотность чтения", True, ((CONTEXT, 10),)),
+    SubjectInfo("kz_history", "История Казахстана", "🏛️", True, ((SINGLE, 20),)),
+    SubjectInfo("math_literacy", "Математическая грамотность", "🧮", True, ((SINGLE, 10),)),
+    SubjectInfo("reading_literacy", "Грамотность чтения", "📖", True, ((CONTEXT, 10),)),
     # Профильные предметы
-    _profile("math", "Математика"),
-    _profile("physics", "Физика"),
-    _profile("informatics", "Информатика"),
-    _profile("geography", "География"),
-    _profile("biology", "Биология"),
-    _profile("chemistry", "Химия"),
-    _profile("world_history", "Всемирная история"),
-    _profile("law", "Основы права"),
-    _profile("kazakh_language", "Казахский язык"),
-    _profile("kazakh_literature", "Казахская литература"),
-    _profile("russian_language", "Русский язык"),
-    _profile("russian_literature", "Русская литература"),
-    _profile("foreign_language", "Иностранный язык"),
+    _profile("math", "Математика", "📐"),
+    _profile("physics", "Физика", "⚛️"),
+    _profile("informatics", "Информатика", "💻"),
+    _profile("geography", "География", "🌍"),
+    _profile("biology", "Биология", "🧬"),
+    _profile("chemistry", "Химия", "🧪"),
+    _profile("world_history", "Всемирная история", "🗺️"),
+    _profile("law", "Основы права", "⚖️"),
+    _profile("kazakh_language", "Казахский язык", "🔤"),
+    _profile("kazakh_literature", "Казахская литература", "📜"),
+    _profile("russian_language", "Русский язык", "✍️"),
+    _profile("russian_literature", "Русская литература", "📚"),
+    _profile("foreign_language", "Иностранный язык", "🌐"),
 )
 
 SUBJECTS: dict[str, SubjectInfo] = {subject.code: subject for subject in _ALL_SUBJECTS}

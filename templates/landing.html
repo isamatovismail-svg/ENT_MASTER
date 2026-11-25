@@ -1,58 +1,98 @@
 <section class="hero">
   <div class="hero-text">
     <span class="eyebrow">Подготовка к ЕНТ 2026</span>
-    <h1>Сдай ЕНТ уверенно — <span class="accent">тренируйся как на настоящем экзамене</span></h1>
-    <p class="lead">Пробный ЕНТ в официальном формате: $total_questions заданий, $max_score баллов, $duration_hours часа.
-      Подробный разбор каждой ошибки и история всех попыток.</p>
+    <h1>Сдай ЕНТ на <span class="gradient-text">максимум</span> — тренируйся как на настоящем экзамене</h1>
+    <p class="lead">Пробный ЕНТ в официальном формате, тренировки по 16 предметам
+      и понятный разбор каждой ошибки: что вы ответили, как правильно и почему.</p>
     <div class="hero-actions">
-      <a class="btn btn-primary btn-lg" href="$cta_href">$cta_label</a>
-      <a class="btn btn-ghost btn-lg" href="#structure">Структура ЕНТ</a>
+      <a class="btn btn-primary btn-lg" href="$cta_href">🚀 $cta_label</a>
+      <a class="btn btn-ghost btn-lg" href="#structure">Как устроен ЕНТ</a>
     </div>
+    <ul class="hero-badges">
+      <li>✅ Бесплатно</li>
+      <li>⚡ Без рекламы</li>
+      <li>💡 Объяснение к каждому заданию</li>
+    </ul>
   </div>
-  <div class="hero-card card">
-    <p class="muted">Максимальный балл</p>
+  <div class="hero-card">
+    <p class="hero-card-label">Максимальный балл</p>
     <p class="hero-score">$max_score</p>
     <ul class="hero-list">
-      <li><span>Заданий</span><strong>$total_questions</strong></li>
-      <li><span>Время</span><strong>$duration_hours ч</strong></li>
-      <li><span>Предметов</span><strong>$subjects_count</strong></li>
-      <li><span>Профильных пар</span><strong>$pairs_count</strong></li>
+      <li><span>📝 Заданий</span><strong>$total_questions</strong></li>
+      <li><span>⏱ Время</span><strong>$duration_hours часа</strong></li>
+      <li><span>📚 Предметов</span><strong>$subjects_count</strong></li>
+      <li><span>🔗 Профильных пар</span><strong>$pairs_count</strong></li>
     </ul>
   </div>
 </section>
 
-<section class="features">
-  <article class="card feature">
-    <span class="feature-icon">1</span>
-    <h3>Пробный ЕНТ</h3>
-    <p>Три обязательных предмета и пара профильных. Время считает сервер — как на настоящем экзамене.</p>
-  </article>
-  <article class="card feature">
-    <span class="feature-icon">2</span>
-    <h3>Все типы заданий</h3>
-    <p>Один ответ, задания по тексту, соответствие и несколько правильных ответов — с честным подсчётом баллов.</p>
-  </article>
-  <article class="card feature">
-    <span class="feature-icon">3</span>
-    <h3>Разбор ошибок</h3>
-    <p>После теста — баллы по каждому предмету и сравнение: ваш ответ и правильный ответ.</p>
-  </article>
-  <article class="card feature">
-    <span class="feature-icon">4</span>
-    <h3>Тренировка</h3>
-    <p>Десять случайных заданий по одному предмету — быстрый способ закрепить тему.</p>
-  </article>
+<section class="section" id="structure">
+  <div class="section-head">
+    <span class="eyebrow">Структура экзамена</span>
+    <h2>Как устроен ЕНТ</h2>
+    <p class="muted">5 предметов: 3 обязательных у всех и 2 профильных, которые вы выбираете парой.</p>
+  </div>
+  <ul class="big-stats">
+    <li><strong>3 + 2</strong><span>обязательных + профильная пара</span></li>
+    <li><strong>$total_questions</strong><span>заданий</span></li>
+    <li><strong>$max_score</strong><span>баллов максимум</span></li>
+    <li><strong>$duration_hours ч</strong><span>на весь тест</span></li>
+  </ul>
+  <div class="exam-grid">
+    $compulsory_cards
+    $profile_cards
+  </div>
 </section>
 
-<section class="section" id="structure">
-  <h2>Структура ЕНТ</h2>
-  <p class="muted">Профильные предметы выбираются парой. Задания профильных предметов: 25 с одним ответом,
-    5 по контексту, 5 на соответствие и 5 с несколькими ответами (по 2 балла).</p>
-  <div class="table-wrap">
-    <table class="table">
-      <thead><tr><th>Предмет</th><th>Тип</th><th>Заданий</th><th>Баллов</th></tr></thead>
-      <tbody>$structure_rows</tbody>
-      <tfoot><tr><th>Итого</th><th></th><th>$total_questions</th><th>$max_score</th></tr></tfoot>
-    </table>
+<section class="section pair-explain">
+  <div class="pair-explain-text">
+    <span class="eyebrow">Важно понять</span>
+    <h2>Что такое профильная пара?</h2>
+    <p>Кроме трёх обязательных предметов, на ЕНТ сдают <b>два профильных</b>. Их нельзя выбрать
+      как угодно — только готовой <b>парой</b> из списка. Пара зависит от специальности, на которую вы
+      хотите поступать: например, для IT — «Математика + Информатика», для медицины — «Биология + Химия».</p>
+    <p>Каждый профильный предмет — это $profile_questions заданий и $profile_score баллов:
+      25 заданий с одним ответом, 5 по контексту, 5 на соответствие и 5 с несколькими ответами.
+      Последние два типа стоят по 2 балла (1 балл — если одна ошибка).</p>
+    <p class="muted">Совет: сначала узнайте, какая пара нужна для вашей специальности, и тренируйте именно её.</p>
   </div>
+  <div class="pair-explain-list">
+    <h3>Все $pairs_count пар</h3>
+    <ul class="pair-chips">$pair_chips</ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <span class="eyebrow">Возможности</span>
+    <h2>Всё для подготовки в одном месте</h2>
+  </div>
+  <div class="features">
+    <article class="feature f-1">
+      <span class="feature-icon" aria-hidden="true">📝</span>
+      <h3>Пробный ЕНТ</h3>
+      <p>Три обязательных предмета и профильная пара. Время считает сервер — как на настоящем экзамене.</p>
+    </article>
+    <article class="feature f-2">
+      <span class="feature-icon" aria-hidden="true">🎯</span>
+      <h3>Тренировка</h3>
+      <p>По одному вопросу: ответили — и сразу видно, верно ли, и объяснение почему.</p>
+    </article>
+    <article class="feature f-3">
+      <span class="feature-icon" aria-hidden="true">💡</span>
+      <h3>Разбор ошибок</h3>
+      <p>Ваш ответ — красным, правильный — зелёным, плюс короткое понятное объяснение.</p>
+    </article>
+    <article class="feature f-4">
+      <span class="feature-icon" aria-hidden="true">📈</span>
+      <h3>Прогресс</h3>
+      <p>Лучший и средний балл, сильные и слабые предметы — видно, что подтянуть.</p>
+    </article>
+  </div>
+</section>
+
+<section class="cta-band">
+  <h2>Готовы проверить себя?</h2>
+  <p>Регистрация занимает минуту. Первая тренировка — 10 вопросов.</p>
+  <a class="btn btn-light btn-lg" href="$cta_href">$cta_label →</a>
 </section>

@@ -1,29 +1,59 @@
 <section class="page-head">
   <div>
     <span class="eyebrow">Личный кабинет</span>
-    <h1>Здравствуйте, $name!</h1>
-    <p class="muted">Завершённых попыток: $attempts_count</p>
+    <h1>Привет, $name! 👋</h1>
+    <p class="muted">Каждая попытка приближает к цели. Вот ваш прогресс.</p>
   </div>
 </section>
 
 $continue_block
 
-<section class="grid-2">
-  $best_card
-  $last_card
+<section class="big-actions">
+  <a class="big-action big-action-mock" href="/mock">
+    <span class="big-action-icon" aria-hidden="true">📝</span>
+    <span class="big-action-text"><b>Пробный ЕНТ</b>
+      <small>$total_questions заданий · $duration_hours часа · как на экзамене</small></span>
+    <span class="big-action-arrow" aria-hidden="true">→</span>
+  </a>
+  <a class="big-action big-action-practice" href="/practice">
+    <span class="big-action-icon" aria-hidden="true">🎯</span>
+    <span class="big-action-text"><b>Тренировка</b>
+      <small>$practice_count вопросов · ответ и объяснение сразу</small></span>
+    <span class="big-action-arrow" aria-hidden="true">→</span>
+  </a>
 </section>
 
-<section class="grid-2 actions">
-  <a class="card action-card" href="/mock">
-    <span class="feature-icon">ЕНТ</span>
-    <h3>Пробный ЕНТ</h3>
-    <p class="muted">$total_questions заданий, $duration_hours часа, выбор пары профильных предметов.</p>
-    <span class="btn btn-primary">Начать пробный ЕНТ</span>
-  </a>
-  <a class="card action-card" href="/practice">
-    <span class="feature-icon">10</span>
-    <h3>Тренировка</h3>
-    <p class="muted">$practice_count случайных заданий по одному предмету и сразу результат.</p>
-    <span class="btn btn-secondary">Начать тренировку</span>
-  </a>
+<section class="stat-grid">
+  $best_card
+  $last_card
+  $total_card
+  $average_card
+</section>
+
+<section class="card goal-card">
+  <div class="goal-top">
+    <h2>🎯 Путь к $max_score баллам</h2>
+    <span class="goal-score"><b>$best_score</b> / $max_score</span>
+  </div>
+  <progress class="goal-bar" max="$max_score" value="$best_score">$goal_percent%</progress>
+  <p class="muted">$goal_text</p>
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>💪 Сильные предметы</h2>
+    $strong
+  </div>
+  <div class="card">
+    <h2>🔧 Что подтянуть</h2>
+    $weak
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-title-row">
+    <h2>🕒 Последние попытки</h2>
+    <a class="link" href="/history">Вся история →</a>
+  </div>
+  $recent
 </section>

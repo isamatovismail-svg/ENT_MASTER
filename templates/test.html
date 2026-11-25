@@ -3,11 +3,15 @@
   <input type="hidden" name="section" value="$subject">
   <button type="submit" name="goto" value="$subject" class="visually-hidden" tabindex="-1" aria-hidden="true">Сохранить</button>
 
-  <section class="test-head">
-    <div>
-      <span class="eyebrow">$mode_label</span>
-      <h1>$heading</h1>
-      <p class="muted">$progress</p>
+  <section class="test-head subj-$subject">
+    <div class="test-title">
+      $icon
+      <div>
+        <span class="eyebrow">$mode_label</span>
+        <h1>$heading</h1>
+        <p class="muted">$progress</p>
+        <progress class="answered-bar" max="$total" value="$answered"></progress>
+      </div>
     </div>
     $timer
   </section>
@@ -19,5 +23,5 @@
   <div class="questions">$questions</div>
 
   <div class="test-actions">$buttons</div>
-  <p class="muted small">Ответы сохраняются при любом переходе: по вкладке, «Назад», «Далее» или «Завершить».</p>
+  <p class="muted small center">Ответы сохраняются при любом переходе: по вкладке, «Назад», «Далее» или «Завершить».</p>
 </form>

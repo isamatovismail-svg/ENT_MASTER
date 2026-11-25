@@ -2,10 +2,19 @@
   <div>
     <span class="eyebrow">Тренировка</span>
     <h1>Выберите предмет</h1>
-    <p class="muted">$count случайных заданий без ограничения по времени. Результат и разбор — сразу после проверки.</p>
+    <p class="muted">$count случайных вопросов по одному на странице. Ответили — сразу видно,
+      верно ли, и объяснение почему. В конце — итог.</p>
   </div>
 </section>
 
+$resume
+
+<h2 class="group-title">Обязательные</h2>
 <section class="subject-grid">
-  $subject_cards
+  $compulsory_cards
+</section>
+
+<h2 class="group-title">Профильные</h2>
+<section class="subject-grid">
+  $profile_cards
 </section>

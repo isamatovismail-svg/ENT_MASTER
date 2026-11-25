@@ -1,0 +1,16 @@
+$head
+
+<form method="post" action="$action" class="practice-form">
+  $csrf
+  <input type="hidden" name="question" value="$question_id">
+  $question
+  <div class="test-actions">
+    <button type="submit" name="skip" value="1" class="btn btn-ghost" formnovalidate>Пропустить</button>
+    <button type="submit" class="btn btn-primary btn-lg">Проверить ответ ✓</button>
+  </div>
+</form>
+
+<form method="post" action="$finish_action" class="practice-quit">
+  $csrf
+  <button type="submit" class="btn btn-link">Закончить тренировку досрочно</button>
+</form>
