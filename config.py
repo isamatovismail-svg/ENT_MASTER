@@ -4,6 +4,7 @@
 править нужно только этот файл — остальной код берёт данные отсюда.
 """
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +16,35 @@ DATABASE_PATH = BASE_DIR / "ent_master.sqlite3"
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 QUESTIONS_DIR = BASE_DIR / "data" / "questions"
+ENV_PATH = BASE_DIR / ".env"
+
+
+def load_env(path: Path) -> dict[str, str]:
+    """Читает файл .env (строки КЛЮЧ=значение) и возвращает словарь.
+
+    Пустые строки и строки с # пропускаются, кавычки вокруг значения снимаются.
+    Файла может не быть — тогда словарь пустой.
+    """
+    values: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return values
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip().removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+# Переменные окружения важнее файла .env.
+_ENV = {**load_env(ENV_PATH), **os.environ}
 
 # ── Безопасность ─────────────────────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ent_session"
@@ -22,6 +52,13 @@ SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60  # сессия живёт неде�
 PBKDF2_ITERATIONS = 200_000                   # чем больше, тем дороже подбор пароля
 PASSWORD_MIN_LENGTH = 8
 MAX_REQUEST_BODY_BYTES = 1_000_000            # защита от слишком больших POST-запросов
+
+# ── Telegram-бот ─────────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN = _ENV.get("TELEGRAM_BOT_TOKEN", "").strip()
+# Адрес сайта для ссылок из бота (без / в конце).
+SITE_URL = _ENV.get("SITE_URL", f"http://localhost:{PORT}").strip().rstrip("/")
+TELEGRAM_LOGIN_TOKEN_MINUTES = 10   # одноразовая ссылка входа действует 10 минут
+TELEGRAM_POLL_TIMEOUT = 30          # long polling: сколько секунд Telegram держит запрос
 
 # ── Режимы тестирования ──────────────────────────────────────────────────────
 MOCK_DURATION_MINUTES = 240   # пробный ЕНТ — 4 часа на полные 120 заданий

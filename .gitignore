@@ -11,3 +11,6 @@ __pycache__/
 # Настройки IDE
 .idea/
 .vscode/
+
+# Секреты: токен Telegram-бота
+.env

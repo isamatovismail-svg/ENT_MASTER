@@ -28,7 +28,17 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
     created_at    REAL NOT NULL,
-    role          TEXT NOT NULL DEFAULT 'user'   -- 'user' или 'admin'
+    role          TEXT NOT NULL DEFAULT 'user',  -- 'user' или 'admin'
+    telegram_id   INTEGER                        -- привязанный аккаунт Telegram (или NULL)
+);
+
+-- Одноразовые ссылки входа из Telegram-бота. Хранится только SHA-256 от токена.
+CREATE TABLE IF NOT EXISTS telegram_login_tokens (
+    token_hash    TEXT PRIMARY KEY,
+    telegram_id   INTEGER NOT NULL,
+    telegram_name TEXT NOT NULL,
+    expires_at    REAL NOT NULL,
+    used_at       REAL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -94,6 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject, qtype);
 # чтобы существующие пользователи и попытки сохранились.
 _ADDED_COLUMNS = (
     ("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
+    ("users", "telegram_id", "INTEGER"),
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("attempt_questions", "option_order_json", "TEXT"),
@@ -207,6 +218,11 @@ def init_db() -> None:
             if column not in existing:
                 # Имена таблиц и колонок — константы этого модуля, не данные пользователя.
                 connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        # Индекс создаётся после миграции: в старой базе колонки telegram_id ещё не было.
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id) "
+            "WHERE telegram_id IS NOT NULL"
+        )
 
 
 # ── Пользователи ─────────────────────────────────────────────────────────────
@@ -229,6 +245,64 @@ def set_user_role(login: str, role: str) -> bool:
     """Меняет роль пользователя по логину. False — такого пользователя нет."""
     with connect() as connection:
         cursor = connection.execute("UPDATE users SET role = ? WHERE login = ?", (role, login))
+        return cursor.rowcount == 1
+
+
+# ── Telegram ─────────────────────────────────────────────────────────────────
+
+def get_user_by_telegram(telegram_id: int) -> User | None:
+    """Пользователь сайта, к которому привязан этот аккаунт Telegram."""
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT id, name, login, role FROM users WHERE telegram_id = ?", (telegram_id,)
+        ).fetchone()
+    return User(row["id"], row["name"], row["login"], row["role"]) if row else None
+
+
+def bind_telegram(user_id: int, telegram_id: int) -> None:
+    """Привязывает Telegram к пользователю (и отвязывает его от прежнего аккаунта)."""
+    with connect() as connection:
+        connection.execute(
+            "UPDATE users SET telegram_id = NULL WHERE telegram_id = ? AND id != ?",
+            (telegram_id, user_id),
+        )
+        connection.execute("UPDATE users SET telegram_id = ? WHERE id = ?", (telegram_id, user_id))
+
+
+def create_telegram_login_token(
+    token_hash: str, telegram_id: int, telegram_name: str, expires_at: float
+) -> None:
+    """Сохраняет одноразовый токен входа из бота."""
+    with connect() as connection:
+        connection.execute(
+            "INSERT INTO telegram_login_tokens "
+            "(token_hash, telegram_id, telegram_name, expires_at) VALUES (?, ?, ?, ?)",
+            (token_hash, telegram_id, telegram_name, expires_at),
+        )
+
+
+def get_telegram_login_token(token_hash: str, now: float) -> sqlite3.Row | None:
+    """Действующий (не использованный и не просроченный) токен входа."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT telegram_id, telegram_name FROM telegram_login_tokens "
+            "WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+            (token_hash, now),
+        ).fetchone()
+
+
+def use_telegram_login_token(token_hash: str, now: float) -> bool:
+    """Помечает токен использованным. False — он уже использован или просрочен."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE telegram_login_tokens SET used_at = ? "
+            "WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+            (now, token_hash, now),
+        )
+        # Заодно чистим старые токены, чтобы таблица не росла.
+        connection.execute(
+            "DELETE FROM telegram_login_tokens WHERE expires_at < ?", (now - 24 * 60 * 60,)
+        )
         return cursor.rowcount == 1
 
 

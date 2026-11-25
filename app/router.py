@@ -8,7 +8,7 @@
 import re
 from collections.abc import Callable
 
-from app import admin_views, views
+from app import admin_views, telegram_views, views
 from app.web import Request, Response
 
 View = Callable[..., Response]
@@ -21,6 +21,8 @@ ROUTES: list[tuple[str, str, View]] = [
     ("GET", "/login", views.login_page),
     ("POST", "/login", views.login_submit),
     ("POST", "/logout", views.logout),
+    ("GET", "/tg/login", telegram_views.tg_login_page),
+    ("POST", "/tg/login", telegram_views.tg_login_submit),
     ("GET", "/dashboard", views.dashboard),
     ("GET", "/mock", views.choose_pair),
     ("POST", "/mock/start", views.start_mock),

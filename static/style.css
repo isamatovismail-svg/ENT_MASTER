@@ -2409,3 +2409,8 @@ code {
   font-size: 0.78rem;
   white-space: nowrap;
 }
+
+/* ── Вход через Telegram ──────────────────────────────────────────────────── */
+
+.tg-option { margin-top: 16px; }
+.tg-option p { margin: 8px 0 0; text-align: center; }
