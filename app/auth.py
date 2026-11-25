@@ -122,7 +122,7 @@ def authenticate(login: str, password: str) -> User | None:
         return None
     if not verify_password(password, row["salt"], row["password_hash"]):
         return None
-    return User(row["id"], row["name"], row["login"])
+    return User(row["id"], row["name"], row["login"], row["role"])
 
 
 # ── Сессии ───────────────────────────────────────────────────────────────────

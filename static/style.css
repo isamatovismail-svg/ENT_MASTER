@@ -2153,3 +2153,259 @@ body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
   .table th,
   .table td { padding: 10px 12px; }
 }
+
+/* ── Админ-панель ─────────────────────────────────────────────────────────── */
+
+.nav > a.nav-admin {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.admin-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+
+.admin-badge {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--gradient);
+  color: #fff;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.admin-tab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+
+.admin-tab:hover { background: var(--surface-2); }
+
+.admin-tab-active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.admin-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-bank { margin-top: 20px; }
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+}
+
+.filter-bar .field { min-width: 220px; }
+.filter-search { flex: 1; }
+
+.field textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.field-label {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.admin-table .q-cell { min-width: 260px; }
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.type-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.type-chip {
+  padding: 8px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+
+.type-chip:hover { border-color: var(--color-primary); transform: translateY(-2px); }
+
+.type-chip-active {
+  border-color: transparent;
+  background: var(--gradient);
+  color: #fff;
+}
+
+.admin-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.admin-fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.admin-fieldset legend {
+  padding: 0 6px;
+  font-weight: 800;
+}
+
+.admin-fieldset p { margin: 0; }
+
+.option-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.option-edit input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.option-edit input[type="text"]:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.option-edit select { width: 140px; flex-shrink: 0; }
+
+.correct-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.correct-mark input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--success);
+}
+
+.correct-mark:has(input:checked) {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 0.9em;
+}
+
+@media (max-width: 600px) {
+  .option-edit { flex-wrap: wrap; }
+  .option-edit input[type="text"] { flex-basis: calc(100% - 42px); }
+  .option-edit select { width: 100%; }
+  .correct-mark { margin-left: 40px; }
+  .filter-bar .field { min-width: 100%; }
+}
+
+/* Таблица вопросов на телефоне — карточки: текст вопроса виден без прокрутки вбок. */
+@media (max-width: 700px) {
+  .admin-table thead { display: none; }
+
+  .admin-table,
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table tr {
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .admin-table td {
+    padding: 4px 12px;
+    border: 0;
+  }
+
+  .admin-table td:nth-child(5)::before { content: "В попытках: "; color: var(--muted); }
+  .admin-table .q-cell { min-width: 0; font-weight: 650; }
+  .admin-table .row-actions { padding-top: 8px; }
+}
+
+.status-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}

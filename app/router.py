@@ -8,7 +8,7 @@
 import re
 from collections.abc import Callable
 
-from app import views
+from app import admin_views, views
 from app.web import Request, Response
 
 View = Callable[..., Response]
@@ -35,6 +35,18 @@ ROUTES: list[tuple[str, str, View]] = [
     ("POST", "/attempt/<int:attempt_id>/<subject>", views.section_submit),
     ("GET", "/result/<int:attempt_id>", views.result_page),
     ("GET", "/history", views.history),
+    # Админ-панель (только для роли admin)
+    ("GET", "/admin", admin_views.dashboard),
+    ("GET", "/admin/questions", admin_views.questions),
+    ("GET", "/admin/questions/new", admin_views.question_new),
+    ("POST", "/admin/questions/new", admin_views.question_new),
+    ("GET", "/admin/questions/<int:question_id>/edit", admin_views.question_edit),
+    ("POST", "/admin/questions/<int:question_id>/edit", admin_views.question_edit),
+    ("GET", "/admin/questions/<int:question_id>/delete", admin_views.question_delete),
+    ("POST", "/admin/questions/<int:question_id>/delete", admin_views.question_delete),
+    ("GET", "/admin/users", admin_views.users),
+    ("GET", "/admin/users/<int:user_id>", admin_views.user_detail),
+    ("GET", "/admin/users/<int:user_id>/attempts/<int:attempt_id>", admin_views.user_attempt),
 ]
 
 _PARAM_RE = re.compile(r"<(?:(int):)?([a-z_]+)>")

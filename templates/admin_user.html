@@ -1,0 +1,25 @@
+<section class="page-head">
+  <span class="eyebrow">Пользователь</span>
+  <h1>$name $role</h1>
+  <p class="muted">$login · зарегистрирован $created</p>
+  <p><a class="link" href="/admin/users">← Все пользователи</a></p>
+</section>
+
+<section class="stat-grid">
+  <article class="stat-card stat-total"><p class="stat-title">Завершённых попыток</p>
+    <p class="stat-value">$attempts</p><p class="stat-note">не завершено: $in_progress</p></article>
+  <article class="stat-card stat-best"><p class="stat-title">Лучший пробный ЕНТ</p>
+    <p class="stat-value">$best <span>из $max_score</span></p></article>
+  <article class="stat-card stat-avg"><p class="stat-title">Средний балл ЕНТ</p>
+    <p class="stat-value">$average <span>из $max_score</span></p></article>
+</section>
+
+<section class="card">
+  <h2>Результаты по предметам</h2>
+  $strengths
+</section>
+
+<section class="section">
+  <h2>Попытки</h2>
+  $table
+</section>

@@ -14,6 +14,9 @@ from pathlib import Path
 
 import config
 
+ROLE_USER = "user"
+ROLE_ADMIN = "admin"
+
 # Путь к файлу базы. Тесты подменяют его через configure().
 _db_path: Path = config.DATABASE_PATH
 
@@ -24,7 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
     login         TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
-    created_at    REAL NOT NULL
+    created_at    REAL NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'user'   -- 'user' или 'admin'
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -44,6 +48,9 @@ CREATE TABLE IF NOT EXISTS questions (
     left_json    TEXT NOT NULL DEFAULT '[]',
     correct_json TEXT NOT NULL,
     explanation  TEXT NOT NULL DEFAULT '',
+    -- 1 — вопрос удалён в админке, но остаётся в базе, потому что есть в чьих-то попытках.
+    -- Такой вопрос не попадает в новые тесты и в счётчики банка.
+    deleted      INTEGER NOT NULL DEFAULT 0,
     UNIQUE (subject, text)
 );
 
@@ -86,7 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject, qtype);
 # Колонки, добавленные после первой версии. init_db() добавляет их в старую базу,
 # чтобы существующие пользователи и попытки сохранились.
 _ADDED_COLUMNS = (
+    ("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
+    ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("attempt_questions", "option_order_json", "TEXT"),
     ("attempt_questions", "checked", "INTEGER NOT NULL DEFAULT 0"),
 )
@@ -101,6 +110,12 @@ class User:
     id: int
     name: str
     login: str
+    role: str = ROLE_USER
+
+    @property
+    def is_admin(self) -> bool:
+        """True, если пользователь — администратор."""
+        return self.role == ROLE_ADMIN
 
 
 @dataclass
@@ -210,6 +225,50 @@ def create_user(name: str, login: str, password_hash: str, salt: str, created_at
         return int(cursor.lastrowid)
 
 
+def set_user_role(login: str, role: str) -> bool:
+    """Меняет роль пользователя по логину. False — такого пользователя нет."""
+    with connect() as connection:
+        cursor = connection.execute("UPDATE users SET role = ? WHERE login = ?", (role, login))
+        return cursor.rowcount == 1
+
+
+def get_user(user_id: int) -> sqlite3.Row | None:
+    """Пользователь по id (без пароля) — для админки."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT id, name, login, role, created_at FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+
+
+def list_users_with_stats() -> list[sqlite3.Row]:
+    """Все пользователи со сводкой попыток (для админки), новые сверху."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT u.id, u.name, u.login, u.role, u.created_at, "
+            "COUNT(a.id) AS attempts, "
+            "SUM(a.mode = 'mock') AS mocks, "
+            "MAX(CASE WHEN a.mode = 'mock' THEN a.score END) AS best_mock, "
+            "MAX(a.finished_at) AS last_finished "
+            "FROM users u LEFT JOIN attempts a ON a.user_id = u.id AND a.status = 'finished' "
+            "GROUP BY u.id ORDER BY u.id DESC"
+        ).fetchall()
+
+
+def site_stats() -> sqlite3.Row:
+    """Общая статистика сайта: пользователи, завершённые попытки и средние результаты."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT (SELECT COUNT(*) FROM users) AS users, "
+            "(SELECT COUNT(*) FROM users WHERE role = 'admin') AS admins, "
+            "COUNT(*) AS attempts, "
+            "COALESCE(SUM(mode = 'mock'), 0) AS mocks, "
+            "COALESCE(SUM(mode = 'practice'), 0) AS practices, "
+            "AVG(CASE WHEN mode = 'mock' THEN score END) AS avg_mock_score, "
+            "AVG(CASE WHEN max_score > 0 THEN score * 100.0 / max_score END) AS avg_percent "
+            "FROM attempts WHERE status = 'finished'"
+        ).fetchone()
+
+
 def login_exists(login: str) -> bool:
     """Проверяет, зарегистрирован ли уже такой логин (почта или телефон)."""
     with connect() as connection:
@@ -221,7 +280,7 @@ def get_user_credentials(login: str) -> sqlite3.Row | None:
     """Возвращает id, имя, логин, хеш и соль пользователя для проверки пароля."""
     with connect() as connection:
         return connection.execute(
-            "SELECT id, name, login, password_hash, salt FROM users WHERE login = ?",
+            "SELECT id, name, login, role, password_hash, salt FROM users WHERE login = ?",
             (login,),
         ).fetchone()
 
@@ -242,14 +301,14 @@ def get_session_user(token_hash: str, now: float) -> tuple[User, str] | None:
     """Находит пользователя по хешу токена сессии. Возвращает (пользователь, csrf-токен)."""
     with connect() as connection:
         row = connection.execute(
-            "SELECT u.id, u.name, u.login, s.csrf_token "
+            "SELECT u.id, u.name, u.login, u.role, s.csrf_token "
             "FROM sessions s JOIN users u ON u.id = s.user_id "
             "WHERE s.token_hash = ? AND s.expires_at > ?",
             (token_hash, now),
         ).fetchone()
     if row is None:
         return None
-    return User(row["id"], row["name"], row["login"]), row["csrf_token"]
+    return User(row["id"], row["name"], row["login"], row["role"]), row["csrf_token"]
 
 
 def delete_session(token_hash: str) -> None:
@@ -289,7 +348,8 @@ def upsert_question(
             "ON CONFLICT (subject, text) DO UPDATE SET "
             "qtype = excluded.qtype, context = excluded.context, "
             "options_json = excluded.options_json, left_json = excluded.left_json, "
-            "correct_json = excluded.correct_json, explanation = excluded.explanation",
+            "correct_json = excluded.correct_json, explanation = excluded.explanation, "
+            "deleted = 0",
             (
                 subject,
                 qtype,
@@ -303,11 +363,141 @@ def upsert_question(
         )
 
 
+@dataclass
+class Question:
+    """Вопрос банка в исходном виде (для админки)."""
+
+    id: int
+    subject: str
+    qtype: str
+    text: str
+    context: str
+    options: list[str]
+    left: list[str]
+    correct: list[str]
+    explanation: str
+    used: int = 0  # в скольких попытках встречался
+
+
+_QUESTION_COLUMNS = (
+    "q.id, q.subject, q.qtype, q.text, q.context, q.options_json, q.left_json, "
+    "q.correct_json, q.explanation, "
+    "(SELECT COUNT(*) FROM attempt_questions aq WHERE aq.question_id = q.id) AS used"
+)
+
+
+def _question_from_row(row: sqlite3.Row) -> Question:
+    """Строка таблицы questions → Question."""
+    return Question(
+        id=row["id"],
+        subject=row["subject"],
+        qtype=row["qtype"],
+        text=row["text"],
+        context=row["context"],
+        options=json.loads(row["options_json"]),
+        left=json.loads(row["left_json"]),
+        correct=json.loads(row["correct_json"]),
+        explanation=row["explanation"],
+        used=row["used"],
+    )
+
+
+def list_questions(subject: str | None = None) -> list[Question]:
+    """Действующие (не удалённые) вопросы банка, по предмету или все; новые сверху."""
+    with connect() as connection:
+        if subject is None:
+            rows = connection.execute(
+                f"SELECT {_QUESTION_COLUMNS} FROM questions q WHERE q.deleted = 0 "
+                "ORDER BY q.id DESC"
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                f"SELECT {_QUESTION_COLUMNS} FROM questions q "
+                "WHERE q.deleted = 0 AND q.subject = ? ORDER BY q.id DESC",
+                (subject,),
+            ).fetchall()
+    return [_question_from_row(row) for row in rows]
+
+
+def get_question(question_id: int) -> Question | None:
+    """Действующий вопрос по id."""
+    with connect() as connection:
+        row = connection.execute(
+            f"SELECT {_QUESTION_COLUMNS} FROM questions q WHERE q.id = ? AND q.deleted = 0",
+            (question_id,),
+        ).fetchone()
+    return _question_from_row(row) if row else None
+
+
+def _question_values(question: Question) -> tuple:
+    """Значения колонок вопроса для INSERT/UPDATE."""
+    return (
+        question.subject,
+        question.qtype,
+        question.text,
+        question.context,
+        json.dumps(question.options, ensure_ascii=False),
+        json.dumps(question.left, ensure_ascii=False),
+        json.dumps(question.correct),
+        question.explanation,
+    )
+
+
+def insert_question(question: Question) -> int:
+    """Добавляет вопрос и возвращает его id.
+
+    Если у предмета уже есть вопрос с таким текстом, sqlite3 выбросит IntegrityError.
+    """
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO questions "
+            "(subject, qtype, text, context, options_json, left_json, correct_json, explanation) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            _question_values(question),
+        )
+        return int(cursor.lastrowid)
+
+
+def update_question(question: Question) -> bool:
+    """Сохраняет изменения вопроса. False — вопроса нет. Дубликат текста — IntegrityError."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ? "
+            "WHERE id = ? AND deleted = 0",
+            (*_question_values(question), question.id),
+        )
+        return cursor.rowcount == 1
+
+
+def delete_question(question_id: int) -> str:
+    """Удаляет вопрос из банка.
+
+    Если вопрос уже был в чьих-то попытках, он только помечается удалённым,
+    чтобы разбор старых попыток продолжал работать. Возвращает
+    "deleted", "archived" или "missing".
+    """
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT (SELECT COUNT(*) FROM attempt_questions WHERE question_id = q.id) AS used "
+            "FROM questions q WHERE q.id = ? AND q.deleted = 0",
+            (question_id,),
+        ).fetchone()
+        if row is None:
+            return "missing"
+        if row["used"]:
+            connection.execute("UPDATE questions SET deleted = 1 WHERE id = ?", (question_id,))
+            return "archived"
+        connection.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+        return "deleted"
+
+
 def question_counts() -> dict[tuple[str, str], int]:
     """Сколько вопросов в банке: словарь {(предмет, тип): количество}."""
     with connect() as connection:
         rows = connection.execute(
-            "SELECT subject, qtype, COUNT(*) AS n FROM questions GROUP BY subject, qtype"
+            "SELECT subject, qtype, COUNT(*) AS n FROM questions WHERE deleted = 0 "
+            "GROUP BY subject, qtype"
         ).fetchall()
     return {(row["subject"], row["qtype"]): row["n"] for row in rows}
 
@@ -320,14 +510,14 @@ def random_questions(subject: str, qtype: str | None, limit: int) -> list[Questi
     with connect() as connection:
         if qtype is None:
             rows = connection.execute(
-                "SELECT id, qtype, options_json FROM questions WHERE subject = ? "
+                "SELECT id, qtype, options_json FROM questions WHERE subject = ? AND deleted = 0 "
                 "ORDER BY RANDOM() LIMIT ?",
                 (subject, limit),
             ).fetchall()
         else:
             rows = connection.execute(
-                "SELECT id, qtype, options_json FROM questions WHERE subject = ? AND qtype = ? "
-                "ORDER BY RANDOM() LIMIT ?",
+                "SELECT id, qtype, options_json FROM questions "
+                "WHERE subject = ? AND qtype = ? AND deleted = 0 ORDER BY RANDOM() LIMIT ?",
                 (subject, qtype, limit),
             ).fetchall()
     return [

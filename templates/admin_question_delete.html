@@ -1,0 +1,16 @@
+<section class="confirm">
+  <div class="card confirm-card">
+    <span class="eyebrow">Банк вопросов</span>
+    <h1>Удалить вопрос #$id?</h1>
+    <p class="subject-link">$icon $subject · $type</p>
+    <div class="q-context">$text</div>
+    <div class="notice notice-warning">$used_note</div>
+    <div class="confirm-actions">
+      <a class="btn btn-ghost" href="$cancel">← Отмена</a>
+      <form method="post" action="/admin/questions/$id/delete">
+        $csrf
+        <button type="submit" class="btn btn-danger">Да, удалить</button>
+      </form>
+    </div>
+  </div>
+</section>

@@ -36,6 +36,15 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "bad_subject": ("error", "Выберите предмет из списка."),
     "no_questions": ("error", "В банке нет вопросов для этого теста. Запустите python seed.py."),
     "csrf": ("error", "Форма устарела. Обновите страницу и попробуйте ещё раз."),
+    "q_created": ("success", "Вопрос добавлен в банк и уже участвует в случайной выборке тестов."),
+    "q_updated": ("success", "Изменения вопроса сохранены."),
+    "q_deleted": ("success", "Вопрос удалён из банка."),
+    "q_archived": (
+        "success",
+        "Вопрос убран из банка. Он был в попытках учеников, поэтому его разбор в старых "
+        "попытках сохранён.",
+    ),
+    "q_missing": ("error", "Такого вопроса нет — возможно, его уже удалили."),
 }
 
 MODE_NAMES = {ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"}
@@ -127,8 +136,10 @@ def _nav(request: Request) -> SafeHTML:
         '<a href="/mock">📝 Пробный ЕНТ</a>'
         '<a href="/practice">🎯 Тренировка</a>'
         '<a href="/history">📈 История</a>'
+        "$admin"
         '<form method="post" action="/logout" class="nav-form">$csrf'
         '<button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>',
+        admin=SafeHTML('<a class="nav-admin" href="/admin">⚙️ Админка</a>' if request.user.is_admin else ""),
         csrf=_csrf_field(request),
     )
 
@@ -1299,20 +1310,11 @@ def _review_item(aq: AttemptQuestion) -> SafeHTML:
     )
 
 
-@login_required
-def result_page(request: Request, attempt_id: int) -> Response:
-    """GET /result/<id> — баллы по предметам, итог и разбор с объяснениями."""
-    attempt = database.get_attempt(attempt_id, _user_id(request))
-    if attempt is None:
-        return not_found(request)
-    if not attempt.is_finished:
-        if ent_logic.is_expired(attempt):
-            ent_logic.finish_attempt(attempt)
-            attempt = database.get_attempt(attempt_id, _user_id(request))
-            assert attempt is not None
-        else:
-            return redirect(_attempt_url(attempt))
+def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
+    """Страница результата завершённой попытки (общая для ученика и админки).
 
+    actions — кнопки внизу страницы: у ученика свои, у администратора — свои.
+    """
     questions = database.get_attempt_questions(attempt.id)
     scores = ent_logic.subject_scores(attempt, questions)
     is_mock = attempt.mode == ent_logic.MOCK
@@ -1365,19 +1367,8 @@ def result_page(request: Request, attempt_id: int) -> Response:
     else:
         cheer = "Не сдавайтесь: прочитайте объяснения и попробуйте ещё раз 🌱"
 
-    again = (
-        SafeHTML('<a class="btn btn-secondary" href="/mock">Новый пробный ЕНТ</a>')
-        if is_mock else
-        fragment(
-            '<form method="post" action="/practice/start">$csrf'
-            '<input type="hidden" name="subject" value="$code">'
-            '<button type="submit" class="btn btn-secondary">🔁 Ещё 10 вопросов</button></form>',
-            csrf=_csrf_field(request), code=attempt.subjects[0],
-        )
-    )
-
     duration = int((attempt.finished_at or attempt.started_at) - attempt.started_at)
-    content = render(
+    return render(
         "result.html",
         mode_label=MODE_NAMES[attempt.mode],
         icon=_attempt_icon(attempt),
@@ -1392,9 +1383,40 @@ def result_page(request: Request, attempt_id: int) -> Response:
         official_note=official_note,
         score_rows=score_rows,
         review=join(review_sections),
+        actions=actions,
+    )
+
+
+@login_required
+def result_page(request: Request, attempt_id: int) -> Response:
+    """GET /result/<id> — баллы по предметам, итог и разбор с объяснениями."""
+    attempt = database.get_attempt(attempt_id, _user_id(request))
+    if attempt is None:
+        return not_found(request)
+    if not attempt.is_finished:
+        if ent_logic.is_expired(attempt):
+            ent_logic.finish_attempt(attempt)
+            attempt = database.get_attempt(attempt_id, _user_id(request))
+            assert attempt is not None
+        else:
+            return redirect(_attempt_url(attempt))
+
+    again = (
+        SafeHTML('<a class="btn btn-secondary" href="/mock">Новый пробный ЕНТ</a>')
+        if attempt.mode == ent_logic.MOCK else
+        fragment(
+            '<form method="post" action="/practice/start">$csrf'
+            '<input type="hidden" name="subject" value="$code">'
+            '<button type="submit" class="btn btn-secondary">🔁 Ещё 10 вопросов</button></form>',
+            csrf=_csrf_field(request), code=attempt.subjects[0],
+        )
+    )
+    actions = fragment(
+        '<a class="btn btn-primary" href="/dashboard">В кабинет</a>$again'
+        '<a class="btn btn-ghost" href="/history">История попыток</a>',
         again=again,
     )
-    return page(request, "Результат", content)
+    return page(request, "Результат", result_content(attempt, actions))
 
 
 @login_required

@@ -1,0 +1,22 @@
+<section class="page-head">
+  <span class="eyebrow">Обзор</span>
+  <h1>Статистика сайта</h1>
+</section>
+
+<section class="stat-grid">$cards</section>
+
+<section class="card admin-bank">
+  <div class="card-title-row">
+    <h2>📚 Банк вопросов: $total_questions</h2>
+    <a class="btn btn-primary btn-sm" href="/admin/questions/new">＋ Добавить вопрос</a>
+  </div>
+  <p class="muted">Норма ЕНТ — сколько заданий каждого типа нужно для полного пробного теста.
+    Предметов ниже нормы: <strong>$below</strong>. Такие тесты собираются из имеющихся заданий
+    с пропорционально меньшим временем.</p>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Предмет</th>$type_headers<th>Всего / норма</th><th>Статус</th></tr></thead>
+      <tbody>$bank_rows</tbody>
+    </table>
+  </div>
+</section>

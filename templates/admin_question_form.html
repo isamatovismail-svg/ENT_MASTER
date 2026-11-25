@@ -1,0 +1,37 @@
+<section class="page-head">
+  <span class="eyebrow">Банк вопросов</span>
+  <h1>$title</h1>
+  <p><a class="link" href="/admin/questions">← К списку вопросов</a></p>
+</section>
+
+$note
+
+<div class="card">
+  <p class="field-label">Тип задания</p>
+  <nav class="type-switch" aria-label="Тип задания">$type_switch</nav>
+  <p class="muted small">Смена типа перезагружает форму — несохранённые изменения пропадут.</p>
+</div>
+
+$errors
+
+<form method="post" action="$action" class="card admin-form" novalidate>
+  $csrf
+  <input type="hidden" name="type" value="$qtype">
+  <label class="field"><span>Предмет</span><select name="subject" required>$subject_options</select></label>
+  $context_field
+  <label class="field"><span>Текст вопроса</span>
+    <textarea name="text" rows="3" maxlength="$text_max" required>$text</textarea></label>
+  $matching_rows
+  <fieldset class="admin-fieldset">
+    <legend>$options_legend</legend>
+    <p class="muted small">$option_hint Пустые варианты в конце не сохраняются. На сайте варианты
+      перемешиваются, поэтому не ссылайтесь на буквы в тексте и объяснении.</p>
+    $option_rows
+  </fieldset>
+  <label class="field"><span>Объяснение — почему ответ правильный (2–4 предложения)</span>
+    <textarea name="explanation" rows="4" maxlength="$text_max" required>$explanation</textarea></label>
+  <div class="test-actions">
+    <a class="btn btn-ghost" href="/admin/questions">Отмена</a>
+    <button type="submit" class="btn btn-primary">💾 Сохранить вопрос</button>
+  </div>
+</form>

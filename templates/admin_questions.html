@@ -1,0 +1,18 @@
+<section class="page-head admin-head">
+  <div>
+    <span class="eyebrow">Банк вопросов</span>
+    <h1>Вопросы</h1>
+    <p class="muted">Найдено: $count. Новые и изменённые вопросы сразу участвуют в случайной выборке тестов.</p>
+  </div>
+  <a class="btn btn-primary" href="/admin/questions/new?$new_query">＋ Добавить вопрос</a>
+</section>
+
+<form method="get" action="/admin/questions" class="card filter-bar">
+  <label class="field"><span>Предмет</span><select name="subject">$subject_options</select></label>
+  <label class="field filter-search"><span>Поиск по тексту</span>
+    <input type="search" name="q" value="$search" maxlength="200" placeholder="например, производная"></label>
+  <button type="submit" class="btn btn-secondary">Найти</button>
+</form>
+
+$table
+$pager
