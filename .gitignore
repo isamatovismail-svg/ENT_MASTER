@@ -8,8 +8,9 @@ __pycache__/
 *.sqlite3
 *.sqlite3-journal
 
-# Настройки IDE
-.idea/
+# Настройки IDE (общая конфигурация запуска PyCharm «Run» — в git)
+.idea/*
+!.idea/runConfigurations/
 .vscode/
 
 # Секреты: токен Telegram-бота

@@ -15,13 +15,14 @@ python seed.py      # validate data/questions/*.json and upsert into SQLite (ide
 python manage_admin.py <login> [--revoke]   # grant/revoke the admin role (user must be registered)
 python bot.py       # Telegram bot (long polling); needs TELEGRAM_BOT_TOKEN in .env (see .env.example)
 python main.py      # init DB and serve on http://localhost:8000 (127.0.0.1:8000 from config.py)
+python run.py       # site + bot together (two subprocesses, logs prefixed [САЙТ]/[БОТ], Ctrl+C stops both; bot skipped with a warning if no token)
 
 python -m unittest                                              # all tests
 python -m unittest tests.test_auth                              # one module
 python -m unittest tests.test_scoring.ScoreTests.test_matching  # one test
 ```
 
-The local DB is `ent_master.sqlite3` in the repo root (gitignored). There is no linter/build config.
+The local DB is `ent_master.sqlite3` in the repo root (gitignored). There is no linter/build config. The shared PyCharm run configuration «Run» (`.idea/runConfigurations/Run.xml`, the only tracked part of `.idea/`) launches `run.py`.
 
 ## Architecture
 
