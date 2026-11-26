@@ -2,7 +2,9 @@
 
 import itertools
 
-from app.generators.common import SkipQuestion, matching, multiple, num, number_distractors, single
+from app.generators.common import (
+    SkipQuestion, matching, multiple, num, number_distractors, plural, quiz, single, topic,
+)
 
 _SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
 
@@ -33,6 +35,7 @@ def _to_base_steps(value: int, base: int) -> str:
 
 # ── Один ответ ───────────────────────────────────────────────────────────────
 
+@topic("04")
 def to_decimal(rng):
     base = rng.choice([2, 2, 8, 16])
     value = rng.randint(9, 255 if base == 2 else 999)
@@ -46,6 +49,7 @@ def to_decimal(rng):
                   number_distractors(rng, value, wrong), expl)
 
 
+@topic("04")
 def from_decimal(rng):
     base = rng.choice([2, 2, 8, 16])
     value = rng.randint(9, 255 if base == 2 else 999)
@@ -57,6 +61,7 @@ def from_decimal(rng):
                   [w for w in wrong if w != answer], expl)
 
 
+@topic("04")
 def binary_ones(rng):
     value = rng.randint(17, 1023)
     ones = bin(value).count("1")
@@ -66,6 +71,7 @@ def binary_ones(rng):
                   expl)
 
 
+@topic("03")
 def units(rng):
     kind = rng.choice(["kb_bytes", "mb_kb", "bytes_bits", "kb_bits"])
     n = rng.choice([2, 3, 4, 5, 8, 10, 16, 32, 64, 128, 256, 512])
@@ -88,6 +94,7 @@ def units(rng):
     return single(rng, text, f"{num(value)} {unit}", number_distractors(rng, value, wrong, f" {unit}"), expl)
 
 
+@topic("03")
 def message_size(rng):
     i = rng.randint(3, 8)
     power = 2 ** i
@@ -107,6 +114,7 @@ def message_size(rng):
                   number_distractors(rng, bits // 8, [bits, chars * i // 2, chars, bits // 8 + i], " байт"), expl)
 
 
+@topic("03")
 def alphabet_power(rng):
     i = rng.randint(1, 9)
     power = 2 ** i
@@ -120,6 +128,7 @@ def alphabet_power(rng):
     return single(rng, text, str(i), number_distractors(rng, i, [i + 1, i - 1, n // 2, i + 2]), expl)
 
 
+@topic("03")
 def image_size(rng):
     w, h = rng.choice([(64, 64), (128, 128), (256, 128), (256, 256), (512, 256), (1024, 512), (640, 480), (800, 600)])
     colors = rng.choice([2, 4, 16, 256, 65536])
@@ -137,6 +146,7 @@ def image_size(rng):
                   number_distractors(rng, kb, [kb * 8, w * h // 1024, kb * 2, kb // 2], " Кбайт"), expl)
 
 
+@topic("02")
 def transfer_time(rng):
     speed_kbit = rng.choice([128, 256, 512, 1024, 2048])
     seconds = rng.choice([8, 16, 32, 64, 10, 20, 40])
@@ -175,6 +185,7 @@ def _expression(rng) -> tuple[str, callable]:
     return text, f
 
 
+@topic("05")
 def truth_count(rng):
     text, f = _expression(rng)
     rows = [r for r in itertools.product([0, 1], repeat=3) if f(*r)]
@@ -186,6 +197,7 @@ def truth_count(rng):
     return single(rng, q, str(count), number_distractors(rng, count, [8 - count, count + 1, count - 1, count + 2]), expl)
 
 
+@topic("05")
 def truth_value(rng):
     text, f = _expression(rng)
     rows = list(itertools.product([0, 1], repeat=3))
@@ -260,6 +272,7 @@ def _python_snippet(rng) -> tuple[str, str, list[str], str]:
         f"Умножение строки на число повторяет её {n} раза, затем добавляется «!»: {value}."
 
 
+@topic("06")
 def python_output(rng):
     code, value, wrong, expl = _python_snippet(rng)
     return single(rng, f"Что выведет программа на Python: {code}", value, wrong, expl)
@@ -267,6 +280,7 @@ def python_output(rng):
 
 # ── По контексту ─────────────────────────────────────────────────────────────
 
+@topic("03")
 def photo_context(rng):
     w, h = rng.choice([(1024, 768), (800, 600), (640, 480), (1280, 1024), (1920, 1080)])
     bits = rng.choice([8, 16, 24])
@@ -294,6 +308,7 @@ def photo_context(rng):
                   expl, context=context)
 
 
+@topic("06")
 def loop_context(rng):
     start, step, limit = rng.randint(0, 5), rng.randint(2, 5), rng.randint(20, 60)
     s, count, x = 0, 0, start
@@ -316,6 +331,7 @@ def loop_context(rng):
 
 # ── Соответствие ─────────────────────────────────────────────────────────────
 
+@topic("04")
 def bases_matching(rng):
     values = rng.sample(range(5, 64), 4)
     base = rng.choice([2, 8, 16])
@@ -340,6 +356,7 @@ _TERMS = [("Процессор", "обрабатывает данные и вы�
           ("Антивирус", "обнаруживает и удаляет вредоносные программы")]
 
 
+@topic("01")
 def terms_matching(rng):
     picked = rng.sample(_TERMS, 4)
     a, b = picked[:2]
@@ -350,6 +367,7 @@ def terms_matching(rng):
 
 # ── Несколько ответов ────────────────────────────────────────────────────────
 
+@topic("04")
 def bigger_multiple(rng):
     limit = rng.randint(30, 120)
     values = rng.sample(range(5, 200), 6)
@@ -368,6 +386,7 @@ _INPUT = ["Клавиатура", "Мышь", "Сканер", "Микрофон"
 _OUTPUT = ["Монитор", "Принтер", "Колонки", "Наушники", "Проектор", "Плоттер"]
 
 
+@topic("01")
 def devices_multiple(rng):
     if rng.random() < 0.5:
         right_pool, wrong_pool, kind = _INPUT, _OUTPUT, "ввода"
@@ -382,6 +401,7 @@ def devices_multiple(rng):
     return multiple(rng, text, right, wrong, expl)
 
 
+@topic("04")
 def even_binary_multiple(rng):
     values = rng.sample(range(8, 128), 6)
     right = [v for v in values if v % 2 == 0]
@@ -393,10 +413,155 @@ def even_binary_multiple(rng):
     return multiple(rng, text, [based(v, 2) for v in right], [based(v, 2) for v in wrong], expl)
 
 
+# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
+
+_WORDS = ["informatika", "python", "algoritm", "kompyuter", "astana", "programma", "baiterek", "massiv",
+          "funksiya", "rekursiya", "sortirovka", "stroka"]
+
+
+@topic("07")
+def python_strings(rng):
+    word = rng.choice(_WORDS)
+    start = rng.randint(0, 3)
+    stop = start + rng.randint(2, 4)
+    variants = [
+        (f"len('{word}')", str(len(word)), "функция len возвращает количество символов в строке"),
+        (f"'{word}'[{start}:{stop}]", repr(word[start:stop])[1:-1],
+         f"срез [{start}:{stop}] берёт символы с индекса {start} по {stop - 1} (нумерация с нуля)"),
+        (f"'{word}'[::-1]", word[::-1], "срез [::-1] переворачивает строку"),
+        (f"'{word}'.count('{word[1]}')", str(word.count(word[1])),
+         f"метод count считает, сколько раз встречается подстрока '{word[1]}'"),
+    ]
+    expr, answer, why = rng.choice(variants)
+    wrong = {str(len(word) - 1), str(len(word) + 1), word[start:stop + 1], word[start + 1:stop + 1], word,
+             word[1:], str(word.count(word[1]) + 1)} - {answer}
+    return single(rng, f"Что выведет программа на Python: print({expr})?", answer, sorted(wrong),
+                  f"Ответ {answer}: {why}.")
+
+
+@topic("07")
+def python_recursion(rng):
+    n = rng.randint(3, 8)
+    if rng.random() < 0.5:
+        code = "def f(n):\n    if n <= 1:\n        return 1\n    return n * f(n - 1)"
+        answer = 1
+        for k in range(2, n + 1):
+            answer *= k
+        why = f"f(n) = n·f(n − 1) и f(1) = 1, то есть f({n}) = {n}! = {num(answer)}"
+        wrong = [answer // n, answer * (n + 1), n * (n - 1), answer + 1]
+    else:
+        code = "def f(n):\n    if n == 0:\n        return 0\n    return n + f(n - 1)"
+        answer = n * (n + 1) // 2
+        why = f"f(n) = n + f(n − 1) и f(0) = 0, то есть сумма 1 + 2 + … + {n} = {answer}"
+        wrong = [answer - n, answer + n + 1, n * n, answer + 1]
+    kind = "произведение" if "*" in code else "сумма"
+    text = f"Дана рекурсивная функция на Python ({kind}). Что выведет print(f({n}))?"
+    question = single(rng, text, num(answer), number_distractors(rng, answer, wrong), f"{why}.",
+                      context=code)
+    return question
+
+
+SOFTWARE = quiz([
+    ("Какая из программ является операционной системой?", "Linux", ["Microsoft Word", "Google Chrome", "Python"],
+     "Операционная система управляет ресурсами компьютера; Linux — пример ОС, остальные — прикладные программы."),
+    ("Какая программа обеспечивает работу операционной системы с конкретным устройством?", "драйвер",
+     ["антивирус", "архиватор", "текстовый редактор"], "Драйвер — системная программа для управления устройством."),
+    ("Какое устройство сохраняет данные после выключения компьютера?", "твердотельный накопитель (SSD)",
+     ["оперативная память", "регистры процессора", "кэш-память"], "SSD и жёсткий диск — энергонезависимая внешняя память."),
+    ("Какая программа предназначена для сжатия файлов?", "архиватор", ["драйвер", "браузер", "компилятор"],
+     "Архиваторы (7-Zip, WinRAR) уменьшают размер файлов."),
+    ("Какая программа переводит весь текст программы на языке высокого уровня в машинный код до запуска?",
+     "компилятор", ["интерпретатор", "отладчик", "редактор"],
+     "Компилятор переводит программу целиком, интерпретатор выполняет её построчно."),
+    ("Какое устройство выполняет арифметические и логические операции?", "процессор",
+     ["монитор", "клавиатура", "блок питания"], "Центральный процессор обрабатывает данные по командам программы."),
+], "08")
+
+_STUDENTS = ["Айгерим", "Данияр", "Асель", "Нурлан", "Мадина", "Ерлан", "Алия", "Тимур"]
+
+
+@topic("09")
+def db_records(rng):
+    people = rng.sample(_STUDENTS, 6)
+    scores = [rng.randint(60, 140) for _ in people]
+    limit = rng.randrange(80, 125, 5)
+    count = sum(score > limit for score in scores)
+    table = "; ".join(f"{p} — {s}" for p, s in zip(people, scores))
+    text = (f"Таблица «Ученики» (Имя — Балл): {table}. Сколько записей отберёт фильтр «Балл > {limit}»?")
+    explanation = (f"Условию «Балл > {limit}» удовлетворяют: "
+                   + (", ".join(f"{p} ({s})" for p, s in zip(people, scores) if s > limit) or "никто")
+                   + f" — {count} {plural(count, 'запись', 'записи', 'записей')}.")
+    return single(rng, text, num(count), number_distractors(rng, count, [6 - count, count + 1, 6]), explanation)
+
+
+@topic("10")
+def sql_count(rng):
+    people = rng.sample(_STUDENTS, 6)
+    scores = [rng.randint(60, 140) for _ in people]
+    limit = rng.randrange(80, 125, 5)
+    op = rng.choice([">=", "<"])
+    count = sum((s >= limit) if op == ">=" else (s < limit) for s in scores)
+    table = "; ".join(f"{p} — {s}" for p, s in zip(people, scores))
+    text = (f"Таблица Students (name — score): {table}. Что вернёт запрос "
+            f"SELECT COUNT(*) FROM Students WHERE score {op} {limit}?")
+    explanation = (f"COUNT(*) считает строки, для которых выполнено условие score {op} {limit}: "
+                   f"таких строк {count}.")
+    return single(rng, text, num(count), number_distractors(rng, count, [6 - count, count + 1, 6]), explanation)
+
+
+IT_TRENDS = quiz([
+    ("Как называется молодая компания, которая создаёт новый продукт и ищет масштабируемую бизнес-модель?",
+     "стартап", ["холдинг", "франшиза", "монополия"], "Стартап — компания на ранней стадии с инновационной идеей."),
+    ("Как называется минимальная версия продукта, выпущенная для проверки идеи на пользователях?", "MVP",
+     ["API", "SSD", "CPU"], "MVP (minimum viable product) — минимально жизнеспособный продукт."),
+    ("Как называется хранение данных и запуск программ на удалённых серверах через интернет?",
+     "облачные вычисления", ["локальная сеть", "дефрагментация", "компиляция"],
+     "Облачные сервисы предоставляют ресурсы серверов по сети."),
+    ("Как называется сеть бытовых и промышленных устройств, обменивающихся данными через интернет?",
+     "интернет вещей (IoT)", ["искусственный интеллект", "блокчейн", "виртуальная реальность"],
+     "IoT — «умные» датчики, счётчики, бытовая техника, подключённые к сети."),
+    ("Какое устройство создаёт физический объект по цифровой 3D-модели слой за слоем?", "3D-принтер",
+     ["плоттер", "сканер", "проектор"], "3D-принтер наносит материал послойно по трёхмерной модели."),
+], "11")
+
+
+@topic("12")
+def spreadsheet_formula(rng):
+    values = [rng.randint(1, 50) for _ in range(4)]
+    func = rng.choice(["СУММ", "МАКС", "МИН", "СРЗНАЧ"])
+    if func == "СРЗНАЧ" and sum(values) % 4:
+        raise SkipQuestion
+    result = {"СУММ": sum(values), "МАКС": max(values), "МИН": min(values),
+              "СРЗНАЧ": sum(values) // 4}[func]
+    cells = ", ".join(f"A{i + 1} = {v}" for i, v in enumerate(values))
+    meaning = {"СУММ": "сумму", "МАКС": "наибольшее значение", "МИН": "наименьшее значение",
+               "СРЗНАЧ": "среднее арифметическое"}[func]
+    text = f"В электронной таблице {cells}. Какое значение вычислит формула ={func}(A1:A4)?"
+    wrong = [sum(values), max(values), min(values), values[0] + values[3]]
+    return single(rng, text, num(result), number_distractors(rng, result, wrong),
+                  f"Функция {func} находит {meaning} в диапазоне A1:A4: {num(result)}.")
+
+
+WEB = quiz([
+    ("Какой тег HTML создаёт гиперссылку?", "<a>", ["<p>", "<img>", "<ul>"], "Ссылка: <a href=\"адрес\">текст</a>."),
+    ("Какой тег HTML вставляет изображение?", "<img>", ["<a>", "<table>", "<h1>"],
+     "Изображение: <img src=\"файл\" alt=\"описание\">."),
+    ("Какой тег HTML задаёт заголовок первого уровня?", "<h1>", ["<head>", "<title>", "<p>"],
+     "Заголовки страницы — теги <h1>…<h6>, <h1> — самый крупный."),
+    ("Какой тег HTML создаёт таблицу?", "<table>", ["<tr>", "<div>", "<list>"],
+     "Таблица — <table>, строки — <tr>, ячейки — <td>."),
+    ("Какое свойство CSS задаёт цвет текста?", "color", ["background", "font-size", "margin"],
+     "color — цвет текста, background — фон."),
+    ("Как называется язык описания внешнего вида (стилей) веб-страниц?", "CSS", ["HTML", "SQL", "Python"],
+     "HTML описывает структуру страницы, CSS — её оформление."),
+], "13")
+
+
 TEMPLATES = {
     "single": [to_decimal, from_decimal, binary_ones, units, message_size, alphabet_power, image_size,
-               transfer_time, truth_count, truth_value, python_output],
-    "context": [photo_context, loop_context],
+               transfer_time, truth_count, truth_value, python_output, python_strings, SOFTWARE, db_records,
+               sql_count, IT_TRENDS, spreadsheet_formula, WEB],
+    "context": [photo_context, loop_context, python_recursion],
     "matching": [bases_matching, terms_matching],
     "multiple": [bigger_multiple, devices_multiple, even_binary_multiple],
 }

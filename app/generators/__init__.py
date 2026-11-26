@@ -2,6 +2,8 @@
 
 Каждый модуль предмета содержит словарь TEMPLATES {тип задания: [функции]}.
 Функция-шаблон принимает random.Random и возвращает готовый вопрос.
+У каждого вопроса есть тема спецификации НЦТ (topic): у расчётных шаблонов —
+из декоратора @topic, у шаблонов по таблицам — из строки таблицы (Event/Fact/Category).
 """
 
 import random
@@ -64,6 +66,8 @@ def generate(subject: str, qtype: str, count: int, seed: int = 2026) -> list[dic
             continue
         try:
             question = templates[number](rng)
+            # Тема: шаблон таблицы ставит её сам (по строке таблицы), расчётный — декоратором @topic.
+            question.setdefault("topic", getattr(templates[number], "topic", ""))
             if subject in NUMERIC_SUBJECTS:
                 question = polish(question)
         except (SkipQuestion, ZeroDivisionError):
@@ -80,7 +84,7 @@ def generate(subject: str, qtype: str, count: int, seed: int = 2026) -> list[dic
             if misses[number] > 200:  # шаблон исчерпал свои варианты
                 exhausted.add(number)
             continue
-        problems = validate_question(question)
+        problems = validate_question(question, subject)
         if problems:  # защита от ошибок в шаблонах
             raise ValueError(f"{templates[number].__name__}: {problems}")
         misses[number] = 0

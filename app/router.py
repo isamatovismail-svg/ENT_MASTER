@@ -75,6 +75,7 @@ ROUTES: list[tuple[str, str, View]] = [
     ("POST", "/admin/questions/<int:question_id>/edit", admin_views.question_edit),
     ("GET", "/admin/questions/<int:question_id>/delete", admin_views.question_delete),
     ("POST", "/admin/questions/<int:question_id>/delete", admin_views.question_delete),
+    ("GET", "/admin/topics", admin_views.topics_report),
     ("GET", "/admin/review", admin_views.review_queue),
     ("POST", "/admin/review/<int:question_id>", admin_views.review_action),
     ("GET", "/admin/review/<int:question_id>/edit", admin_views.review_edit),

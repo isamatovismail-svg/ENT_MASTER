@@ -308,6 +308,10 @@ def student_card(request: Request, school, user_id: int) -> Response:
         max_score=config.MOCK_MAX_SCORE,
         strengths=views._strength_rows(strengths, "Пока нет решённых заданий."),
         weak=views._strength_rows(weak, "Слабых предметов не найдено — или ещё мало попыток."),
+        weak_topics=views.topic_rows(
+            ent_logic.weak_topics(user_id, 8),
+            f"Слабых тем нет: по всем темам с {ent_logic.MIN_TOPIC_QUESTIONS}+ заданиями результат "
+            f"не ниже {ent_logic.WEAK_TOPIC_PERCENT}% — или заданий пока мало."),
         growth=_growth_rows(mocks),
         history=history,
     )

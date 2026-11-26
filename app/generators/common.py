@@ -21,6 +21,20 @@ class SkipQuestion(Exception):
     """Генератор получил неудачные случайные числа — вопрос нужно собрать заново."""
 
 
+def topic(code: str):
+    """Декоратор: тема спецификации НЦТ (номер из app/topics.py), к которой относится шаблон.
+
+    @topic("05")
+    def linear_equation(rng): ...
+    """
+
+    def mark(function):
+        function.topic = code
+        return function
+
+    return mark
+
+
 def num(value: float | int | Fraction, digits: int = 2) -> str:
     """Число по-русски: десятичная запятая, пробелы между тысячами, знак «−».
 
@@ -170,3 +184,18 @@ def matching(rng: random.Random, text: str, pairs: list[tuple[str, str]],
         "correct": letters,
         "explanation": explanation,
     }
+
+
+def quiz(items: list[tuple[str, str, list[str], str]], code: str):
+    """Шаблон из готовых вопросов «текст — ответ — неверные варианты — объяснение» одной темы.
+
+    Нужен для тем, где ответ — факт, а не расчёт. Варианты перемешиваются при каждом выборе.
+    """
+
+    @topic(code)
+    def ask(rng: random.Random) -> dict:
+        text, answer, wrong, explanation = rng.choice(items)
+        return single(rng, text, answer, list(wrong), explanation)
+
+    ask.__name__ = f"quiz_{code}"
+    return ask

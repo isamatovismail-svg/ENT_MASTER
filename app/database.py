@@ -132,6 +132,8 @@ CREATE TABLE IF NOT EXISTS questions (
     review_comment TEXT NOT NULL DEFAULT '',  -- комментарий администратора
     submitted_at   REAL,                      -- когда отправлен на проверку
     reviewed_at    REAL,                      -- когда проверен
+    -- Тема по спецификации НЦТ: номер из app/topics.py («05»), '' — без темы.
+    topic          TEXT NOT NULL DEFAULT '',
     UNIQUE (subject, text)
 );
 
@@ -191,6 +193,7 @@ _ADDED_COLUMNS = (
     ("questions", "review_comment", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "submitted_at", "REAL"),
     ("questions", "reviewed_at", "REAL"),
+    ("questions", "topic", "TEXT NOT NULL DEFAULT ''"),
     ("attempt_questions", "option_order_json", "TEXT"),
     ("attempt_questions", "checked", "INTEGER NOT NULL DEFAULT 0"),
 )
@@ -609,9 +612,9 @@ def delete_expired_sessions(now: float) -> None:
 
 _UPSERT_SQL = (
     "INSERT INTO questions "
-    "(subject, qtype, text, context, options_json, left_json, correct_json, explanation) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
-    "ON CONFLICT (subject, text) DO UPDATE SET "
+    "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, topic) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+    "ON CONFLICT (subject, text) DO UPDATE SET topic = excluded.topic, "
     "qtype = excluded.qtype, context = excluded.context, "
     "options_json = excluded.options_json, left_json = excluded.left_json, "
     "correct_json = excluded.correct_json, explanation = excluded.explanation, "
@@ -633,6 +636,7 @@ def _upsert_values(subject: str, question: dict) -> tuple:
         json.dumps(question.get("left", []), ensure_ascii=False),
         json.dumps(question["correct"]),
         question.get("explanation", "").strip(),
+        question.get("topic", ""),
     )
 
 
@@ -645,6 +649,7 @@ def upsert_question(
     left: list[str],
     correct: list[str],
     explanation: str = "",
+    topic: str = "",
 ) -> None:
     """Добавляет вопрос или обновляет существующий с тем же предметом и текстом.
 
@@ -652,7 +657,7 @@ def upsert_question(
     попадут в базу, а дубликаты не появятся.
     """
     question = {"type": qtype, "text": text, "context": context, "options": options,
-                "left": left, "correct": correct, "explanation": explanation}
+                "left": left, "correct": correct, "explanation": explanation, "topic": topic}
     with connect() as connection:
         connection.execute(_UPSERT_SQL, _upsert_values(subject, question))
 
@@ -680,6 +685,7 @@ class Question:
     correct: list[str]
     explanation: str
     used: int = 0  # в скольких попытках встречался
+    topic: str = ""  # номер темы спецификации (app/topics.py)
     status: str = Q_APPROVED
     author_id: int | None = None
     review_comment: str = ""
@@ -688,7 +694,7 @@ class Question:
 
 _QUESTION_COLUMNS = (
     "q.id, q.subject, q.qtype, q.text, q.context, q.options_json, q.left_json, "
-    "q.correct_json, q.explanation, q.status, q.author_id, q.review_comment, q.submitted_at, "
+    "q.correct_json, q.explanation, q.topic, q.status, q.author_id, q.review_comment, q.submitted_at, "
     "(SELECT COUNT(*) FROM attempt_questions aq WHERE aq.question_id = q.id) AS used"
 )
 
@@ -706,6 +712,7 @@ def _question_from_row(row: sqlite3.Row) -> Question:
         correct=json.loads(row["correct_json"]),
         explanation=row["explanation"],
         used=row["used"],
+        topic=row["topic"],
         status=row["status"],
         author_id=row["author_id"],
         review_comment=row["review_comment"],
@@ -753,6 +760,7 @@ def _question_values(question: Question) -> tuple:
         json.dumps(question.left, ensure_ascii=False),
         json.dumps(question.correct),
         question.explanation,
+        question.topic,
     )
 
 
@@ -765,7 +773,7 @@ def insert_question(question: Question) -> int:
         cursor = connection.execute(
             "INSERT INTO questions "
             "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, "
-            "edited_by_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            "topic, edited_by_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
             _question_values(question),
         )
         return int(cursor.lastrowid)
@@ -779,7 +787,7 @@ def update_question(question: Question) -> bool:
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, "
             "edited_by_admin = 1 WHERE id = ? AND deleted = 0 AND status = 'approved'",
             (*_question_values(question), question.id),
         )
@@ -819,7 +827,7 @@ def insert_teacher_question(question: Question, author_id: int, now: float) -> i
         cursor = connection.execute(
             "INSERT INTO questions "
             "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, "
-            "status, author_id, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "topic, status, author_id, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (*_question_values(question), Q_PENDING, author_id, now),
         )
         return int(cursor.lastrowid)
@@ -855,7 +863,7 @@ def resubmit_author_question(question: Question, author_id: int, now: float) -> 
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, "
             "status = 'pending', review_comment = '', submitted_at = ?, reviewed_at = NULL "
             "WHERE id = ? AND author_id = ? AND deleted = 0 AND status != 'approved'",
             (*_question_values(question), now, question.id, author_id),
@@ -925,12 +933,49 @@ def approve_with_changes(question: Question, comment: str, now: float) -> bool:
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, "
             "edited_by_admin = 1, status = 'approved', review_comment = ?, reviewed_at = ? "
             "WHERE id = ? AND status = 'pending' AND deleted = 0",
             (*_question_values(question), comment, now, question.id),
         )
         return cursor.rowcount == 1
+
+
+def retire_untagged_questions() -> int:
+    """Помечает удалёнными вопросы банка без темы (кроме вопросов из админки и от учителей).
+
+    Возвращает, сколько вопросов убрано. Используется seed.py после полной загрузки.
+    """
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE questions SET deleted = 1 WHERE topic = '' AND deleted = 0 "
+            "AND author_id IS NULL AND edited_by_admin = 0"
+        )
+        return cursor.rowcount
+
+
+def topic_counts() -> dict[tuple[str, str], int]:
+    """Сколько вопросов банка (одобренных, не удалённых) на каждую тему: {(предмет, тема): n}."""
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT subject, topic, COUNT(*) AS n FROM questions "
+            "WHERE deleted = 0 AND status = 'approved' GROUP BY subject, topic"
+        ).fetchall()
+    return {(row["subject"], row["topic"]): row["n"] for row in rows}
+
+
+def get_topic_results(user_id: int) -> list[sqlite3.Row]:
+    """Итоги ученика по темам во всех завершённых попытках: предмет, тема, тип, число, баллы."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT aq.subject, q.topic, q.qtype, COUNT(*) AS n, SUM(aq.points) AS points "
+            "FROM attempt_questions aq "
+            "JOIN attempts a ON a.id = aq.attempt_id "
+            "JOIN questions q ON q.id = aq.question_id "
+            "WHERE a.user_id = ? AND a.status = 'finished' AND q.topic != '' "
+            "GROUP BY aq.subject, q.topic, q.qtype",
+            (user_id,),
+        ).fetchall()
 
 
 def question_counts() -> dict[tuple[str, str], int]:

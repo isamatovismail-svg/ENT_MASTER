@@ -474,6 +474,27 @@ def _strength_rows(items: list[ent_logic.SubjectStrength], empty: str) -> SafeHT
     )
 
 
+def topic_rows(items: list[ent_logic.TopicStrength], empty: str) -> SafeHTML:
+    """Список тем спецификации с процентом (слабые темы ученика)."""
+    if not items:
+        return fragment('<p class="muted small">$empty</p>', empty=empty)
+    return fragment(
+        '<ul class="strength-list">$rows</ul>',
+        rows=join(
+            fragment(
+                '<li class="subj-$code">$icon<div class="strength-body">'
+                '<div class="strength-top"><span>$label <small class="muted">· $subject</small></span>'
+                "<b>$percent%</b></div>"
+                '<progress max="100" value="$percent">$percent%</progress>'
+                '<small class="muted">заданий по теме: $count</small></div></li>',
+                code=item.subject, icon=_icon(item.subject), label=item.label,
+                subject=config.SUBJECTS[item.subject].name, percent=item.percent, count=item.questions,
+            )
+            for item in items
+        ),
+    )
+
+
 def _attempt_rows(attempts: list[Attempt]) -> SafeHTML:
     """Компактный список попыток (кабинет)."""
     return join(
@@ -672,6 +693,8 @@ def dashboard(request: Request) -> Response:
         goal_text=goal_text,
         strong=_strength_rows(strong, f"Пока нет предметов с результатом от {STRONG_PERCENT}%."),
         weak=_strength_rows(weak, "Слабых предметов не найдено — или ещё мало попыток."),
+        weak_topics=topic_rows(ent_logic.weak_topics(user_id, 3),
+                               "Слабых тем пока нет — или по темам ещё мало заданий."),
         recent=recent,
         total_questions=config.MOCK_TOTAL_QUESTIONS,
         duration_hours=config.MOCK_DURATION_MINUTES // 60,

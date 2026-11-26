@@ -1,9 +1,22 @@
-"""Қазақ тілі: септіктер, сөз таптары, синонимдер мен антонимдер, дыбыстар (сұрақтар қазақ тілінде)."""
+"""Қазақ тілі: септіктер, сөз таптары, синонимдер мен антонимдер (сұрақтар қазақ тілінде).
+
+Тақырыптар — НЦТ спецификациясы бойынша (app/topics.py): 01 — есімдер (зат есім, сын есім,
+сан есім, есімдік), 02 — етістік, үстеу, шылау, еліктеу сөз, одағай. Фонетика спецификацияға
+кірмейді, сондықтан дыбыстар туралы тапсырмалар алынып тасталды.
+"""
 
 import random
 
-from app.generators.common import matching, single
-from app.generators.facts import Category, Fact, build
+from app.generators.common import matching, quiz, single, topic
+from app.generators.facts import Category, Fact, build, with_topic
+
+# Сөз табы → спецификация тақырыбы.
+NOMINAL = {"Зат есім", "Сын есім", "Сан есім", "Есімдік"}
+
+
+def part_topic(part: str) -> str:
+    """01 — есімдер, 02 — етістік және басқа сөз таптары."""
+    return "01" if part in NOMINAL else "02"
 
 CASES = [("Атау септік", "кім? не?"), ("Ілік септік", "кімнің? ненің?"), ("Барыс септік", "кімге? неге? қайда?"),
          ("Табыс септік", "кімді? нені?"), ("Жатыс септік", "кімде? неде? қайда?"),
@@ -21,8 +34,10 @@ PARTS = [
     ("Еліктеуіш", "табиғаттағы дыбысқа, қимылға еліктеуді білдіреді"),
 ]
 
-FACTS = ([Fact(name, about, f"«{about}» сұрақтарына қай септік жауап береді?", "1", "септік") for name, about in CASES]
-         + [Fact(name, about, f"Қай сөз табы {about}?", "1", "сөз табы") for name, about in PARTS])
+FACTS = ([Fact(name, about, f"«{about}» сұрақтарына қай септік жауап береді?", "1", "септік", topic="01")
+          for name, about in CASES]
+         + [Fact(name, about, f"Қай сөз табы {about}?", "1", "сөз табы", topic=part_topic(name))
+            for name, about in PARTS])
 
 TITLES = {"септік": "септік пен оның сұрақтары", "сөз табы": "сөз табы мен оның мағынасы"}
 WHAT = {"септік": "{name} қандай сұрақтарға жауап береді?", "сөз табы": "{name} дегеніміз не?"}
@@ -43,7 +58,8 @@ def part_of_speech(rng: random.Random) -> dict:
     part = rng.choice(list(WORDS))
     word = rng.choice(WORDS[part])
     wrong = rng.sample([p for p in WORDS if p != part], 3)
-    return single(rng, f"«{word}» сөзі қай сөз табына жатады?", part, wrong, f"«{word}» — {part.lower()}.")
+    return with_topic(single(rng, f"«{word}» сөзі қай сөз табына жатады?", part, wrong,
+                             f"«{word}» — {part.lower()}."), part_topic(part))
 
 
 # Сөйлемдер: (сөйлем, сөз, сөз табы) — контекст бойынша сөз табын анықтау.
@@ -64,8 +80,9 @@ SENTENCES = [
 def pos_in_sentence(rng: random.Random) -> dict:
     sentence, word, part = rng.choice(SENTENCES)
     wrong = rng.sample([p for p in WORDS if p != part], 3)
-    return single(rng, f"«{sentence}» сөйлеміндегі «{word}» сөзі қай сөз табына жатады?", part, wrong,
-                  f"Сөйлемдегі «{word}» — {part.lower()}.", context=sentence)
+    return with_topic(single(rng, f"«{sentence}» сөйлеміндегі «{word}» сөзі қай сөз табына жатады?", part,
+                             wrong, f"Сөйлемдегі «{word}» — {part.lower()}.", context=sentence),
+                      part_topic(part))
 
 
 ANTONYMS = [("үлкен", "кіші"), ("ақ", "қара"), ("жақсы", "жаман"), ("ыстық", "суық"), ("биік", "аласа"),
@@ -75,6 +92,7 @@ SYNONYMS = [("әдемі", "сұлу"), ("батыр", "ер"), ("қуаныш",
             ("үй", "баспана"), ("жол", "соқпақ"), ("дос", "жора"), ("ашу", "ыза"), ("бақыт", "құт")]
 
 
+@topic("01")
 def antonym(rng: random.Random) -> dict:
     word, answer = rng.choice(ANTONYMS)
     wrong = [b for a, b in rng.sample([p for p in ANTONYMS if p[0] != word], 3)]
@@ -82,6 +100,7 @@ def antonym(rng: random.Random) -> dict:
                   f"Антоним — мағынасы қарама-қарсы сөз: {word} — {answer}.")
 
 
+@topic("01")
 def synonym(rng: random.Random) -> dict:
     word, answer = rng.choice(SYNONYMS)
     # Неправильные варианты — из пар антонимов: среди синонимов легко найти второе «почти верное» слово.
@@ -90,6 +109,7 @@ def synonym(rng: random.Random) -> dict:
                   f"Синоним — мағынасы жақын сөз: {word} — {answer}.")
 
 
+@topic("01")
 def antonym_matching(rng: random.Random) -> dict:
     picked = rng.sample(ANTONYMS, 4)
     a, b = picked[:2]
@@ -99,15 +119,21 @@ def antonym_matching(rng: random.Random) -> dict:
 
 CATEGORIES = [Category(f"Төмендегі сөздердің қайсысы {part.lower()}", tuple(words),
                        tuple(w for p, ws in WORDS.items() if p != part for w in ws),
-                       f"{part} сөздерін табу керек.")
+                       f"{part} сөздерін табу керек.", topic=part_topic(part))
               for part, words in WORDS.items()]
-CATEGORIES += [
-    Category("Жуан дауысты дыбыстарды таңдаңыз", ("а", "о", "ұ", "ы"), ("ә", "ө", "ү", "і", "е"),
-             "Қазақ тіліндегі жуан дауыстылар: а, о, ұ, ы."),
-    Category("Жіңішке дауысты дыбыстарды таңдаңыз", ("ә", "ө", "ү", "і", "е"), ("а", "о", "ұ", "ы"),
-             "Қазақ тіліндегі жіңішке дауыстылар: ә, ө, ү, і, е."),
+
+# Құрмалас сөйлем синтаксисі (спецификацияның 03 тақырыбы).
+EXTRA_QUIZZES = [
+    quiz([
+        ("Жай сөйлемдері тең дәрежеде байланысқан құрмалас сөйлем қалай аталады?", "салалас құрмалас сөйлем",
+         ["сабақтас құрмалас сөйлем", "жалаң сөйлем", "жақсыз сөйлем"], "Салаласта жай сөйлемдер бір-біріне бағынбайды."),
+        ("Бағыныңқы және басыңқы сөйлемнен тұратын құрмалас сөйлем қалай аталады?", "сабақтас құрмалас сөйлем",
+         ["салалас құрмалас сөйлем", "атаулы сөйлем", "толымсыз сөйлем"], "Сабақтаста бағыныңқы сөйлем басыңқыға бағынады."),
+        ("Қай жалғаулық қарсылықты мәнді?", "бірақ", ["және", "немесе", "әрі"],
+         "Қарсылықты жалғаулықтар: бірақ, алайда, әйтсе де, сонда да."),
+    ], "03"),
 ]
 
 TEMPLATES = build(facts=FACTS, titles=TITLES, what_phrases=WHAT, categories=CATEGORIES, lang="kk",
-                  extra={"single": [part_of_speech, antonym, synonym], "matching": [antonym_matching],
+                  extra={"single": [part_of_speech, antonym, synonym, *EXTRA_QUIZZES], "matching": [antonym_matching],
                          "context": [pos_in_sentence]})

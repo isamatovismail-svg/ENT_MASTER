@@ -5,7 +5,7 @@ import random
 from fractions import Fraction
 
 from app.generators.common import (
-    SkipQuestion, matching, multiple, num, number_distractors, plural, single,
+    SkipQuestion, matching, multiple, num, number_distractors, plural, single, topic,
 )
 
 _SUP = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
@@ -49,6 +49,7 @@ def nonzero(rng: random.Random, low: int, high: int) -> int:
 
 # ── Задания с одним ответом ──────────────────────────────────────────────────
 
+@topic("05")
 def linear_equation(rng: random.Random) -> dict:
     a = nonzero(rng, -9, 9)
     x = rng.randint(-12, 12)
@@ -68,6 +69,7 @@ def linear_equation(rng: random.Random) -> dict:
                   number_distractors(rng, x, wrong), explanation)
 
 
+@topic("05")
 def quadratic_roots(rng: random.Random) -> dict:
     p, q = sorted(rng.sample([v for v in range(-9, 10) if v], 2))
     s, prod = p + q, p * q
@@ -83,6 +85,7 @@ def quadratic_roots(rng: random.Random) -> dict:
     return single(rng, f"Найдите корни уравнения {eq}.", answer, wrong, explanation)
 
 
+@topic("13")
 def derivative_at_point(rng: random.Random) -> dict:
     a, b, c = nonzero(rng, -6, 6), nonzero(rng, -9, 9), rng.randint(-9, 9)
     x0 = nonzero(rng, -4, 4)
@@ -99,6 +102,7 @@ def derivative_at_point(rng: random.Random) -> dict:
                   num(value), number_distractors(rng, value, wrong), explanation)
 
 
+@topic("12")
 def arithmetic_nth(rng: random.Random) -> dict:
     a1, d, n = rng.randint(-20, 30), nonzero(rng, -7, 9), rng.randint(6, 40)
     an = a1 + (n - 1) * d
@@ -112,6 +116,7 @@ def arithmetic_nth(rng: random.Random) -> dict:
     return single(rng, text, num(an), number_distractors(rng, an, wrong), explanation)
 
 
+@topic("12")
 def arithmetic_sum(rng: random.Random) -> dict:
     a1, d, n = rng.randint(-10, 20), nonzero(rng, -5, 8), rng.randint(5, 30)
     an = a1 + (n - 1) * d
@@ -128,6 +133,7 @@ def arithmetic_sum(rng: random.Random) -> dict:
     return single(rng, text, num(total), number_distractors(rng, total, wrong), explanation)
 
 
+@topic("12")
 def geometric_nth(rng: random.Random) -> dict:
     b1 = nonzero(rng, -6, 8)
     q = rng.choice([-3, -2, 2, 3, 4])
@@ -144,6 +150,7 @@ def geometric_nth(rng: random.Random) -> dict:
     return single(rng, text, num(bn), number_distractors(rng, bn, wrong), explanation)
 
 
+@topic("02")
 def logarithm(rng: random.Random) -> dict:
     base = rng.choice([2, 3, 4, 5, 6, 7, 10])
     k = rng.randint(-3, 6)
@@ -169,6 +176,7 @@ def _sub(value: int) -> str:
     return str(value).translate(_SUB)
 
 
+@topic("02")
 def power_rules(rng: random.Random) -> dict:
     var = rng.choice(["a", "b", "x", "y", "m"])
     m, n, p = rng.randint(2, 12), rng.randint(2, 12), rng.randint(2, 15)
@@ -188,6 +196,7 @@ def power_rules(rng: random.Random) -> dict:
     return single(rng, text, show(result), wrong, explanation)
 
 
+@topic("01")
 def percent_of_number(rng: random.Random) -> dict:
     p = rng.choice([5, 10, 12, 15, 20, 25, 30, 35, 40, 45, 60, 75, 80, 120, 150])
     n = rng.randrange(20, 4000, 20)
@@ -200,6 +209,7 @@ def percent_of_number(rng: random.Random) -> dict:
                   number_distractors(rng, value, wrong), explanation)
 
 
+@topic("08")
 def linear_system(rng: random.Random) -> dict:
     x, y = rng.randint(-9, 9), rng.randint(-9, 9)
     a, b = rng.randint(1, 5), rng.randint(1, 5)
@@ -223,6 +233,7 @@ def linear_system(rng: random.Random) -> dict:
 _TRIPLES = [(3, 4, 5), (5, 12, 13), (8, 15, 17), (7, 24, 25), (20, 21, 29), (9, 40, 41)]
 
 
+@topic("15")
 def pythagoras(rng: random.Random) -> dict:
     a, b, c = rng.choice(_TRIPLES)
     k = rng.randint(1, 8)
@@ -238,6 +249,7 @@ def pythagoras(rng: random.Random) -> dict:
     return single(rng, text, f"{answer} см", number_distractors(rng, answer, wrong, " см"), expl)
 
 
+@topic("10")
 def linear_inequality(rng: random.Random) -> dict:
     a = nonzero(rng, -7, 7)
     k = rng.randint(-10, 10)
@@ -261,6 +273,7 @@ def linear_inequality(rng: random.Random) -> dict:
     return single(rng, text, answer, wrong, explanation)
 
 
+@topic("01")
 def fraction_sum(rng: random.Random) -> dict:
     b, d = rng.randint(2, 12), rng.randint(2, 12)
     a, c = rng.randint(1, b - 1), rng.randint(1, d - 1)
@@ -284,6 +297,7 @@ def fraction_sum(rng: random.Random) -> dict:
     return single(rng, f"Вычислите {a}/{b} {op} {c}/{d}.", num(result), wrong, explanation)
 
 
+@topic("04")
 def function_value(rng: random.Random) -> dict:
     a, b, c = nonzero(rng, -5, 5), rng.randint(-9, 9), rng.randint(-12, 12)
     x0 = nonzero(rng, -5, 5)
@@ -300,6 +314,7 @@ def function_value(rng: random.Random) -> dict:
                   number_distractors(rng, value, wrong), explanation)
 
 
+@topic("15")
 def circle_area(rng: random.Random) -> dict:
     r = rng.randint(2, 30)
     if rng.random() < 0.5:
@@ -315,6 +330,7 @@ def circle_area(rng: random.Random) -> dict:
     return single(rng, text, answer, wrong, expl)
 
 
+@topic("15")
 def triangle_area(rng: random.Random) -> dict:
     a, h = rng.randint(3, 40), rng.randint(2, 30)
     if a * h % 2:
@@ -328,6 +344,7 @@ def triangle_area(rng: random.Random) -> dict:
 
 # ── Задания по контексту ─────────────────────────────────────────────────────
 
+@topic("13")
 def parabola_vertex(rng: random.Random) -> dict:
     a = rng.choice([-3, -2, -1, 1, 2, 3])
     x0, y0 = rng.randint(-6, 6), rng.randint(-9, 9)
@@ -346,6 +363,7 @@ def parabola_vertex(rng: random.Random) -> dict:
                   explanation, context=context)
 
 
+@topic("12")
 def theater_rows(rng: random.Random) -> dict:
     first, d, n = rng.randint(10, 30), rng.randint(1, 4), rng.randint(8, 25)
     last = first + (n - 1) * d
@@ -365,6 +383,7 @@ def theater_rows(rng: random.Random) -> dict:
     return single(rng, text, num(answer), number_distractors(rng, answer, wrong), expl, context=context)
 
 
+@topic("15")
 def garden_plot(rng: random.Random) -> dict:
     a, b, c = rng.choice(_TRIPLES)
     k = rng.randint(1, 5)
@@ -410,6 +429,7 @@ def _derivative_pair(rng: random.Random) -> tuple[str, str, str]:
     return f"{a}ln x", f"{a}/x", f"1/({a}x)"
 
 
+@topic("13")
 def derivatives_matching(rng: random.Random) -> dict:
     (f1, d1, e1), (f2, d2, e2) = _derivative_pair(rng), _derivative_pair(rng)
     if f1 == f2:
@@ -423,6 +443,7 @@ def derivatives_matching(rng: random.Random) -> dict:
     return matching(rng, text, [(f"y = {f1}", d1), (f"y = {f2}", d2)], [e1, e2], explanation)
 
 
+@topic("05")
 def equations_matching(rng: random.Random) -> dict:
     pairs, lines = [], []
     roots = rng.sample(range(-9, 10), 4)
@@ -437,6 +458,7 @@ def equations_matching(rng: random.Random) -> dict:
     return matching(rng, text, pairs, [num(roots[2]), num(roots[3])], explanation)
 
 
+@topic("12")
 def progression_matching(rng: random.Random) -> dict:
     a1, d = rng.randint(-5, 10), nonzero(rng, -4, 6)
     n1, n2 = rng.sample(range(3, 15), 2)
@@ -458,6 +480,7 @@ def _is_prime(n: int) -> bool:
     return n > 1 and all(n % d for d in range(2, int(n ** 0.5) + 1))
 
 
+@topic("01")
 def primes_multiple(rng: random.Random) -> dict:
     count = rng.randint(1, 3)
     primes = rng.sample([p for p in range(11, 200) if _is_prime(p)], count)
@@ -474,6 +497,7 @@ def primes_multiple(rng: random.Random) -> dict:
     return multiple(rng, text, [str(p) for p in primes], [str(c) for c in composites], explanation)
 
 
+@topic("01")
 def divisors_multiple(rng: random.Random) -> dict:
     n = rng.randint(24, 400)
     divs = [d for d in range(2, n) if n % d == 0]
@@ -489,6 +513,7 @@ def divisors_multiple(rng: random.Random) -> dict:
                     [str(d) for d in wrong], explanation)
 
 
+@topic("10")
 def inequality_multiple(rng: random.Random) -> dict:
     a, k = rng.randint(2, 7), rng.randint(-8, 8)
     b = nonzero(rng, -12, 12)
@@ -502,6 +527,7 @@ def inequality_multiple(rng: random.Random) -> dict:
     return multiple(rng, text, [num(v) for v in right], [num(v) for v in wrong], explanation)
 
 
+@topic("05")
 def roots_multiple(rng: random.Random) -> dict:
     p, q = rng.sample([v for v in range(-9, 10) if v], 2)
     eq = poly([(1, 2), (-(p + q), 1), (p * q, 0)]) + " = 0"
@@ -513,10 +539,245 @@ def roots_multiple(rng: random.Random) -> dict:
                     [num(p), num(q)], [num(v) for v in wrong], explanation)
 
 
+# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
+
+_TRIG = {
+    "sin": {0: "0", 30: "1/2", 45: "√2/2", 60: "√3/2", 90: "1", 120: "√3/2", 135: "√2/2", 150: "1/2",
+            180: "0"},
+    "cos": {0: "1", 30: "√3/2", 45: "√2/2", 60: "1/2", 90: "0", 120: "−1/2", 135: "−√2/2",
+            150: "−√3/2", 180: "−1"},
+    "tg": {0: "0", 30: "√3/3", 45: "1", 60: "√3", 120: "−√3", 135: "−1", 150: "−√3/3", 180: "0"},
+}
+_TRIG_POOL = sorted({value for table in _TRIG.values() for value in table.values()})
+
+
+@topic("03")
+def trig_value(rng: random.Random) -> dict:
+    func = rng.choice(sorted(_TRIG))
+    angle = rng.choice(sorted(_TRIG[func]))
+    value = _TRIG[func][angle]
+    wrong = [v for v in _TRIG_POOL if v != value]
+    rng.shuffle(wrong)
+    explanation = (f"По таблице значений тригонометрических функций {func} {angle}° = {value}."
+                   + (" Для тупого угла используют формулы приведения: например, "
+                      "sin(180° − α) = sin α, cos(180° − α) = −cos α." if angle > 90 else ""))
+    return single(rng, f"Чему равен {func} {angle}°?", value, wrong, explanation)
+
+
+@topic("03")
+def trig_identity(rng: random.Random) -> dict:
+    k = rng.randint(2, 15)
+    m = nonzero(rng, -20, 20)
+    answer = k + m
+    text = f"Найдите значение выражения {k}sin²α + {k}cos²α {'+' if m > 0 else '−'} {abs(m)}."
+    explanation = (f"По основному тригонометрическому тождеству sin²α + cos²α = 1, поэтому "
+                   f"{k}(sin²α + cos²α) {'+' if m > 0 else '−'} {abs(m)} = {k} {'+' if m > 0 else '−'} "
+                   f"{abs(m)} = {num(answer)}.")
+    return single(rng, text, num(answer), number_distractors(rng, answer, [k, m, 2 * k + m, k - m]),
+                  explanation)
+
+
+_TRIG_EQUATIONS = [
+    ("sin x = 0", "x = πk, k ∈ Z"), ("sin x = 1", "x = π/2 + 2πk, k ∈ Z"),
+    ("sin x = −1", "x = −π/2 + 2πk, k ∈ Z"), ("cos x = 0", "x = π/2 + πk, k ∈ Z"),
+    ("cos x = 1", "x = 2πk, k ∈ Z"), ("cos x = −1", "x = π + 2πk, k ∈ Z"),
+    ("tg x = 1", "x = π/4 + πk, k ∈ Z"), ("tg x = −1", "x = −π/4 + πk, k ∈ Z"),
+]
+
+
+@topic("06")
+def trig_equation(rng: random.Random) -> dict:
+    equation, answer = rng.choice(_TRIG_EQUATIONS)
+    wrong = [a for _, a in _TRIG_EQUATIONS if a != answer]
+    rng.shuffle(wrong)
+    explanation = (f"Это частный случай простейшего тригонометрического уравнения, его решения: {answer}. "
+                   "Проверить удобно по единичной окружности.")
+    return single(rng, f"Решите уравнение {equation}.", answer, wrong, explanation)
+
+
+@topic("06")
+def irrational_equation(rng: random.Random) -> dict:
+    a = rng.randint(1, 6)
+    x = rng.randint(-10, 15)
+    c = rng.randint(1, 9)
+    b = c * c - a * x
+    if b == 0:
+        raise SkipQuestion
+    text = f"Решите уравнение √({poly([(a, 1), (b, 0)])}) = {c}."
+    explanation = (f"Возводим обе части в квадрат: {poly([(a, 1), (b, 0)])} = {c * c}, "
+                   f"{term(a, 1)} = {num(c * c - b)}, x = {num(x)}. Проверка: подкоренное выражение равно "
+                   f"{c * c} ≥ 0, а √{c * c} = {c}.")
+    wrong = [x + 1, x - 1, -x, (c - b) / a, c * c]
+    return single(rng, text, num(x), number_distractors(rng, x, wrong), explanation)
+
+
+def _power_text(base: int, k: int) -> str:
+    """Запись base^(x + k) надстрочными знаками: 2ˣ⁺³."""
+    if k == 0:
+        return f"{base}ˣ"
+    return f"{base}ˣ{'⁺' if k > 0 else '⁻'}{sup(abs(k))}"
+
+
+@topic("07")
+def exponential_equation(rng: random.Random) -> dict:
+    base = rng.choice([2, 3, 5])
+    m = rng.randint(2, {2: 10, 3: 6, 5: 4}[base])
+    k = nonzero(rng, -6, 6)
+    x = m - k
+    text = f"Решите уравнение {_power_text(base, k)} = {num(base ** m)}."
+    explanation = (f"{num(base ** m)} = {base}{sup(m)}, поэтому показатели равны: x {'+' if k > 0 else '−'} "
+                   f"{abs(k)} = {m}, x = {num(x)}.")
+    return single(rng, text, num(x), number_distractors(rng, x, [m, m + k, -x, base ** m - k]), explanation)
+
+
+@topic("07")
+def log_equation(rng: random.Random) -> dict:
+    base = rng.choice([2, 3, 5])
+    m = rng.randint(1, {2: 6, 3: 4, 5: 3}[base])
+    k = nonzero(rng, -9, 9)
+    x = base ** m - k
+    text = f"Решите уравнение log{_sub(base)}({poly([(1, 1), (k, 0)])}) = {m}."
+    explanation = (f"По определению логарифма x {'+' if k > 0 else '−'} {abs(k)} = {base}{sup(m)} = "
+                   f"{base ** m}, x = {num(x)}. Проверка: аргумент логарифма {base ** m} > 0.")
+    return single(rng, text, num(x), number_distractors(rng, x, [base * m - k, base ** m + k, m - k]),
+                  explanation)
+
+
+@topic("09")
+def exponential_system(rng: random.Random) -> dict:
+    base = rng.choice([2, 3])
+    x, y = rng.randint(-3, 6), rng.randint(-3, 6)
+    if x == y:
+        raise SkipQuestion
+    s, d = x + y, x - y
+    if s < 1 or base ** s > 2000:
+        raise SkipQuestion
+    text = (f"Решите систему уравнений: {base}ˣ · {base}ʸ = {num(base ** s)}, "
+            f"x − y = {num(d)}. В ответе укажите пару (x; y).")
+    answer = f"({num(x)}; {num(y)})"
+    wrong = [f"({num(y)}; {num(x)})", f"({num(x)}; {num(-y)})", f"({num(s)}; {num(d)})",
+             f"({num(x + 1)}; {num(y - 1)})"]
+    explanation = (f"{base}ˣ · {base}ʸ = {base}ˣ⁺ʸ, а {num(base ** s)} = {base}{sup(s)}, значит x + y = {s}. "
+                   f"Складываем с x − y = {num(d)}: 2x = {num(s + d)}, x = {num(x)}, тогда y = {num(y)}.")
+    return single(rng, text, answer, wrong, explanation)
+
+
+@topic("11")
+def inequality_system(rng: random.Random) -> dict:
+    left = rng.randint(-8, 8)
+    right = left + rng.randint(2, 9)
+    a1, a2 = rng.randint(2, 6), rng.randint(2, 6)
+    b1, b2 = nonzero(rng, -10, 10), nonzero(rng, -10, 10)
+    count = right - left - 1
+    text = (f"Сколько целых решений имеет система неравенств: {poly([(a1, 1), (b1, 0)])} > "
+            f"{num(a1 * left + b1)} и {poly([(a2, 1), (b2, 0)])} < {num(a2 * right + b2)}?")
+    explanation = (f"Из первого неравенства x > {num(left)}, из второго x < {num(right)}. "
+                   f"Целые числа строго между ними: {', '.join(num(v) for v in range(left + 1, right))} — "
+                   f"всего {count}.")
+    return single(rng, text, num(count), number_distractors(rng, count, [count + 1, count + 2, count - 1]),
+                  explanation)
+
+
+@topic("14")
+def polygon_angles(rng: random.Random) -> dict:
+    if rng.random() < 0.5:
+        n = rng.randint(3, 20)
+        total = (n - 2) * 180
+        return single(rng, f"Чему равна сумма внутренних углов выпуклого {n}-угольника?", f"{num(total)}°",
+                      [f"{num(v)}°" for v in (n * 180, (n - 1) * 180, (n - 3) * 180 or 90, 360)],
+                      f"Сумма углов выпуклого n-угольника равна 180°·(n − 2) = 180°·{n - 2} = {num(total)}°.")
+    n = rng.choice([3, 4, 5, 6, 8, 9, 10, 12, 15, 18, 20, 24, 30, 36])
+    angle = (n - 2) * 180 // n
+    return single(rng, f"Чему равен внутренний угол правильного {n}-угольника?", f"{angle}°",
+                  [f"{v}°" for v in (360 // n, 180 - angle + 10 if angle != 170 else 150, angle + 10, angle - 10)],
+                  f"Сумма углов равна 180°·({n} − 2) = {num((n - 2) * 180)}°, все {n} углов равны: "
+                  f"{num((n - 2) * 180)}° : {n} = {angle}°. Можно и через внешний угол: 180° − 360°/{n} = {angle}°.")
+
+
+@topic("16")
+def polyhedron_elements(rng: random.Random) -> dict:
+    n = rng.randint(3, 12)
+    kind = rng.choice(["призмы", "пирамиды"])
+    element = rng.choice(["вершин", "рёбер", "граней"])
+    values = {"призмы": {"вершин": 2 * n, "рёбер": 3 * n, "граней": n + 2},
+              "пирамиды": {"вершин": n + 1, "рёбер": 2 * n, "граней": n + 1}}
+    answer = values[kind][element]
+    others = [v for k in values.values() for v in k.values()] + [n, 4 * n]
+    explanation = (f"У n-угольной призмы 2n вершин, 3n рёбер и n + 2 грани; у n-угольной пирамиды "
+                   f"n + 1 вершина, 2n рёбер и n + 1 грань. При n = {n}: {answer}.")
+    return single(rng, f"Сколько {element} у {n}-угольной {kind}?", num(answer),
+                  number_distractors(rng, answer, others), explanation)
+
+
+@topic("17")
+def box_volume(rng: random.Random) -> dict:
+    a, b, c = rng.randint(2, 15), rng.randint(2, 15), rng.randint(2, 15)
+    volume = a * b * c
+    area = 2 * (a * b + b * c + a * c)
+    if rng.random() < 0.5:
+        return single(rng, f"Найдите объём прямоугольного параллелепипеда с рёбрами {a} см, {b} см и {c} см.",
+                      f"{num(volume)} см³", number_distractors(rng, volume, [area, a + b + c, a * b], " см³"),
+                      f"V = abc = {a}·{b}·{c} = {num(volume)} см³.")
+    return single(rng, f"Найдите площадь полной поверхности прямоугольного параллелепипеда с рёбрами "
+                       f"{a} см, {b} см и {c} см.", f"{num(area)} см²",
+                  number_distractors(rng, area, [volume, area // 2, a * b + b * c + a * c + a * b], " см²"),
+                  f"S = 2(ab + bc + ac) = 2({a * b} + {b * c} + {a * c}) = {num(area)} см².")
+
+
+@topic("17")
+def cylinder_cone_volume(rng: random.Random) -> dict:
+    r, h = rng.randint(1, 9), rng.randint(2, 15)
+    if rng.random() < 0.5:
+        v = r * r * h
+        return single(rng, f"Найдите объём цилиндра с радиусом основания {r} см и высотой {h} см.",
+                      f"{num(v)}π см³", [f"{num(x)}π см³" for x in (2 * r * h, r * h, 2 * r * r * h, v + r)],
+                      f"V = πr²h = π·{r}²·{h} = {num(v)}π см³.")
+    h = 3 * rng.randint(1, 6)
+    v = r * r * h // 3
+    return single(rng, f"Найдите объём конуса с радиусом основания {r} см и высотой {h} см.",
+                  f"{num(v)}π см³", [f"{num(x)}π см³" for x in (r * r * h, 3 * v + r, 2 * v, v + h)],
+                  f"V = ⅓πr²h = ⅓·π·{r}²·{h} = {num(v)}π см³.")
+
+
+_QUADRUPLES = [(1, 2, 2, 3), (2, 3, 6, 7), (1, 4, 8, 9), (4, 4, 7, 9), (2, 6, 9, 11), (6, 6, 7, 11),
+               (2, 10, 11, 15)]
+
+
+@topic("18")
+def space_vector_length(rng: random.Random) -> dict:
+    *coords, length = rng.choice(_QUADRUPLES)
+    k = rng.randint(1, 3)
+    coords = [c * k * rng.choice([1, -1]) for c in coords]
+    rng.shuffle(coords)
+    length *= k
+    x, y, z = coords
+    text = f"Найдите длину вектора a({num(x)}; {num(y)}; {num(z)})."
+    explanation = (f"|a| = √(x² + y² + z²) = √({x * x} + {y * y} + {z * z}) = √{length * length} = {length}.")
+    return single(rng, text, num(length),
+                  number_distractors(rng, length, [abs(x) + abs(y) + abs(z), length * length, length + 1]),
+                  explanation)
+
+
+@topic("18")
+def space_dot_product(rng: random.Random) -> dict:
+    a = [rng.randint(-5, 5) for _ in range(3)]
+    b = [rng.randint(-5, 5) for _ in range(3)]
+    dot = sum(p * q for p, q in zip(a, b))
+    text = (f"Найдите скалярное произведение векторов a({num(a[0])}; {num(a[1])}; {num(a[2])}) "
+            f"и b({num(b[0])}; {num(b[1])}; {num(b[2])}).")
+    parts = " + ".join(f"{num(p)}·{'(' + num(q) + ')' if q < 0 else num(q)}" for p, q in zip(a, b))
+    explanation = f"a·b = x₁x₂ + y₁y₂ + z₁z₂ = {parts} = {num(dot)}."
+    wrong = [dot + 1, -dot if dot else 2, sum(a) + sum(b), dot - 2]
+    return single(rng, text, num(dot), number_distractors(rng, dot, wrong), explanation)
+
+
 TEMPLATES = {
     "single": [linear_equation, quadratic_roots, derivative_at_point, arithmetic_nth, arithmetic_sum,
                geometric_nth, logarithm, power_rules, percent_of_number, linear_system, pythagoras,
-               linear_inequality, fraction_sum, function_value, circle_area, triangle_area],
+               linear_inequality, fraction_sum, function_value, circle_area, triangle_area,
+               trig_value, trig_identity, trig_equation, irrational_equation, exponential_equation,
+               log_equation, exponential_system, inequality_system, polygon_angles, polyhedron_elements,
+               box_volume, cylinder_cone_volume, space_vector_length, space_dot_product],
     "context": [parabola_vertex, theater_rows, garden_plot],
     "matching": [derivatives_matching, equations_matching, progression_matching],
     "multiple": [primes_multiple, divisors_multiple, inequality_multiple, roots_multiple],

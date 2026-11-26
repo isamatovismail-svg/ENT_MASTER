@@ -21,7 +21,7 @@ def sample(text: str = "Сколько будет 2 + 2?", subject: str = "math"
 
 def form_fields(text: str, explanation: str = "Потому что 2 + 2 = 4.") -> dict:
     """Поля формы вопроса (один верный ответ)."""
-    return {"type": "single", "subject": "math", "text": text, "opt_A": "4", "opt_B": "5",
+    return {"type": "single", "subject": "math", "topic": "05", "text": text, "opt_A": "4", "opt_B": "5",
             "opt_C": "6", "opt_D": "7", "correct": "A", "explanation": explanation}
 
 

@@ -101,7 +101,7 @@ class AdminPagesTests(DatabaseTestCase):
         # Ученик не может отправить форму админки даже с верным csrf своей сессии.
         _, _, html, _ = self.student.get("/dashboard")
         status, _, _, _ = self.student.post("/admin/questions/new", {
-            "csrf_token": self.csrf(html), "type": "single", "subject": "math", "text": "x",
+            "csrf_token": self.csrf(html), "type": "single", "subject": "math", "topic": "05", "text": "x",
             "opt_A": "1", "opt_B": "2", "correct": "A", "explanation": "y",
         })
         self.assertEqual(status, 403)
@@ -110,7 +110,7 @@ class AdminPagesTests(DatabaseTestCase):
     def test_csrf_required(self) -> None:
         """POST админки без csrf-токена отклоняется."""
         status, _, html, _ = self.admin.post("/admin/questions/new", {
-            "type": "single", "subject": "math", "text": "x", "opt_A": "1", "opt_B": "2",
+            "type": "single", "subject": "math", "topic": "05", "text": "x", "opt_A": "1", "opt_B": "2",
             "correct": "A", "explanation": "y",
         })
         self.assertEqual(status, 403)
@@ -143,7 +143,7 @@ class AdminPagesTests(DatabaseTestCase):
             if qtype == config.MULTIPLE:
                 self.assertIn('type="checkbox" name="correct"', html)
             status, path, html, _ = self.post_question("/admin/questions/new", {
-                "type": qtype, "subject": "law", "text": f"Вопрос типа {qtype}",
+                "type": qtype, "subject": "law", "topic": "01", "text": f"Вопрос типа {qtype}",
                 "explanation": f"Объяснение для {qtype}.", **fields,
             })
             self.assertEqual(status, 200, html[-2000:])
@@ -170,7 +170,7 @@ class AdminPagesTests(DatabaseTestCase):
     def test_form_errors_keep_values(self) -> None:
         """Ошибки формы показываются, введённое не теряется, в базу ничего не пишется."""
         status, _, html, _ = self.post_question("/admin/questions/new", {
-            "type": "single", "subject": "math", "text": "Сколько будет 2 + 2?",
+            "type": "single", "subject": "math", "topic": "05", "text": "Сколько будет 2 + 2?",
             "opt_A": "3", "opt_C": "4", "explanation": "",
         })
         self.assertEqual(status, 400)
@@ -180,7 +180,7 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertIn('value="4"', html)
 
         status, _, html, _ = self.post_question("/admin/questions/new", {
-            "type": "matching", "subject": "math", "text": "Сопоставьте",
+            "type": "matching", "subject": "math", "topic": "05", "text": "Сопоставьте",
             "left_0": "a", "left_1": "b", "match_0": "A", "opt_A": "1", "opt_B": "2",
             "explanation": "Потому что.",
         })
@@ -188,7 +188,7 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertIn("выберите правильную букву", html)
 
         status, _, html, _ = self.post_question("/admin/questions/new", {
-            "type": "single", "subject": "math", "text": "Без объяснения",
+            "type": "single", "subject": "math", "topic": "05", "text": "Без объяснения",
             "opt_A": "1", "opt_B": "2", "correct": "A", "explanation": "  ",
         })
         self.assertEqual(status, 400)
@@ -218,7 +218,7 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertIn('type="checkbox" name="correct" value="A" checked', html)
 
         status, path, html, _ = self.post_question(f"/admin/questions/{first.id}/edit", {
-            "type": "multiple", "subject": "math", "text": "Обновлённый вопрос про корни",
+            "type": "multiple", "subject": "math", "topic": "05", "text": "Обновлённый вопрос про корни",
             "opt_A": "верно", "opt_B": "тоже верно", "opt_C": "нет",
             "correct": ["A", "B"], "explanation": "Новое объяснение.",
         })
@@ -231,7 +231,7 @@ class AdminPagesTests(DatabaseTestCase):
         # Дубликат текста внутри предмета — понятная ошибка.
         other = next(q for q in database.list_questions("math") if q.id != first.id)
         status, _, html, _ = self.post_question(f"/admin/questions/{other.id}/edit", {
-            "type": "single", "subject": "math", "text": "Обновлённый вопрос про корни",
+            "type": "single", "subject": "math", "topic": "05", "text": "Обновлённый вопрос про корни",
             "opt_A": "1", "opt_B": "2", "correct": "A", "explanation": "x",
         })
         self.assertEqual(status, 400)
@@ -248,7 +248,7 @@ class AdminPagesTests(DatabaseTestCase):
 
         # Текст вопроса экранируется.
         self.post_question("/admin/questions/new", {
-            "type": "single", "subject": "math", "text": "<script>alert(1)</script>",
+            "type": "single", "subject": "math", "topic": "05", "text": "<script>alert(1)</script>",
             "opt_A": "1", "opt_B": "2", "correct": "A", "explanation": "x",
         })
         _, _, html, _ = self.admin.get("/admin/questions")
@@ -263,12 +263,12 @@ class AdminPagesTests(DatabaseTestCase):
         database.upsert_questions("math", [original, other])
         edited = next(q for q in database.list_questions("math") if q.text == original["text"])
         status, _, _, _ = self.post_question(f"/admin/questions/{edited.id}/edit", {
-            "type": "single", "subject": "math", "text": original["text"],
+            "type": "single", "subject": "math", "topic": "05", "text": original["text"],
             "opt_A": "4", "opt_B": "22", "correct": "A", "explanation": "Правка админа.",
         })
         self.assertEqual(status, 200)
         self.post_question("/admin/questions/new", {
-            "type": "single", "subject": "math", "text": "Новый вопрос админа",
+            "type": "single", "subject": "math", "topic": "05", "text": "Новый вопрос админа",
             "opt_A": "1", "opt_B": "2", "correct": "B", "explanation": "Своё.",
         })
 

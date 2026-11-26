@@ -31,7 +31,7 @@ def load_file(path: Path) -> tuple[int, list[str]]:
     loaded = 0
     errors: list[str] = []
     for number, question in enumerate(data.get("questions", []), start=1):
-        problems = validate_question(question)
+        problems = validate_question(question, subject)
         if problems:
             errors.append(f"{path.name}, вопрос {number}: " + "; ".join(problems))
             continue
@@ -44,6 +44,7 @@ def load_file(path: Path) -> tuple[int, list[str]]:
             left=question.get("left", []),
             correct=question["correct"],
             explanation=question["explanation"].strip(),
+            topic=question.get("topic", ""),
         )
         loaded += 1
     return loaded, errors
@@ -75,7 +76,23 @@ def seed(questions_dir: Path = config.QUESTIONS_DIR,
         all_errors.extend(errors)
     if with_generated:
         total += load_generated()
+        if not all_errors:
+            retire_stale()
     return total, all_errors
+
+
+def retire_stale() -> int:
+    """Убирает из банка устаревшие вопросы: без темы спецификации, не из админки и не от учителей.
+
+    Все вопросы JSON и генераторов теперь имеют тему, поэтому вопрос без темы — это старый
+    сгенерированный вопрос, которого генераторы больше не выдают (например, по произведению
+    вне программы НЦТ). Он помечается удалённым: в тесты не попадает, а разбор старых попыток
+    сохраняется. Вызывается только после полной загрузки без ошибок.
+    """
+    retired = database.retire_untagged_questions()
+    if retired:
+        print(f"Убрано устаревших вопросов без темы: {retired}")
+    return retired
 
 
 def main() -> int:

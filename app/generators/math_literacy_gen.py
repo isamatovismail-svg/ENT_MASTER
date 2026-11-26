@@ -2,7 +2,7 @@
 
 import random
 
-from app.generators.common import SkipQuestion, num, number_distractors, plural, single
+from app.generators.common import SkipQuestion, num, number_distractors, plural, single, topic
 
 _NAMES = ["Айгерим", "Данияр", "Асель", "Нурлан", "Мадина", "Ерлан", "Алия", "Тимур", "Жанна", "Арман"]
 _ITEMS = [("куртка", 18000, 60000), ("кроссовки", 15000, 45000), ("рюкзак", 6000, 20000),
@@ -14,6 +14,7 @@ def tg(value: float) -> str:
     return f"{num(value)} тг"
 
 
+@topic("03")
 def discount(rng: random.Random) -> dict:
     item, low, high = rng.choice(_ITEMS)
     price = rng.randrange(low, high, 500)
@@ -29,6 +30,7 @@ def discount(rng: random.Random) -> dict:
     return single(rng, text, tg(answer), number_distractors(rng, answer, wrong, " тг", digits=0), expl)
 
 
+@topic("03")
 def price_increase(rng: random.Random) -> dict:
     price = rng.randrange(200, 5000, 50)
     p = rng.choice([5, 8, 10, 12, 15, 20, 25])
@@ -41,6 +43,7 @@ def price_increase(rng: random.Random) -> dict:
     return single(rng, text, tg(answer), number_distractors(rng, answer, wrong, " тг", digits=0), expl)
 
 
+@topic("01")
 def best_buy(rng: random.Random) -> dict:
     product = rng.choice([("молоко", "л"), ("сок", "л"), ("сахар", "кг"), ("рис", "кг"), ("мука", "кг")])
     v1, v2, v3 = rng.sample([0.5, 1, 1.5, 2, 3, 5], 3)
@@ -59,6 +62,7 @@ def best_buy(rng: random.Random) -> dict:
     return single(rng, text, answer, wrong, expl)
 
 
+@topic("06")
 def travel_time(rng: random.Random) -> dict:
     speed = rng.choice([40, 50, 60, 70, 75, 80, 90, 100, 120])
     hours = rng.choice([1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6])
@@ -78,6 +82,7 @@ def travel_time(rng: random.Random) -> dict:
     return single(rng, text, f"{num(dist)} км", number_distractors(rng, dist, wrong, " км"), expl)
 
 
+@topic("06")
 def recipe_ratio(rng: random.Random) -> dict:
     dish, ingr, unit = rng.choice([("блинов", "муки", "г"), ("плова", "риса", "г"), ("торта", "сахара", "г"),
                                    ("баурсаков", "муки", "г"), ("компота", "ягод", "г")])
@@ -94,6 +99,7 @@ def recipe_ratio(rng: random.Random) -> dict:
     return single(rng, text, f"{answer} {unit}", number_distractors(rng, answer, wrong, f" {unit}"), expl)
 
 
+@topic("04")
 def average_grade(rng: random.Random) -> dict:
     who = rng.choice(_NAMES)
     count = rng.randint(4, 7)
@@ -107,6 +113,7 @@ def average_grade(rng: random.Random) -> dict:
     return single(rng, text, num(avg, 1), number_distractors(rng, avg, wrong, digits=1), expl)
 
 
+@topic("02")
 def mobile_tariff(rng: random.Random) -> dict:
     fee = rng.randrange(1500, 5000, 100)
     free_gb = rng.choice([5, 10, 15, 20])
@@ -122,6 +129,7 @@ def mobile_tariff(rng: random.Random) -> dict:
     return single(rng, text, tg(answer), number_distractors(rng, answer, wrong, " тг", digits=0), expl)
 
 
+@topic("01")
 def currency(rng: random.Random) -> dict:
     cur, rate_low, rate_high = rng.choice([("долларов", 450, 520), ("евро", 500, 580), ("рублей", 5, 7)])
     rate = rng.randint(rate_low, rate_high) if rate_high > 10 else rng.choice([5.5, 6, 6.2, 6.5])
@@ -135,6 +143,7 @@ def currency(rng: random.Random) -> dict:
     return single(rng, text, tg(answer), number_distractors(rng, answer, wrong, " тг", digits=0), expl)
 
 
+@topic("09")
 def tiles(rng: random.Random) -> dict:
     length, width = rng.randint(2, 8), rng.randint(2, 6)
     tile = rng.choice([(50, 4), (25, 16), (20, 25)])  # (сторона в см, плиток на 1 м²)
@@ -149,6 +158,7 @@ def tiles(rng: random.Random) -> dict:
     return single(rng, text, num(answer), number_distractors(rng, answer, wrong), expl)
 
 
+@topic("03")
 def deposit(rng: random.Random) -> dict:
     sum0 = rng.randrange(100_000, 2_000_000, 50_000)
     rate = rng.choice([8, 10, 12, 14, 15, 16])
@@ -175,6 +185,7 @@ def deposit(rng: random.Random) -> dict:
                   expl)
 
 
+@topic("05")
 def dice_probability(rng: random.Random) -> dict:
     kind = rng.choice(["even", "greater", "multiple3", "exact"])
     if kind == "even":
@@ -198,6 +209,7 @@ def dice_probability(rng: random.Random) -> dict:
     return single(rng, text, answer, wrong, expl)
 
 
+@topic("01")
 def change_money(rng: random.Random) -> dict:
     who = rng.choice(_NAMES)
     count = rng.randint(2, 6)
@@ -211,6 +223,7 @@ def change_money(rng: random.Random) -> dict:
     return single(rng, text, tg(answer), number_distractors(rng, answer, wrong, " тг", digits=0), expl)
 
 
+@topic("03")
 def salary_tax(rng: random.Random) -> dict:
     salary = rng.randrange(150_000, 800_000, 10_000)
     tax = 10
@@ -224,6 +237,7 @@ def salary_tax(rng: random.Random) -> dict:
     return single(rng, text, tg(answer), number_distractors(rng, answer, wrong, " тг", digits=0), expl)
 
 
+@topic("06")
 def reading_pages(rng: random.Random) -> dict:
     who = rng.choice(_NAMES)
     pages = rng.randrange(120, 600, 10)
@@ -242,7 +256,80 @@ def reading_pages(rng: random.Random) -> dict:
     return single(rng, text, num(days), number_distractors(rng, days, wrong), expl)
 
 
+# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
+
+_MONTHS = ["январе", "феврале", "марте", "апреле", "мае", "июне"]
+
+
+@topic("07")
+def table_analysis(rng: random.Random) -> dict:
+    sales = rng.sample(range(40, 160, 5), 5)
+    months = _MONTHS[:5]
+    rows = "; ".join(f"в {m} — {n}" for m, n in zip(months, sales))
+    best = months[sales.index(max(sales))]
+    if rng.random() < 0.5:
+        return single(rng, f"Магазин продал велосипедов: {rows}. В каком месяце продали больше всего?",
+                      f"в {best}", [f"в {m}" for m in months if m != best],
+                      f"Наибольшее число в таблице — {max(sales)}, это {best}.")
+    diff = max(sales) - min(sales)
+    return single(rng, f"Магазин продал велосипедов: {rows}. На сколько больше продали в лучший месяц, "
+                       "чем в худший?", num(diff),
+                  number_distractors(rng, diff, [max(sales), sum(sales) // 5, diff + 5]),
+                  f"Лучший месяц — {max(sales)}, худший — {min(sales)}: {max(sales)} − {min(sales)} = {diff}.")
+
+
+@topic("07")
+def savings_sequence(rng: random.Random) -> dict:
+    who = rng.choice(_NAMES)
+    start, step, weeks = rng.randrange(500, 5001, 500), rng.randrange(200, 2001, 100), rng.randint(4, 20)
+    total = start + step * weeks
+    text = (f"В копилке у {who} было {num(start)} тг. Каждую неделю {who} добавляет {num(step)} тг. "
+            f"Сколько денег будет в копилке через {weeks} {plural(weeks, 'неделю', 'недели', 'недель')}?")
+    explanation = (f"Это арифметическая прогрессия: {num(start)} + {num(step)}·{weeks} = {num(total)} тг.")
+    return single(rng, text, f"{num(total)} тг",
+                  number_distractors(rng, total, [step * weeks, start + step * (weeks - 1), total + step], " тг"),
+                  explanation)
+
+
+@topic("08")
+def ladder(rng: random.Random) -> dict:
+    a, b, c = rng.choice([(3, 4, 5), (6, 8, 10), (5, 12, 13), (9, 12, 15), (8, 15, 17)])
+    k = rng.choice([1, 0.5]) if c > 10 else 1
+    a, b, c = a * k, b * k, c * k
+    text = (f"Лестницу длиной {num(c)} м приставили к стене. Нижний конец стоит на расстоянии {num(a)} м "
+            "от стены. На какой высоте верхний конец касается стены?")
+    explanation = (f"Стена, пол и лестница образуют прямоугольный треугольник. По теореме Пифагора "
+                   f"h = √({num(c)}² − {num(a)}²) = {num(b)} м.")
+    return single(rng, text, f"{num(b)} м", number_distractors(rng, b, [c - a, c + a, c], " м"), explanation)
+
+
+@topic("10")
+def box_wrapping(rng: random.Random) -> dict:
+    a, b, c = rng.randint(10, 40), rng.randint(10, 40), rng.randint(5, 30)
+    area = 2 * (a * b + b * c + a * c)
+    text = (f"Коробку размером {a} см × {b} см × {c} см нужно полностью оклеить бумагой. "
+            "Сколько квадратных сантиметров бумаги понадобится (без учёта швов)?")
+    explanation = (f"Площадь поверхности коробки (прямоугольного параллелепипеда) "
+                   f"S = 2(ab + bc + ac) = 2({a * b} + {b * c} + {a * c}) = {num(area)} см².")
+    return single(rng, text, f"{num(area)} см²",
+                  number_distractors(rng, area, [a * b * c, area // 2, a * b + b * c + a * c], " см²"), explanation)
+
+
+@topic("10")
+def cube_paint(rng: random.Random) -> dict:
+    a = rng.randint(2, 30)
+    per = rng.choice([50, 100, 200])
+    area = 6 * a * a
+    text = (f"Кубический бак с ребром {a} дм красят снаружи со всех сторон. Сколько граммов краски нужно, "
+            f"если на 1 дм² уходит {per} г?")
+    paint = area * per
+    explanation = f"Площадь поверхности куба 6a² = 6·{a}² = {area} дм², краски {area}·{per} = {num(paint)} г."
+    return single(rng, text, f"{num(paint)} г",
+                  number_distractors(rng, paint, [a * a * a * per, 4 * a * a * per, a * a * per], " г"), explanation)
+
+
 TEMPLATES = {
     "single": [discount, price_increase, best_buy, travel_time, recipe_ratio, average_grade, mobile_tariff,
-               currency, tiles, deposit, dice_probability, change_money, salary_tax, reading_pages],
+               currency, tiles, deposit, dice_probability, change_money, salary_tax, reading_pages,
+               table_analysis, savings_sequence, ladder, box_wrapping, cube_paint],
 }

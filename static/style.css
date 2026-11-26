@@ -2536,3 +2536,10 @@ code {
 .preview-left { margin: 8px 0; padding-left: 20px; }
 
 .preview-correct { color: var(--success); font-weight: 650; }
+
+.small-head { margin: 18px 0 8px; font-size: 1rem; }
+
+/* ── Темы спецификации ────────────────────────────────────────────────────── */
+
+.section-row th { background: var(--surface-2); text-align: left; }
+.topic-empty td { color: var(--danger); }

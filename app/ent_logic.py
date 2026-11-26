@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 
 import config
-from app import database
+from app import database, topics
 from app.database import Attempt, AttemptQuestion
 
 MOCK = "mock"
@@ -355,3 +355,50 @@ def subject_strengths(user_id: int) -> list[SubjectStrength]:
     ]
     result.sort(key=lambda item: (-item.percent, -item.questions, item.name))
     return result
+
+
+@dataclass
+class TopicStrength:
+    """Насколько хорошо ученик знает тему спецификации: процент баллов по ней."""
+
+    subject: str
+    topic: str
+    label: str      # «05. Линейные, квадратные…»
+    percent: int
+    questions: int  # сколько заданий по теме решено
+
+
+# Слабой тема считается при результате ниже этого порога и хотя бы MIN_TOPIC_QUESTIONS заданиях.
+WEAK_TOPIC_PERCENT = 60
+MIN_TOPIC_QUESTIONS = 3
+
+
+def topic_strengths(user_id: int) -> list[TopicStrength]:
+    """Процент баллов по каждой теме во всех завершённых попытках, от слабой темы к сильной."""
+    points: dict[tuple[str, str], int] = {}
+    maximum: dict[tuple[str, str], int] = {}
+    count: dict[tuple[str, str], int] = {}
+    for row in database.get_topic_results(user_id):
+        if row["subject"] not in config.SUBJECTS or row["qtype"] not in config.QUESTION_POINTS:
+            continue
+        key = (row["subject"], row["topic"])
+        points[key] = points.get(key, 0) + (row["points"] or 0)
+        maximum[key] = maximum.get(key, 0) + row["n"] * question_max_points(row["qtype"])
+        count[key] = count.get(key, 0) + row["n"]
+    result = [
+        TopicStrength(
+            subject=subject, topic=code, label=topics.topic_label(subject, code),
+            percent=round(points[(subject, code)] * 100 / maximum[(subject, code)])
+            if maximum[(subject, code)] else 0,
+            questions=count[(subject, code)],
+        )
+        for subject, code in points
+    ]
+    result.sort(key=lambda item: (item.percent, -item.questions, item.subject, item.topic))
+    return result
+
+
+def weak_topics(user_id: int, limit: int = 5) -> list[TopicStrength]:
+    """Самые слабые темы: ниже WEAK_TOPIC_PERCENT и не меньше MIN_TOPIC_QUESTIONS заданий."""
+    return [item for item in topic_strengths(user_id)
+            if item.percent < WEAK_TOPIC_PERCENT and item.questions >= MIN_TOPIC_QUESTIONS][:limit]

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlencode
 
 import config
-from app import views
+from app import topics, views
 from app.database import Question
 from app.question_bank import validate_question
 from app.templates import SafeHTML, fragment, join, render
@@ -33,13 +33,14 @@ class QuestionForm:
     left: list[str] = field(default_factory=lambda: [""] * LEFT_ROWS)
     match: list[str] = field(default_factory=lambda: [""] * LEFT_ROWS)
     explanation: str = ""
+    topic: str = ""
 
 
 def form_from_question(question: Question, qtype: str) -> QuestionForm:
     """Заполняет форму данными вопроса (qtype может отличаться — смена типа)."""
     form = QuestionForm(
         subject=question.subject, qtype=qtype, context=question.context,
-        text=question.text, explanation=question.explanation,
+        text=question.text, explanation=question.explanation, topic=question.topic,
     )
     for index, option in enumerate(question.options[: len(form.options)]):
         form.options[index] = option
@@ -62,6 +63,7 @@ def form_from_request(request: Request) -> QuestionForm:
         context=request.form_value("context").strip(),
         text=request.form_value("text").strip(),
         explanation=request.form_value("explanation").strip(),
+        topic=request.form_value("topic"),
     )
     letters = config.OPTION_LETTERS
     form.options = [request.form_value(f"opt_{letter}").strip() for letter in letters]
@@ -87,6 +89,8 @@ def build_question(form: QuestionForm, question_id: int = 0) -> tuple[Question |
     errors: list[str] = []
     if form.subject not in config.SUBJECTS:
         errors.append("Выберите предмет.")
+    elif topics.get_topic(form.subject, form.topic) is None:
+        errors.append("Выберите тему спецификации НЦТ из тем выбранного предмета.")
     for name, value, limit in (("Текст вопроса", form.text, TEXT_MAX_LENGTH),
                                ("Контекст", form.context, TEXT_MAX_LENGTH),
                                ("Объяснение", form.explanation, TEXT_MAX_LENGTH)):
@@ -132,7 +136,7 @@ def build_question(form: QuestionForm, question_id: int = 0) -> tuple[Question |
     return Question(
         id=question_id, subject=form.subject, qtype=form.qtype, text=data["text"],
         context=data["context"], options=options, left=left, correct=correct,
-        explanation=form.explanation,
+        explanation=form.explanation, topic=form.topic,
     ), []
 
 
@@ -236,6 +240,7 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
         csrf=views._csrf_field(request),
         qtype=form.qtype,
         subject_options=subject_options,
+        topic_options=_topic_options(form),
         context_field=context_field,
         text=form.text,
         text_max=TEXT_MAX_LENGTH,
@@ -248,6 +253,21 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
         back_label=back_label,
         submit_label=submit_label,
     )
+
+
+def _topic_options(form: QuestionForm) -> SafeHTML:
+    """Темы всех предметов, сгруппированные по предметам (без JavaScript список не фильтруется)."""
+    groups = []
+    for code, info in config.SUBJECTS.items():
+        options = join(
+            fragment('<option value="$code" $sel>$label</option>', code=item.code,
+                     label=f"{item.code}. {item.name}",
+                     sel=SafeHTML("selected" if code == form.subject and item.code == form.topic else ""))
+            for item in topics.topics_for(code)
+        )
+        groups.append(fragment('<optgroup label="$name">$options</optgroup>', name=info.name,
+                               options=options))
+    return join([fragment('<option value="">— выберите тему —</option>')] + groups)
 
 
 def requested_type(request: Request, default: str) -> str:

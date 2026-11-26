@@ -2,8 +2,10 @@
 
 import random
 
-from app.generators.common import SkipQuestion, matching, single
-from app.generators.facts import Category, Fact, build
+from dataclasses import replace
+
+from app.generators.common import SkipQuestion, matching, quiz, single, topic
+from app.generators.facts import Category, Fact, build, set_topics
 
 IRREGULAR = [("go", "went", "gone"), ("buy", "bought", "bought"), ("bring", "brought", "brought"), ("see", "saw", "seen"),
              ("take", "took", "taken"), ("write", "wrote", "written"), ("eat", "ate", "eaten"),
@@ -29,6 +31,7 @@ def _regular_past(verb: str) -> str:
     return verb + "ed"
 
 
+@topic("03")
 def past_simple(rng: random.Random) -> dict:
     base, v2, v3 = rng.choice(IRREGULAR)
     other = rng.choice([v for v in IRREGULAR if v[0] != base])
@@ -37,6 +40,7 @@ def past_simple(rng: random.Random) -> dict:
                   f"«{base}» is an irregular verb: {base} — {v2} — {v3}.")
 
 
+@topic("03")
 def past_participle(rng: random.Random) -> dict:
     base, v2, v3 = rng.choice(IRREGULAR)
     wrong = [_regular_past(base), v2 if v2 != v3 else base + "s", base + "ing", base + "en" if base + "en" != v3
@@ -57,6 +61,7 @@ _VERB_ING = {"go": "going", "play": "playing", "watch": "watching", "do": "doing
              "drink": "drinking", "study": "studying", "wash": "washing", "help": "helping", "get up": "getting up"}
 
 
+@topic("03")
 def present_simple(rng: random.Random) -> dict:
     third = rng.random() < 0.5
     subject = rng.choice(_THIRD if third else _OTHERS)
@@ -73,6 +78,7 @@ _ING = {"read": "reading", "swim": "swimming", "dance": "dancing", "write": "wri
         "play": "playing", "cook": "cooking", "sing": "singing", "sleep": "sleeping", "draw": "drawing"}
 
 
+@topic("03")
 def present_continuous(rng: random.Random) -> dict:
     subject, aux = rng.choice([("I", "am"), ("She", "is"), ("He", "is"), ("They", "are"), ("We", "are"),
                                ("The children", "are"), ("My mother", "is"), ("You", "are")])
@@ -90,6 +96,7 @@ PLURALS = [("child", "children"), ("man", "men"), ("woman", "women"), ("mouse", 
            ("leaf", "leaves"), ("box", "boxes"), ("city", "cities"), ("potato", "potatoes")]
 
 
+@topic("03")
 def plural(rng: random.Random) -> dict:
     word, answer = rng.choice(PLURALS)
     wrong = [word + "s", word + "es", answer + "s", word + "ies"]
@@ -103,6 +110,7 @@ COMPARATIVES = [("good", "better", "the best"), ("bad", "worse", "the worst"), (
                 ("tall", "taller", "the tallest"), ("expensive", "more expensive", "the most expensive")]
 
 
+@topic("03")
 def comparative(rng: random.Random) -> dict:
     word, comp, sup = rng.choice(COMPARATIVES)
     if rng.random() < 0.5:
@@ -120,6 +128,7 @@ PREPOSITIONS = [("Monday", "on"), ("July", "in"), ("7 o'clock", "at"), ("2020", 
                 ("New Year's Day", "on"), ("half past six", "at")]
 
 
+@topic("02")
 def preposition(rng: random.Random) -> dict:
     item, answer = rng.choice(PREPOSITIONS)
     rule = {"on": "days and dates", "in": "months, years, seasons, centuries and parts of the day",
@@ -144,6 +153,7 @@ TITLES = {"word": "the words with their meanings", "verb": "the verbs with their
 WHAT = {"word": "What does the word «{name}» mean?", "verb": "Which is the Past Simple form of «{name}»?"}
 
 
+@topic("03")
 def verb_matching(rng: random.Random) -> dict:
     picked = rng.sample(IRREGULAR, 4)
     if len({p[2] for p in picked}) < 4:
@@ -180,6 +190,7 @@ TENSE_SENTENCES = [
 ]
 
 
+@topic("04")
 def tense_in_context(rng: random.Random) -> dict:
     sentence, verb, tense = rng.choice(TENSE_SENTENCES)
     wrong = rng.sample([t for t in TENSES if t != tense], 3)
@@ -200,7 +211,33 @@ CATEGORIES = [
              "Adjectives describe nouns; words ending in -ly here are adverbs."),
 ]
 
+# Темы спецификации НЦТ (app/topics.py): слова — лексика (01), формы слов и части речи — 03.
+CATEGORIES = [replace(cat, topic="03") for cat in CATEGORIES]
+FACTS = set_topics(FACTS, lambda fact: "01" if fact.group == "word" else "03")
+
+# Constructions and speech norms (spec topics 05 and 06).
+EXTRA_QUIZZES = [
+    quiz([
+        ("Choose the correct form: There ___ many books on the shelf.", "are", ["is", "be", "has"],
+         "«There are» is used with plural nouns."),
+        ("Choose the correct form: I ___ to play football when I was a child.", "used", ["use", "am used", "was use"],
+         "«Used to» describes past habits."),
+        ("Choose the correct form: The house ___ built in 1990.", "was", ["is", "were", "has"],
+         "Passive Voice in the past: was/were + Past Participle."),
+        ("Choose the correct form: If I ___ rich, I would travel around the world.", "were", ["am", "will be", "be"],
+         "Second Conditional: If + Past Simple (were), would + verb."),
+    ], "05"),
+    quiz([
+        ("Which is the most polite way to ask for help?", "Could you help me, please?",
+         ["Help me!", "You must help me.", "Give me help now."], "«Could you…, please?» is a polite request."),
+        ("What do you usually say when someone thanks you?", "You're welcome.",
+         ["Excuse me.", "I'm sorry.", "Bless you."], "«You're welcome» is the usual reply to «Thank you»."),
+        ("What do you say to get someone's attention politely?", "Excuse me.",
+         ["You're welcome.", "Hey you!", "Cheers."], "«Excuse me» is used before asking a stranger something."),
+    ], "06"),
+]
+
 TEMPLATES = build(facts=FACTS, titles=TITLES, what_phrases=WHAT, categories=CATEGORIES, lang="en",
                   extra={"single": [past_simple, past_participle, present_simple, present_continuous, plural,
-                                    comparative, preposition],
+                                    comparative, preposition, *EXTRA_QUIZZES],
                          "matching": [verb_matching], "context": [tense_in_context]})

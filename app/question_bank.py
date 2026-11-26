@@ -2,17 +2,27 @@
 
 Вопрос описывается словарём в формате data/questions/*.json:
 type, text, context (для «по контексту»), options, left (для соответствия),
-correct (буквы правильных вариантов) и explanation.
+correct (буквы правильных вариантов), explanation и, по желанию, topic —
+номер темы спецификации НЦТ из app/topics.py.
 """
 
 import config
+from app import topics
 
 MIN_OPTIONS = 2
 
 
-def validate_question(question: dict) -> list[str]:
-    """Проверяет один вопрос из JSON. Возвращает список ошибок (пустой — всё в порядке)."""
+def validate_question(question: dict, subject: str | None = None) -> list[str]:
+    """Проверяет один вопрос из JSON. Возвращает список ошибок (пустой — всё в порядке).
+
+    Если передан subject, тема topic (если указана) должна быть темой этого предмета.
+    """
     errors: list[str] = []
+    topic = question.get("topic", "")
+    if not isinstance(topic, str):
+        errors.append("topic должен быть строкой — номером темы («05»)")
+    elif topic and subject is not None and topics.get_topic(subject, topic) is None:
+        errors.append(f"неизвестная тема «{topic}» для предмета {subject}")
     qtype = question.get("type")
     text = question.get("text")
     options = question.get("options")

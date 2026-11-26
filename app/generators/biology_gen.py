@@ -1,8 +1,9 @@
 """Биология: таблицы фактов и расчётные задачи по генетике и молекулярной биологии."""
 
+from dataclasses import replace
 
-from app.generators.common import matching, number_distractors, plural, single
-from app.generators.facts import Category, Fact, build
+from app.generators.common import matching, number_distractors, plural, quiz, single, topic
+from app.generators.facts import Category, Fact, build, set_topics
 
 
 def F(name, about, who, group, note=""):
@@ -127,10 +128,22 @@ CATEGORIES = [
 
 # ── Расчётные задачи ─────────────────────────────────────────────────────────
 
+# Темы спецификации НЦТ (app/topics.py): по группе таблицы, учёные — по имени.
+GROUP_TOPICS = {"органоид": "09", "витамин": "02", "гормон": "07", "кровь": "03"}
+SCIENTIST_TOPICS = {
+    "Грегор Мендель": "10", "Чарльз Дарвин": "10", "Антони ван Левенгук": "12", "Роберт Гук": "09",
+    "Луи Пастер": "12", "Александр Флеминг": "12", "Иван Павлов": "07", "Карл Линней": "01",
+    "Шлейден и Шванн": "09", "Уотсон и Крик": "11", "Илья Мечников": "03", "Николай Вавилов": "10",
+}
+CATEGORY_TOPICS = ["01", "01", "01", "01", "09", "12"]  # в порядке CATEGORIES
+FACTS = set_topics(FACTS, lambda fact: GROUP_TOPICS.get(fact.group) or SCIENTIST_TOPICS[fact.name])
+CATEGORIES = [replace(cat, topic=code) for cat, code in zip(CATEGORIES, CATEGORY_TOPICS, strict=True)]
+
 _COMPLEMENT = {"А": "Т", "Т": "А", "Г": "Ц", "Ц": "Г"}
 _RNA = {"А": "У", "Т": "А", "Г": "Ц", "Ц": "Г"}
 
 
+@topic("11")
 def dna_complement(rng):
     strand = "".join(rng.choice("АТГЦ") for _ in range(rng.randint(8, 12)))
     if rng.random() < 0.5:
@@ -147,6 +160,7 @@ def dna_complement(rng):
     return single(rng, text, answer, wrong, expl)
 
 
+@topic("11")
 def chargaff(rng):
     a = rng.choice([10, 12, 15, 18, 20, 22, 24, 25, 28, 30, 32, 35, 40])
     g = (100 - 2 * a) // 2
@@ -160,6 +174,7 @@ def chargaff(rng):
                   expl)
 
 
+@topic("11")
 def codons(rng):
     n = rng.randint(20, 300)
     kind = rng.choice(["nucleotides", "codons", "dna"])
@@ -186,6 +201,7 @@ _TRAITS = [("жёлтый цвет семян", "зелёный цвет сем�
            ("высокий стебель", "низкий стебель", "T", "t")]
 
 
+@topic("10")
 def monohybrid(rng):
     dom, rec, D, r = rng.choice(_TRAITS)
     cross = rng.choice(["AaxAa", "Aaxaa", "AAxaa"])
@@ -205,6 +221,7 @@ def monohybrid(rng):
     return single(rng, text, answer, wrong, expl)
 
 
+@topic("10")
 def probability_recessive(rng):
     dom, rec, D, r = rng.choice(_TRAITS)
     total = rng.choice([40, 80, 120, 160, 200, 400, 800])
@@ -215,6 +232,7 @@ def probability_recessive(rng):
     return single(rng, text, str(value), number_distractors(rng, value, [total // 2, total * 3 // 4, total // 3]), expl)
 
 
+@topic("10")
 def genetics_context(rng):
     dom, rec, D, r = rng.choice(_TRAITS)
     total = rng.choice([100, 200, 400, 600, 800])
@@ -232,6 +250,7 @@ def genetics_context(rng):
     return single(rng, text, str(value), number_distractors(rng, value, wrong), expl, context=context)
 
 
+@topic("10")
 def genotype_matching(rng):
     dom, rec, D, r = rng.choice(_TRAITS)
     pairs = rng.sample([(f"{D}{D}", "гомозигота по доминантному признаку"), (f"{D}{r}", "гетерозигота"),
@@ -242,6 +261,43 @@ def genotype_matching(rng):
     return matching(rng, text, pairs, rng.sample(extra, 2), expl)
 
 
+# Темы спецификации НЦТ, добавленные при сверке (готовые вопросы).
+EXTRA_QUIZZES = [
+    quiz([
+        ("Какая мышца разделяет грудную и брюшную полости и участвует в дыхании?", "диафрагма",
+         ["межрёберная", "двуглавая", "трапециевидная"], "Сокращение диафрагмы увеличивает объём грудной полости — происходит вдох."),
+        ("Где в лёгких происходит газообмен между воздухом и кровью?", "в альвеолах", ["в трахее", "в бронхах", "в гортани"],
+         "Стенки альвеол оплетены капиллярами, через них проходят O₂ и CO₂."),
+        ("Каким органом дышат рыбы?", "жабрами", ["лёгкими", "трахеями", "кожей"], "Жабры поглощают кислород, растворённый в воде."),
+    ], "04"),
+    quiz([
+        ("Какой орган фильтрует кровь и образует мочу?", "почки", ["печень", "селезёнка", "желудок"],
+         "Почки очищают кровь от продуктов обмена."),
+        ("Как называется структурно-функциональная единица почки?", "нефрон", ["нейрон", "альвеола", "ворсинка"],
+         "В почке около миллиона нефронов."),
+        ("Какой конечный продукт белкового обмена выводится из организма человека с мочой?", "мочевина",
+         ["глюкоза", "белок", "крахмал"], "Аммиак в печени превращается в мочевину, которую выводят почки."),
+    ], "05"),
+    quiz([
+        ("Как называется подвижное соединение костей?", "сустав", ["шов", "хрящ", "сухожилие"],
+         "Суставы обеспечивают движение частей скелета."),
+        ("Какие белки обеспечивают сокращение мышечного волокна?", "актин и миозин",
+         ["гемоглобин и инсулин", "коллаген и кератин", "альбумин и глобулин"], "Нити актина и миозина скользят друг относительно друга."),
+        ("Какая ткань образует скелетные мышцы человека?", "поперечнополосатая мышечная",
+         ["гладкая мышечная", "соединительная", "эпителиальная"], "Скелетные мышцы сокращаются произвольно."),
+    ], "06"),
+    quiz([
+        ("Как называется слияние мужской и женской половых клеток?", "оплодотворение", ["почкование", "мейоз", "дробление"],
+         "При оплодотворении образуется зигота."),
+        ("Для каких растений характерно двойное оплодотворение?", "для покрытосеменных",
+         ["для голосеменных", "для папоротников", "для мхов"], "Двойное оплодотворение открыл С. Г. Навашин."),
+        ("Какой тип развития у бабочки (яйцо → личинка → куколка → взрослая особь)?", "с полным превращением",
+         ["с неполным превращением", "прямое развитие", "живорождение"], "У бабочек есть стадия куколки."),
+        ("Каким способом размножается гидра в благоприятных условиях?", "почкованием", ["спорами", "семенами", "делением ядра"],
+         "Летом на теле гидры вырастают почки, превращающиеся в новых особей."),
+    ], "08"),
+]
+
 TEMPLATES = build(facts=FACTS, titles=TITLES, what_phrases=WHAT, categories=CATEGORIES,
-                  extra={"single": [dna_complement, chargaff, codons, monohybrid, probability_recessive],
+                  extra={"single": [dna_complement, chargaff, codons, monohybrid, probability_recessive, *EXTRA_QUIZZES],
                          "context": [genetics_context], "matching": [genotype_matching]})

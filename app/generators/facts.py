@@ -10,7 +10,7 @@
 """
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from app.generators.common import SkipQuestion, matching, multiple, single
@@ -50,6 +50,7 @@ class Event:
     clause: str   # продолжение вопроса «В каком году …?»: «было образовано Казахское ханство»
     noun: str     # название события: «Образование Казахского ханства»
     note: str = ""  # пояснение для объяснения (по желанию)
+    topic: str = ""  # номер темы спецификации НЦТ (app/topics.py)
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,22 @@ class Fact:
     what: str = ""
     group: str = ""
     note: str = ""
+    topic: str = ""  # номер темы спецификации НЦТ (app/topics.py)
+
+
+def with_topic(question: dict, code: str) -> dict:
+    """Записывает тему в готовый вопрос (у шаблонов по таблицам тема — у строки таблицы)."""
+    question["topic"] = code
+    return question
+
+
+def set_topics(items: list, rule) -> list:
+    """Проставляет темы строкам таблицы: rule(строка) → номер темы.
+
+    Так тема задаётся одним правилом (например, по году события), а не в каждой строке.
+    Строка, у которой тема уже указана, не меняется.
+    """
+    return [item if item.topic else replace(item, topic=rule(item)) for item in items]
 
 
 def _year_options(rng: random.Random, events: list[Event], target: Event) -> list[str]:
@@ -91,8 +108,8 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
         explanation = f"{event.noun} — {event.year} год."
         if event.note:
             explanation += " " + event.note
-        return single(rng, f"В каком году {event.clause}?", str(event.year),
-                      _year_options(rng, events, event), explanation)
+        return with_topic(single(rng, f"В каком году {event.clause}?", str(event.year),
+                                 _year_options(rng, events, event), explanation), event.topic)
 
     def year_to_event(rng: random.Random) -> dict:
         event = rng.choice(events)
@@ -104,8 +121,8 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
             f" {event.note}" if event.note else "")
         explanation += " Остальные события: " + "; ".join(
             f"{e.noun[0].lower() + e.noun[1:]} — {e.year}" for e in wrong_events) + "."
-        return single(rng, f"Какое событие произошло в {event.year} году?", event.noun,
-                      [e.noun for e in wrong_events], explanation)
+        return with_topic(single(rng, f"Какое событие произошло в {event.year} году?", event.noun,
+                                 [e.noun for e in wrong_events], explanation), event.topic)
 
     def chronology_multiple(rng: random.Random) -> dict:
         # Век года y: (y − 1) // 100 + 1, т.е. XIX век — это 1801–1900 годы.
@@ -121,7 +138,8 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
         text = f"Какие события произошли в {century} веке? ({names})"
         explanation = (f"{century} век — это {index * 100 + 1}–{index * 100 + 100} годы. В него попадают: "
                        + "; ".join(f"{_lower_first(e.noun)} ({e.year})" for e in right) + ".")
-        return multiple(rng, text, [e.noun for e in right], [e.noun for e in wrong], explanation)
+        return with_topic(multiple(rng, text, [e.noun for e in right], [e.noun for e in wrong],
+                                   explanation), right[0].topic)
 
     def years_matching(rng: random.Random) -> dict:
         picked = rng.sample(events, 4)
@@ -131,8 +149,8 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
         text = (f"Установите соответствие между событием и годом: 1) {_lower_first(first.noun)}; "
                 f"2) {_lower_first(second.noun)}.")
         explanation = f"{first.noun} — {first.year} год. {second.noun} — {second.year} год."
-        return matching(rng, text, [(first.noun, str(first.year)), (second.noun, str(second.year))],
-                        [str(picked[2].year), str(picked[3].year)], explanation)
+        return with_topic(matching(rng, text, [(first.noun, str(first.year)), (second.noun, str(second.year))],
+                                   [str(picked[2].year), str(picked[3].year)], explanation), first.topic)
 
     return [event_to_year, year_to_event], [chronology_multiple], [years_matching]
 
@@ -179,7 +197,7 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
         if len(others) < 3:
             raise SkipQuestion
         wrong = [f.name for f in rng.sample(others, min(len(others), 6))]
-        return single(rng, fact.who, fact.name, wrong, explain(fact, fact.name))
+        return with_topic(single(rng, fact.who, fact.name, wrong, explain(fact, fact.name)), fact.topic)
 
     def what(rng: random.Random) -> dict:
         fact = rng.choice([f for f in facts if f.what])
@@ -188,7 +206,7 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
             raise SkipQuestion
         wrong = [f.about for f in rng.sample(others, min(len(others), 6))]
         text = what_phrases.get(fact.group, fact.what).format(name=fact.name)
-        return single(rng, text, fact.about, wrong, explain(fact, fact.about))
+        return with_topic(single(rng, text, fact.about, wrong, explain(fact, fact.about)), fact.topic)
 
     def pair_matching(rng: random.Random) -> dict:
         group = rng.choice(sorted(titles))
@@ -203,8 +221,8 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
         a, b = picked[0], picked[1]
         text = PHRASES[lang]["match"].format(title=titles[group], a=a.name, b=b.name)
         explanation = f"{a.name} — {a.about}. {b.name} — {b.about}."
-        return matching(rng, text, [(a.name, a.about), (b.name, b.about)],
-                        [picked[2].about, picked[3].about], explanation)
+        return with_topic(matching(rng, text, [(a.name, a.about), (b.name, b.about)],
+                                   [picked[2].about, picked[3].about], explanation), a.topic)
 
     templates = [who]
     if any(f.what for f in facts):
@@ -220,6 +238,7 @@ class Category:
     right: tuple[str, ...]   # подходящие
     wrong: tuple[str, ...]   # неподходящие (правдоподобные)
     note: str = ""           # общее объяснение правила
+    topic: str = ""          # номер темы спецификации НЦТ (app/topics.py)
 
 
 def category_templates(categories: list[Category], lang: str = "ru") -> list[Callable]:
@@ -234,7 +253,7 @@ def category_templates(categories: list[Category], lang: str = "ru") -> list[Cal
         names = sorted(right + wrong)
         text = f"{cat.question}: {', '.join(names)}?"
         explanation = (cat.note + " " if cat.note else "") + PHRASES[lang]["right"] + ", ".join(sorted(right)) + "."
-        return multiple(rng, text, right, wrong, explanation)
+        return with_topic(multiple(rng, text, right, wrong, explanation), cat.topic)
 
     return [choose_all]
 
@@ -253,8 +272,8 @@ def context_templates(facts: list[Fact], lang: str = "ru") -> list[Callable]:
         wrong = [f.name for f in rng.sample(others, min(6, len(others)))]
         phrases = PHRASES[lang]
         explanation = phrases["described"].format(name=fact.name, about=fact.about)
-        return single(rng, phrases["describe"].format(who=fact.who), fact.name, wrong, explanation,
-                      context=fact.note)
+        return with_topic(single(rng, phrases["describe"].format(who=fact.who), fact.name, wrong,
+                                 explanation, context=fact.note), fact.topic)
 
     # «Описание» из одного названия произведения («Евгений Онегин») — не описание; такие строки пропускаем.
     # Описание из одного-двух слов («sang») — тоже не описание.
@@ -272,8 +291,8 @@ def context_templates(facts: list[Fact], lang: str = "ru") -> list[Callable]:
         context = phrases["about_ctx"].format(about=fact.about) + (
             f" {fact.note}" if fact.note and fact.name.split()[0].lower() not in fact.note.lower() else "")
         explanation = phrases["about_expl"].format(name=fact.name, about=fact.about)
-        return single(rng, phrases["about_q"].format(about=fact.about), fact.name, wrong,
-                      explanation, context=context)
+        return with_topic(single(rng, phrases["about_q"].format(about=fact.about), fact.name, wrong,
+                                 explanation, context=context), fact.topic)
 
     return ([by_description] if usable else []) + ([by_about] if describable else [])
 
@@ -287,8 +306,9 @@ def event_context_templates(events: list[Event]) -> list[Callable]:
             raise SkipQuestion
         event = rng.choice(usable)
         context = f"{event.noun}. {event.note}"
-        return single(rng, f"Прочитайте текст. В каком году {event.clause}?", str(event.year),
-                      _year_options(rng, events, event), f"{event.noun} — {event.year} год.", context=context)
+        return with_topic(single(rng, f"Прочитайте текст. В каком году {event.clause}?", str(event.year),
+                                 _year_options(rng, events, event), f"{event.noun} — {event.year} год.",
+                                 context=context), event.topic)
 
     return [event_context] if usable else []
 

@@ -18,6 +18,8 @@ $errors
   $csrf
   <input type="hidden" name="type" value="$qtype">
   <label class="field"><span>Предмет</span><select name="subject" required>$subject_options</select></label>
+  <label class="field"><span>Тема спецификации НЦТ</span><select name="topic" required>$topic_options</select>
+    <small class="muted">Выберите тему из группы выбранного предмета.</small></label>
   $context_field
   <label class="field"><span>Текст вопроса</span>
     <textarea name="text" rows="3" maxlength="$text_max" required>$text</textarea></label>

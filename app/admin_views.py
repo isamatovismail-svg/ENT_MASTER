@@ -12,7 +12,7 @@ from functools import wraps
 from urllib.parse import urlencode
 
 import config
-from app import auth, database, ent_logic, question_form, schools, views
+from app import auth, database, ent_logic, question_form, schools, topics, views
 from app.database import Question
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, redirect
@@ -42,6 +42,7 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
     pending = database.count_pending_questions()
     links = (("/admin", "📊 Обзор", "home"), ("/admin/questions", "📚 Вопросы", "questions"),
              ("/admin/review", f"🔎 Проверка ({pending})" if pending else "🔎 Проверка", "review"),
+             ("/admin/topics", "🧭 Темы НЦТ", "topics"),
              ("/admin/users", "👥 Пользователи", "users"), ("/teacher", "🏫 Школы", "schools"))
     menu = join(
         fragment('<a href="$href" class="admin-tab$active">$label</a>', href=href, label=label,
@@ -337,6 +338,72 @@ def question_delete(request: Request, question_id: int) -> Response:
         cancel=f"/admin/questions?{urlencode({'subject': question.subject})}",
     )
     return _admin_page(request, "Удалить вопрос", "questions", content)
+
+
+# ── Покрытие тем спецификации НЦТ ────────────────────────────────────────────
+
+@admin_required
+def topics_report(request: Request) -> Response:
+    """GET /admin/topics?subject=… — темы спецификации и сколько вопросов банка на каждую."""
+    counts = database.topic_counts()
+    subject = request.query_value("subject")
+    if subject not in config.SUBJECTS:
+        subject = ""
+
+    summary_rows = []
+    for code, info in config.SUBJECTS.items():
+        items = topics.topics_for(code)
+        covered = sum(1 for item in items if counts.get((code, item.code), 0))
+        untagged = counts.get((code, ""), 0)
+        summary_rows.append(fragment(
+            '<tr><td><a class="subject-link" href="/admin/topics?subject=$code">$icon $name</a></td>'
+            '<td>$covered из $total</td><td><progress max="$total" value="$covered">$covered</progress></td>'
+            "<td>$untagged</td></tr>",
+            code=code, icon=views._icon(code), name=info.name, covered=covered, total=len(items),
+            untagged=untagged or "—",
+        ))
+    summary = fragment(
+        '<div class="table-wrap"><table class="table"><thead><tr><th>Предмет</th>'
+        "<th>Тем с вопросами</th><th></th><th>Вопросов без темы</th></tr></thead>"
+        "<tbody>$rows</tbody></table></div>",
+        rows=join(summary_rows),
+    )
+
+    details = SafeHTML("")
+    if subject:
+        items = topics.topics_for(subject)
+        total = sum(counts.get((subject, item.code), 0) for item in items) or 1
+        rows = []
+        section = None
+        for item in items:
+            if item.section != section:
+                section = item.section
+                rows.append(fragment('<tr class="section-row"><th colspan="4">$s</th></tr>', s=section))
+            n = counts.get((subject, item.code), 0)
+            rows.append(fragment(
+                '<tr class="$cls"><td>$code</td><td>$name</td><td>$n</td><td>$share</td></tr>',
+                cls="topic-empty" if not n else "", code=item.code, name=item.name, n=n or "нет",
+                share=f"{round(n * 100 / total, 1):g}%".replace(".", ",") if n else "—",
+            ))
+        details = fragment(
+            '<section class="section"><h2>$icon $name: темы спецификации</h2>'
+            '<div class="table-wrap"><table class="table"><thead><tr><th>№</th><th>Тема</th>'
+            "<th>Вопросов в банке</th><th>Доля в банке</th></tr></thead><tbody>$rows</tbody>"
+            "</table></div></section>",
+            icon=views._icon(subject), name=config.SUBJECTS[subject].name, rows=join(rows),
+        )
+
+    content = fragment(
+        '<section class="page-head"><span class="eyebrow">Спецификация НЦТ</span>'
+        "<h1>🧭 Темы ЕНТ и покрытие банка</h1>"
+        '<p class="muted">Разделы и темы — из официальных спецификаций НЦТ «для использования '
+        'с $year года» (<a class="link" href="$source">testcenter.kz</a>). НЦТ не указывает, сколько '
+        "заданий приходится на каждую тему, поэтому здесь показана доля темы в нашем банке. "
+        "Темы без вопросов выделены — их нужно пополнить (шаблонами генераторов, JSON или вопросами "
+        "учителей).</p></section>$summary$details",
+        year=topics.SPEC_YEAR, source=topics.SPEC_SOURCE, summary=summary, details=details,
+    )
+    return _admin_page(request, "Темы НЦТ", "topics", content)
 
 
 # ── Проверка вопросов учителей ───────────────────────────────────────────────
