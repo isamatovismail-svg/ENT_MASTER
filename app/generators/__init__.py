@@ -8,7 +8,8 @@ import random
 
 from app.question_bank import validate_question
 from app.generators import (
-    chemistry_gen, informatics_gen, kz_history_gen, math_gen, math_literacy_gen, physics_gen,
+    biology_gen, chemistry_gen, geography_gen, informatics_gen, kz_history_gen, law_gen, math_gen,
+    math_literacy_gen, physics_gen, world_history_gen,
 )
 from app.generators.common import SkipQuestion, polish
 
@@ -20,6 +21,10 @@ SUBJECT_TEMPLATES = {
     "kz_history": kz_history_gen.TEMPLATES,
     "chemistry": chemistry_gen.TEMPLATES,
     "informatics": informatics_gen.TEMPLATES,
+    "geography": geography_gen.TEMPLATES,
+    "biology": biology_gen.TEMPLATES,
+    "world_history": world_history_gen.TEMPLATES,
+    "law": law_gen.TEMPLATES,
 }
 
 # Расчётные предметы: в них большие числа разбиваются пробелами (18 480).
@@ -56,6 +61,9 @@ def generate(subject: str, qtype: str, count: int, seed: int = 2026) -> list[dic
             if subject in NUMERIC_SUBJECTS:
                 question = polish(question)
         except (SkipQuestion, ZeroDivisionError):
+            misses[number] += 1  # шаблон, который всё время пропускает, тоже считается исчерпанным
+            if misses[number] > 200:
+                exhausted.add(number)
             continue
         if len(set(question["options"])) != len(question["options"]):
             continue  # после оформления два варианта могли совпасть

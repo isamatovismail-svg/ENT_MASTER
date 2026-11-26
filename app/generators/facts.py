@@ -82,18 +82,19 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
                       [e.noun for e in wrong_events], explanation)
 
     def chronology_multiple(rng: random.Random) -> dict:
-        start = rng.choice(sorted({e.year // 100 * 100 for e in events}))
-        inside = [e for e in events if start <= e.year < start + 100]
-        outside = [e for e in events if not start <= e.year < start + 100]
+        # Век года y: (y − 1) // 100 + 1, т.е. XIX век — это 1801–1900 годы.
+        index = rng.choice(sorted({(e.year - 1) // 100 for e in events}))
+        inside = [e for e in events if (e.year - 1) // 100 == index]
+        outside = [e for e in events if (e.year - 1) // 100 != index]
         if not inside or len(outside) < 5:
             raise SkipQuestion
         right = rng.sample(inside, min(len(inside), rng.randint(1, 3)))
         wrong = rng.sample(outside, 6 - len(right))
-        century = _century(start)
-        names = ", ".join(e.noun[0].lower() + e.noun[1:] for e in sorted(right + wrong, key=lambda e: e.noun))
+        century = _century(index * 100)
+        names = ", ".join(_lower_first(e.noun) for e in sorted(right + wrong, key=lambda e: e.noun))
         text = f"Какие события произошли в {century} веке? ({names})"
-        explanation = (f"{century} век — это {start + 1}–{start + 100} годы. В него попадают: "
-                       + "; ".join(f"{e.noun[0].lower() + e.noun[1:]} ({e.year})" for e in right) + ".")
+        explanation = (f"{century} век — это {index * 100 + 1}–{index * 100 + 100} годы. В него попадают: "
+                       + "; ".join(f"{_lower_first(e.noun)} ({e.year})" for e in right) + ".")
         return multiple(rng, text, [e.noun for e in right], [e.noun for e in wrong], explanation)
 
     def years_matching(rng: random.Random) -> dict:
@@ -101,12 +102,18 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
         if len({e.year for e in picked}) < 4:
             raise SkipQuestion
         first, second = picked[0], picked[1]
-        text = f"Установите соответствие между событием и годом: 1) {first.noun.lower()}; 2) {second.noun.lower()}."
+        text = (f"Установите соответствие между событием и годом: 1) {_lower_first(first.noun)}; "
+                f"2) {_lower_first(second.noun)}.")
         explanation = f"{first.noun} — {first.year} год. {second.noun} — {second.year} год."
         return matching(rng, text, [(first.noun, str(first.year)), (second.noun, str(second.year))],
                         [str(picked[2].year), str(picked[3].year)], explanation)
 
     return [event_to_year, year_to_event], [chronology_multiple], [years_matching]
+
+
+def _lower_first(text: str) -> str:
+    """Первая буква строчная, остальные как были: «Открытие Америки» → «открытие Америки»."""
+    return text[:1].lower() + text[1:]
 
 
 def _century(start: int) -> str:
@@ -174,3 +181,101 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
     if any(f.what for f in facts):
         templates.append(what)
     return templates, [pair_matching]
+
+
+@dataclass(frozen=True)
+class Category:
+    """Группа для заданий «выберите все…»: вопрос, подходящие и неподходящие варианты."""
+
+    question: str            # «Какие из рек впадают в Каспийское море»
+    right: tuple[str, ...]   # подходящие
+    wrong: tuple[str, ...]   # неподходящие (правдоподобные)
+    note: str = ""           # общее объяснение правила
+
+
+def category_templates(categories: list[Category]) -> list[Callable]:
+    """Задания с несколькими ответами: 1–3 правильных из 6 вариантов."""
+
+    def choose_all(rng: random.Random) -> dict:
+        cat = rng.choice(categories)
+        right = rng.sample(cat.right, min(len(cat.right), rng.randint(1, 3)))
+        if len(cat.wrong) < 6 - len(right):
+            raise SkipQuestion
+        wrong = rng.sample(cat.wrong, 6 - len(right))
+        names = sorted(right + wrong)
+        text = f"{cat.question}: {', '.join(names)}?"
+        explanation = (cat.note + " " if cat.note else "") + "Подходят: " + ", ".join(sorted(right)) + "."
+        return multiple(rng, text, right, wrong, explanation)
+
+    return [choose_all]
+
+
+def context_templates(facts: list[Fact]) -> list[Callable]:
+    """Задания по контексту: описание (note) без имени, нужно узнать, о ком или о чём речь."""
+    usable = [f for f in facts if f.note and f.name.split()[0].lower() not in f.note.lower()]
+
+    def by_description(rng: random.Random) -> dict:
+        if not usable:
+            raise SkipQuestion
+        fact = rng.choice(usable)
+        others = [f for f in facts if f.group == fact.group and f.name != fact.name]
+        if len(others) < 3:
+            raise SkipQuestion
+        wrong = [f.name for f in rng.sample(others, min(6, len(others)))]
+        explanation = f"В тексте описан объект «{fact.name}»: {fact.about}."
+        return single(rng, f"Прочитайте описание и ответьте на вопрос. {fact.who}", fact.name, wrong, explanation,
+                      context=fact.note)
+
+    def by_about(rng: random.Random) -> dict:
+        fact = rng.choice(facts)
+        others = [f for f in facts if f.group == fact.group and f.name != fact.name]
+        if len(others) < 3:
+            raise SkipQuestion
+        wrong = [f.name for f in rng.sample(others, min(6, len(others)))]
+        context = f"Описание: {fact.about}." + (f" {fact.note}" if fact.note and fact.name.split()[0].lower()
+                                                not in fact.note.lower() else "")
+        explanation = f"Это описание подходит к варианту «{fact.name}»: {fact.about}."
+        return single(rng, f"О ком или о чём идёт речь в описании «{fact.about}»?", fact.name, wrong,
+                      explanation, context=context)
+
+    return ([by_description] if usable else []) + [by_about]
+
+
+def event_context_templates(events: list[Event]) -> list[Callable]:
+    """Задания по контексту о событии: текст-описание и вопрос о дате."""
+    usable = [e for e in events if e.note]
+
+    def event_context(rng: random.Random) -> dict:
+        if not usable:
+            raise SkipQuestion
+        event = rng.choice(usable)
+        context = f"{event.noun}. {event.note}"
+        return single(rng, f"Прочитайте текст. В каком году {event.clause}?", str(event.year),
+                      _year_options(rng, events, event), f"{event.noun} — {event.year} год.", context=context)
+
+    return [event_context] if usable else []
+
+
+def build(events: list[Event] | None = None, facts: list[Fact] | None = None,
+          titles: dict[str, str] | None = None, what_phrases: dict[str, str] | None = None,
+          categories: list[Category] | None = None, extra: dict[str, list[Callable]] | None = None
+          ) -> dict[str, list[Callable]]:
+    """Собирает TEMPLATES профильного предмета из таблиц: все четыре типа заданий ЕНТ."""
+    templates: dict[str, list[Callable]] = {"single": [], "context": [], "matching": [], "multiple": []}
+    if events:
+        single_t, multiple_t, matching_t = event_templates(events)
+        templates["single"] += single_t
+        templates["multiple"] += multiple_t
+        templates["matching"] += matching_t
+        templates["context"] += event_context_templates(events)
+    if facts:
+        single_t, matching_t = fact_templates(facts, titles or {}, what_phrases)
+        templates["single"] += single_t
+        if titles:
+            templates["matching"] += matching_t
+        templates["context"] += context_templates(facts)
+    if categories:
+        templates["multiple"] += category_templates(categories)
+    for qtype, functions in (extra or {}).items():
+        templates[qtype] += functions
+    return {qtype: functions for qtype, functions in templates.items() if functions}

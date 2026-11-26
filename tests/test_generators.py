@@ -36,6 +36,22 @@ class FormatTests(unittest.TestCase):
         self.assertEqual(space_thousands("0,0625 и 1 234"), "0,0625 и 1 234")
 
 
+class FactTests(unittest.TestCase):
+    """Шаблоны по таблицам фактов."""
+
+    def test_century_boundaries(self) -> None:
+        from app.generators.facts import _century
+        cases = {800: "VIII", 801: "IX", 1800: "XVIII", 1801: "XIX", 1900: "XIX", 1901: "XX", 2001: "XXI"}
+        for year, expected in cases.items():
+            self.assertEqual(_century((year - 1) // 100 * 100), expected, year)
+
+    def test_every_profile_subject_fills_its_quota(self) -> None:
+        for subject in generators.SUBJECT_TEMPLATES:
+            for qtype, need in config.SUBJECTS[subject].quota:
+                with self.subTest(subject=subject, qtype=qtype):
+                    self.assertGreaterEqual(len(generators.generate(subject, qtype, need * 4)), need * 4)
+
+
 class GeneratorTests(unittest.TestCase):
     """Каждый шаблон выдаёт корректные вопросы в формате ЕНТ."""
 
@@ -96,13 +112,16 @@ class SeedAndSelectionTests(DatabaseTestCase):
         _, errors = seed.seed()
         self.assertEqual(errors, [])
         counts = database.question_counts()
-        for subject in ("math", "physics", "chemistry", "informatics"):
+        for subject in ("math", "physics", "chemistry", "informatics", "geography", "biology",
+                        "world_history", "law"):
             for qtype, need in config.SUBJECTS[subject].quota:
                 self.assertGreaterEqual(counts[(subject, qtype)], need * 3, subject)
         self.assertGreaterEqual(counts[("math_literacy", config.SINGLE)], 300)
         self.assertGreaterEqual(counts[("kz_history", config.SINGLE)], 150)
-        # Для пары «Математика + Физика» теперь собирается полный пробный ЕНТ.
-        self.assertEqual(ent_logic.pair_question_count(0, counts), config.MOCK_TOTAL_QUESTIONS)
+        # Полный пробный ЕНТ собирается для всех пар, где нет языков и литературы.
+        for index, pair in enumerate(config.PROFILE_PAIRS):
+            if set(pair) <= set(generators.SUBJECT_TEMPLATES):
+                self.assertEqual(ent_logic.pair_question_count(index, counts), config.MOCK_TOTAL_QUESTIONS, pair)
         # Повторный запуск не создаёт дубликатов.
         seed.seed()
         self.assertEqual(database.question_counts(), counts)
