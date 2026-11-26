@@ -51,8 +51,9 @@ class RegistrationTests(DatabaseTestCase):
         """Каждое неверное поле даёт понятную ошибку."""
         self.assert_invalid("", "a@b.kz", "password1", "password1", "имя")
         self.assert_invalid("Али", "not-an-email@", "password1", "password1", "Почта")
-        self.assert_invalid("Али", "87011234567", "password1", "password1", "+7XXXXXXXXXX")
-        self.assert_invalid("Али", "+7701123", "password1", "password1", "+7XXXXXXXXXX")
+        self.assert_invalid("Али", "8 701 123 45", "password1", "password1", "10 цифр")
+        self.assert_invalid("Али", "+7701123", "password1", "password1", "10 цифр")
+        self.assert_invalid("Али", "+8 701 123 45 67", "password1", "password1", "10 цифр")
         self.assert_invalid("Али", "a@b.kz", "short", "short", "не короче 8")
         self.assert_invalid("Али", "a@b.kz", "password1", "password2", "не совпадают")
 
@@ -62,6 +63,40 @@ class RegistrationTests(DatabaseTestCase):
         self.assert_invalid(
             "Али 2", "ALI@mail.kz", "password1", "password1", "уже зарегистрирован"
         )
+
+
+class PhoneTests(DatabaseTestCase):
+    """Телефон в любом виде приводится к +7XXXXXXXXXX."""
+
+    def test_normalize_phone(self) -> None:
+        """Все привычные записи номера дают один и тот же результат."""
+        for raw in ("8 705 967 84 20", "+7 (705) 967-84-20", "87059678420", "77059678420",
+                    "7059678420", " +77059678420 ", "8(705)967-84-20"):
+            self.assertEqual(auth.normalize_phone(raw), "+77059678420", raw)
+        for raw in ("", "705967842", "870596784201", "+8 705 967 84 20", "97059678420",
+                    "+7 705 abc 84 20", "7+7059678420", "+"):
+            with self.assertRaises(ValueError, msg=raw) as context:
+                auth.normalize_phone(raw)
+            self.assertIn("10 цифр", str(context.exception))
+
+    def test_normalize_login(self) -> None:
+        """Почта — в нижний регистр, телефон — к +7…, служебные логины не меняются."""
+        self.assertEqual(auth.normalize_login(" Aru@Mail.KZ "), "aru@mail.kz")
+        self.assertEqual(auth.normalize_login("8 (705) 967-84-20"), "+77059678420")
+        self.assertEqual(auth.normalize_login("8 705 96"), "870596")
+        self.assertEqual(auth.normalize_login("tg12345"), "tg12345")
+
+    def test_register_and_login_with_any_format(self) -> None:
+        """Зарегистрировался в одном виде — входит в любом другом; дубликат не пройдёт."""
+        user_id = auth.register_user("Данияр", "8 705 967 84 20", "password1", "password1")
+        self.assertTrue(database.login_exists("+77059678420"))
+        for raw in ("+7 (705) 967-84-20", "87059678420", "77059678420", "7059678420"):
+            user = auth.authenticate(raw, "password1")
+            self.assertIsNotNone(user, raw)
+            assert user is not None
+            self.assertEqual(user.id, user_id)
+        with self.assertRaises(auth.ValidationError):
+            auth.register_user("Другой", "7059678420", "password1", "password1")
 
 
 class LoginAndSessionTests(DatabaseTestCase):

@@ -12,7 +12,7 @@ from functools import wraps
 from urllib.parse import urlencode
 
 import config
-from app import database, ent_logic, views
+from app import auth, database, ent_logic, views
 from app.database import Question
 from app.question_bank import validate_question
 from app.templates import SafeHTML, fragment, join, render
@@ -582,8 +582,21 @@ def _role_badge(role: str) -> SafeHTML:
 
 @admin_required
 def users(request: Request) -> Response:
-    """GET /admin/users — все пользователи со сводкой попыток."""
+    """GET /admin/users — все пользователи со сводкой попыток и поиском по имени или логину.
+
+    Телефон в поиске можно набрать в любом виде («8 705 …», «+7 (705) …»):
+    он приводится к +7XXXXXXXXXX так же, как при входе.
+    """
+    search = request.query_value("q").strip()[:200]
     rows = database.list_users_with_stats()
+    if search:
+        login = auth.normalize_login(search)
+        needle = search.casefold()
+        rows = [
+            row for row in rows
+            if row["login"] == login or needle in row["name"].casefold()
+            or needle in row["login"].casefold()
+        ]
     table_rows = join(
         fragment(
             "<tr><td><strong>$name</strong></td><td>$login</td><td>$role</td><td>$created</td>"
@@ -599,7 +612,7 @@ def users(request: Request) -> Response:
         )
         for row in rows
     )
-    content = render("admin_users.html", rows=table_rows, count=len(rows))
+    content = render("admin_users.html", rows=table_rows, count=len(rows), search=search)
     return _admin_page(request, "Пользователи", "users", content)
 
 

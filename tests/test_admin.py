@@ -255,6 +255,35 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertNotIn("<script>alert(1)</script>", html)
         self.assertIn("&lt;script&gt;", html)
 
+    def test_seed_keeps_admin_edits(self) -> None:
+        """Вопрос, изменённый или созданный в админке, seed.py больше не перезаписывает."""
+        original = {"type": "single", "text": "Сколько будет 2 + 2?", "options": ["4", "5"],
+                    "correct": ["A"], "explanation": "Из файла."}
+        other = {**original, "text": "Сколько будет 3 + 3?", "options": ["6", "7"]}
+        database.upsert_questions("math", [original, other])
+        edited = next(q for q in database.list_questions("math") if q.text == original["text"])
+        status, _, _, _ = self.post_question(f"/admin/questions/{edited.id}/edit", {
+            "type": "single", "subject": "math", "text": original["text"],
+            "opt_A": "4", "opt_B": "22", "correct": "A", "explanation": "Правка админа.",
+        })
+        self.assertEqual(status, 200)
+        self.post_question("/admin/questions/new", {
+            "type": "single", "subject": "math", "text": "Новый вопрос админа",
+            "opt_A": "1", "opt_B": "2", "correct": "B", "explanation": "Своё.",
+        })
+
+        # Повторный seed: правки админа целы, неизменённый вопрос обновился из файла.
+        database.upsert_questions("math", [
+            {**original, "explanation": "Новая версия файла."},
+            {**other, "explanation": "Новая версия файла."},
+            {**original, "text": "Новый вопрос админа", "explanation": "Из файла."},
+        ])
+        by_text = {q.text: q for q in database.list_questions("math")}
+        self.assertEqual(by_text[original["text"]].explanation, "Правка админа.")
+        self.assertEqual(by_text[original["text"]].options, ["4", "22"])
+        self.assertEqual(by_text["Новый вопрос админа"].explanation, "Своё.")
+        self.assertEqual(by_text[other["text"]].explanation, "Новая версия файла.")
+
     def test_delete_unused_and_used(self) -> None:
         """Неиспользованный вопрос удаляется, использованный — скрывается, разбор цел."""
         self.add_questions("chemistry", config.SINGLE, 2)
@@ -321,6 +350,16 @@ class AdminPagesTests(DatabaseTestCase):
         _, _, html, _ = self.admin.get("/admin/users")
         self.assertIn("student@mail.kz", html)
         self.assertIn("⚙️ админ", html)
+
+        # Поиск пользователя: по части почты и по телефону в любом виде.
+        test_pages.PagesTests().register_and_login(
+            Browser(self.base_url), "8 705 967 84 20", name="Телефон")
+        _, _, html, _ = self.admin.get("/admin/users?" + urlencode({"q": "STUDENT"}))
+        self.assertIn("Пользователи: 1", html)
+        self.assertIn("student@mail.kz", html)
+        _, _, html, _ = self.admin.get("/admin/users?" + urlencode({"q": "+7 (705) 967-84-20"}))
+        self.assertIn("Пользователи: 1", html)
+        self.assertIn("+77059678420", html)
         status, _, html, _ = self.admin.get("/admin/users/2")
         self.assertEqual(status, 200)
         self.assertIn("Ученик", html)
@@ -334,4 +373,4 @@ class AdminPagesTests(DatabaseTestCase):
         # Чужая пара «пользователь — попытка» и несуществующий пользователь — 404.
         self.assertEqual(self.admin.get(f"/admin/users/1/attempts/{attempt_id}")[0], 404)
         self.assertEqual(self.admin.get("/admin/users/999")[0], 404)
-        self.assertIsNotNone(re.search(r"Все пользователи: 2", self.admin.get("/admin/users")[2]))
+        self.assertIsNotNone(re.search(r"Пользователи: 3", self.admin.get("/admin/users")[2]))

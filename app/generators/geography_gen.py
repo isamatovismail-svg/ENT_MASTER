@@ -1,8 +1,6 @@
 """География: таблицы фактов (Казахстан и мир) и расчётные задачи."""
 
-import random
-
-from app.generators.common import SkipQuestion, num, number_distractors, single
+from app.generators.common import num, number_distractors, single
 from app.generators.facts import Category, Fact, build
 
 

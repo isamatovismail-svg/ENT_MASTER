@@ -36,11 +36,6 @@ class SubjectAvailability:
     have: int
     need: int
 
-    @property
-    def is_complete(self) -> bool:
-        """True, если банк позволяет собрать полный раздел."""
-        return self.have >= self.need
-
 
 @dataclass
 class SubjectStrength:

@@ -1,6 +1,5 @@
 """Биология: таблицы фактов и расчётные задачи по генетике и молекулярной биологии."""
 
-import random
 
 from app.generators.common import matching, number_distractors, plural, single
 from app.generators.facts import Category, Fact, build

@@ -1,6 +1,5 @@
 """Шаблоны задач по химии. Атомные массы округлены, как в школьных задачах (Cl = 35,5)."""
 
-import random
 from dataclasses import dataclass
 
 from app.generators.common import SkipQuestion, matching, multiple, num, number_distractors, single

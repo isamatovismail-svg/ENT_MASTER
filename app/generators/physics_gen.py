@@ -1,6 +1,5 @@
 """Шаблоны задач по физике. Ускорение свободного падения g = 10 м/с², как принято в задачах ЕНТ."""
 
-import random
 
 from app.generators.common import SkipQuestion, matching, multiple, num, number_distractors, single
 

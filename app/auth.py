@@ -20,7 +20,12 @@ from app.database import User
 from app.web import Request
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
-PHONE_RE = re.compile(r"^\+7\d{10}$")
+# Похоже на телефон: только цифры, «+», пробелы, скобки и дефисы.
+PHONE_LIKE_RE = re.compile(r"^\+?[\d\s\-()]+$")
+PHONE_ERROR = (
+    "Номер телефона указан неверно: после кода страны (+7 или 8) должно быть 10 цифр. "
+    "Пример: +7 705 123 45 67"
+)
 NAME_MAX_LENGTH = 60
 
 
@@ -56,15 +61,44 @@ def verify_password(password: str, salt_hex: str, expected_hash: str) -> bool:
 
 # ── Проверка формы регистрации ───────────────────────────────────────────────
 
+def normalize_phone(raw: str) -> str:
+    """Приводит казахстанский номер к виду +7XXXXXXXXXX или выбрасывает ValueError.
+
+    Принимаются «8 705 967 84 20», «+7 (705) 967-84-20», «87059678420»,
+    «77059678420» и «7059678420»: пробелы, скобки и дефисы убираются,
+    код страны (+7, 7 или 8) отбрасывается, остаться должно ровно 10 цифр.
+    """
+    value = raw.strip()
+    if not PHONE_LIKE_RE.match(value) or "+" in value[1:]:
+        raise ValueError(PHONE_ERROR)
+    digits = re.sub(r"\D", "", value)
+    if value.startswith("+"):
+        if not digits.startswith("7"):
+            raise ValueError(PHONE_ERROR)
+        digits = digits[1:]
+    elif len(digits) == 11 and digits[0] in "78":
+        digits = digits[1:]
+    if len(digits) != 10:
+        raise ValueError(PHONE_ERROR)
+    return "+7" + digits
+
+
 def normalize_login(raw: str) -> str:
     """Приводит логин к единому виду.
 
-    Почта — в нижний регистр, из телефона убираются пробелы, дефисы и скобки.
+    Почта — в нижний регистр, телефон — к виду +7XXXXXXXXXX (normalize_phone).
+    Если телефон набран с ошибкой, из него только убираются пробелы, дефисы и скобки —
+    такой логин просто не найдётся. Остальное (например, tg123) не меняется.
     """
     value = raw.strip()
     if "@" in value:
         return value.lower()
-    return re.sub(r"[\s\-()]", "", value)
+    if PHONE_LIKE_RE.match(value):
+        try:
+            return normalize_phone(value)
+        except ValueError:
+            return re.sub(r"[\s\-()]", "", value)
+    return value
 
 
 def validate_registration(name: str, login: str, password: str, password2: str) -> tuple[str, str]:
@@ -83,8 +117,11 @@ def validate_registration(name: str, login: str, password: str, password2: str) 
     elif "@" in clean_login:
         if not EMAIL_RE.match(clean_login) or len(clean_login) > 254:
             errors.append("Почта указана неверно. Пример: aru@mail.kz")
-    elif not PHONE_RE.match(clean_login):
-        errors.append("Телефон должен быть в формате +7XXXXXXXXXX (11 цифр после «+»).")
+    else:
+        try:
+            clean_login = normalize_phone(login)
+        except ValueError as error:
+            errors.append(str(error))
 
     if len(password) < config.PASSWORD_MIN_LENGTH:
         errors.append(f"Пароль должен быть не короче {config.PASSWORD_MIN_LENGTH} символов.")

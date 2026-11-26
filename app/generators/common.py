@@ -76,13 +76,6 @@ def polish(question: dict) -> dict:
     return question
 
 
-def signed(value: int | float, first: bool = False) -> str:
-    """Слагаемое со знаком для записи выражений: «+ 5», «− 5» (first=True → «5», «−5»)."""
-    if first:
-        return num(value)
-    return f"{'−' if value < 0 else '+'} {num(abs(value))}"
-
-
 def unique_strings(correct: str, candidates: list[str], need: int) -> list[str]:
     """Отбирает need различных неправильных вариантов, не совпадающих с правильным."""
     result: list[str] = []

@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS questions (
     -- 1 — вопрос удалён в админке, но остаётся в базе, потому что есть в чьих-то попытках.
     -- Такой вопрос не попадает в новые тесты и в счётчики банка.
     deleted      INTEGER NOT NULL DEFAULT 0,
+    -- 1 — вопрос создан или изменён в админке: seed.py его больше не перезаписывает.
+    edited_by_admin INTEGER NOT NULL DEFAULT 0,
     UNIQUE (subject, text)
 );
 
@@ -109,6 +111,7 @@ _ADDED_COLUMNS = (
     ("users", "telegram_id", "INTEGER"),
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
+    ("questions", "edited_by_admin", "INTEGER NOT NULL DEFAULT 0"),
     ("attempt_questions", "option_order_json", "TEXT"),
     ("attempt_questions", "checked", "INTEGER NOT NULL DEFAULT 0"),
 )
@@ -409,7 +412,9 @@ _UPSERT_SQL = (
     "qtype = excluded.qtype, context = excluded.context, "
     "options_json = excluded.options_json, left_json = excluded.left_json, "
     "correct_json = excluded.correct_json, explanation = excluded.explanation, "
-    "deleted = 0"
+    "deleted = 0 "
+    # Вопросы, исправленные в админке, не трогаем: ручная правка важнее файла.
+    "WHERE questions.edited_by_admin = 0"
 )
 
 
@@ -538,27 +543,30 @@ def _question_values(question: Question) -> tuple:
 
 
 def insert_question(question: Question) -> int:
-    """Добавляет вопрос и возвращает его id.
+    """Добавляет вопрос из админки (с пометкой edited_by_admin) и возвращает его id.
 
     Если у предмета уже есть вопрос с таким текстом, sqlite3 выбросит IntegrityError.
     """
     with connect() as connection:
         cursor = connection.execute(
             "INSERT INTO questions "
-            "(subject, qtype, text, context, options_json, left_json, correct_json, explanation) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, "
+            "edited_by_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
             _question_values(question),
         )
         return int(cursor.lastrowid)
 
 
 def update_question(question: Question) -> bool:
-    """Сохраняет изменения вопроса. False — вопроса нет. Дубликат текста — IntegrityError."""
+    """Сохраняет правку из админки и помечает вопрос edited_by_admin (seed.py его не тронет).
+
+    False — вопроса нет. Дубликат текста — IntegrityError.
+    """
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ? "
-            "WHERE id = ? AND deleted = 0",
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
+            "edited_by_admin = 1 WHERE id = ? AND deleted = 0",
             (*_question_values(question), question.id),
         )
         return cursor.rowcount == 1
@@ -743,30 +751,6 @@ def get_finished_attempts(user_id: int) -> list[Attempt]:
             (user_id,),
         ).fetchall()
     return [_attempt_from_row(row) for row in rows]
-
-
-def get_best_attempt(user_id: int, mode: str) -> Attempt | None:
-    """Лучшая завершённая попытка в режиме (по доле набранных баллов)."""
-    with connect() as connection:
-        row = connection.execute(
-            f"SELECT {_ATTEMPT_COLUMNS} FROM attempts "
-            "WHERE user_id = ? AND mode = ? AND status = 'finished' AND max_score > 0 "
-            "ORDER BY CAST(score AS REAL) / max_score DESC, score DESC, id DESC LIMIT 1",
-            (user_id, mode),
-        ).fetchone()
-    return _attempt_from_row(row) if row else None
-
-
-def get_last_attempt(user_id: int) -> Attempt | None:
-    """Последняя завершённая попытка в любом режиме."""
-    with connect() as connection:
-        row = connection.execute(
-            f"SELECT {_ATTEMPT_COLUMNS} FROM attempts "
-            "WHERE user_id = ? AND status = 'finished' "
-            "ORDER BY finished_at DESC, id DESC LIMIT 1",
-            (user_id,),
-        ).fetchone()
-    return _attempt_from_row(row) if row else None
 
 
 def _apply_option_order(

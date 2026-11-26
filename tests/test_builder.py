@@ -93,7 +93,8 @@ class BuildTests(DatabaseTestCase):
 
         counts = database.question_counts()
         self.assertEqual(ent_logic.availability("kz_history", counts).have, 5)
-        self.assertFalse(ent_logic.availability("math", counts).is_complete)
+        math = ent_logic.availability("math", counts)
+        self.assertLess(math.have, math.need)
 
     def test_empty_bank_and_bad_pair(self) -> None:
         """Пустой банк и неверная пара дают понятную ошибку, а не падение."""
@@ -171,6 +172,7 @@ class MigrationTests(DatabaseTestCase):
         database.init_db()  # повторный запуск безопасен
         with database.connect() as connection:
             for table, column in (("questions", "explanation"),
+                                  ("questions", "edited_by_admin"),
                                   ("attempt_questions", "option_order_json"),
                                   ("attempt_questions", "checked")):
                 columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}

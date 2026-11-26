@@ -187,7 +187,7 @@ class PagesTests(DatabaseTestCase):
             "name": "Али", "login": "8701", "password": "123", "password2": "456",
         })
         self.assertEqual(status, 400)
-        self.assertIn("+7XXXXXXXXXX", html)
+        self.assertIn("должно быть 10 цифр", html)
         self.assertIn("не короче 8", html)
         self.assertIn('value="Али"', html)
 

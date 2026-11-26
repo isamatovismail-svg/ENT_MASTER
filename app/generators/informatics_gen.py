@@ -1,7 +1,6 @@
 """Шаблоны задач по информатике: системы счисления, информация, логика, Python."""
 
 import itertools
-import random
 
 from app.generators.common import SkipQuestion, matching, multiple, num, number_distractors, single
 
