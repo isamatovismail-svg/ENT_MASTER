@@ -20,7 +20,7 @@ def main() -> None:
         logger.warning("Банк вопросов пуст. Загрузите вопросы командой: python seed.py")
 
     server = create_server(config.HOST, config.PORT)
-    logger.info("ENT MASTER запущен: http://localhost:%s (остановить: Ctrl+C)", config.PORT)
+    logger.info("ENT MASTER запущен: http://%s:%s (остановить: Ctrl+C)", config.HOST, config.PORT)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

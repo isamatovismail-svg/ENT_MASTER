@@ -6,6 +6,15 @@ from app.database import User
 
 
 @dataclass
+class UploadedFile:
+    """Файл из формы multipart/form-data (например, картинка баннера)."""
+
+    filename: str
+    content_type: str
+    data: bytes
+
+
+@dataclass
 class Request:
     """Входящий HTTP-запрос в удобном для обработчиков виде."""
 
@@ -13,6 +22,7 @@ class Request:
     path: str
     query: dict[str, list[str]] = field(default_factory=dict)
     form: dict[str, list[str]] = field(default_factory=dict)
+    files: dict[str, UploadedFile] = field(default_factory=dict)
     cookies: dict[str, str] = field(default_factory=dict)
     user: User | None = None
     csrf_token: str = ""

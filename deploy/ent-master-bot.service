@@ -1,0 +1,23 @@
+# Telegram-бот ENT MASTER (long polling). Включается, только если в .env есть TELEGRAM_BOT_TOKEN.
+[Unit]
+Description=ENT MASTER — Telegram-бот
+After=network-online.target ent-master-site.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ent
+Group=ent
+WorkingDirectory=/opt/ent-master
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/ent-master/bot.py
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/ent-master
+
+[Install]
+WantedBy=multi-user.target

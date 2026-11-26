@@ -1,0 +1,11 @@
+# Ежедневная резервная копия базы в 03:30 (если сервер был выключен — сразу после включения).
+[Unit]
+Description=ENT MASTER — ежедневная резервная копия базы
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -7,12 +7,13 @@
 
 import sqlite3
 import time
+from datetime import date, timedelta
 from collections.abc import Callable
 from functools import wraps
 from urllib.parse import urlencode
 
 import config
-from app import auth, database, ent_logic, question_form, schools, topics, views
+from app import ads, auth, database, ent_logic, question_form, schools, topics, views
 from app.database import Question
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, redirect
@@ -43,6 +44,7 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
     links = (("/admin", "📊 Обзор", "home"), ("/admin/questions", "📚 Вопросы", "questions"),
              ("/admin/review", f"🔎 Проверка ({pending})" if pending else "🔎 Проверка", "review"),
              ("/admin/topics", "🧭 Темы НЦТ", "topics"),
+             ("/admin/banners", "📢 Реклама", "banners"),
              ("/admin/users", "👥 Пользователи", "users"), ("/teacher", "🏫 Школы", "schools"))
     menu = join(
         fragment('<a href="$href" class="admin-tab$active">$label</a>', href=href, label=label,
@@ -404,6 +406,143 @@ def topics_report(request: Request) -> Response:
         year=topics.SPEC_YEAR, source=topics.SPEC_SOURCE, summary=summary, details=details,
     )
     return _admin_page(request, "Темы НЦТ", "topics", content)
+
+
+# ── Рекламные баннеры ────────────────────────────────────────────────────────
+
+BANNER_STATUS_BADGE = {"показывается": "badge-ok", "запланирован": "badge-warn",
+                       "закончился": "badge", "выключен": "badge-wrong"}
+
+
+@admin_required
+def banners(request: Request) -> Response:
+    """GET /admin/banners — баннеры, места показа, сроки, показы и клики."""
+    rows = database.list_banners()
+    if rows:
+        items = join(
+            fragment(
+                '<tr><td><img class="ad-thumb" src="/ad/$id/image" alt="$title"></td>'
+                '<td><strong>$title</strong><br><a class="link small" href="$link" rel="noopener">$link</a></td>'
+                "<td>$places</td><td>$start — $end</td>"
+                '<td><span class="badge $badge">$status</span></td>'
+                "<td>$shows</td><td>$clicks</td><td>$ctr</td>"
+                '<td><a class="link" href="/admin/banners/$id/edit">Изменить →</a></td></tr>',
+                id=row["id"], title=row["title"], link=row["link_url"],
+                places=", ".join(ads.PLACEMENTS.get(p, p) for p in row["placements"].split(",")),
+                start=row["starts_on"], end=row["ends_on"],
+                badge=BANNER_STATUS_BADGE[ads.status(row)], status=ads.status(row),
+                shows=row["impressions"], clicks=row["clicks"],
+                ctr=f"{row['clicks'] * 100 / row['impressions']:.1f}%".replace(".", ",")
+                if row["impressions"] else "—",
+            )
+            for row in rows
+        )
+        table = fragment(
+            '<div class="table-wrap"><table class="table"><thead><tr><th></th><th>Баннер</th>'
+            "<th>Места показа</th><th>Сроки</th><th>Статус</th><th>Показы</th><th>Клики</th>"
+            "<th>CTR</th><th></th></tr></thead><tbody>$items</tbody></table></div>",
+            items=items,
+        )
+    else:
+        table = SafeHTML('<div class="card empty">Баннеров пока нет.</div>')
+    content = fragment(
+        '<section class="page-head admin-head"><div><span class="eyebrow">Монетизация</span>'
+        "<h1>📢 Рекламные баннеры</h1>"
+        '<p class="muted">Свои баннеры без JavaScript: картинка и ссылка. Показы считаются при выводе '
+        "баннера, клики — при переходе. На страницах теста реклама не показывается.</p></div>"
+        '<a class="btn btn-primary" href="/admin/banners/new">＋ Добавить баннер</a></section>$table',
+        table=table,
+    )
+    return _admin_page(request, "Реклама", "banners", content)
+
+
+def _banner_form(request: Request, url: str, title: str, values: dict, errors: list[str],
+                 banner_id: int = 0, status: int = 200) -> Response:
+    """Форма баннера (новый или изменение)."""
+    chosen = set(values.get("placements", []))
+    boxes = join(
+        fragment('<label class="check"><input type="checkbox" name="placements" value="$code"$c> $name</label>',
+                 code=code, name=name, c=SafeHTML(" checked" if code in chosen else ""))
+        for code, name in ads.PLACEMENTS.items()
+    )
+    preview = (fragment('<p><img class="ad-thumb ad-thumb-big" src="/ad/$id/image" alt="текущая картинка"></p>'
+                        '<p class="muted small">Загрузите новый файл, только если хотите заменить картинку.</p>',
+                        id=banner_id)
+               if banner_id else SafeHTML(""))
+    delete = (fragment('<form method="post" action="/admin/banners/$id/delete" class="section">$csrf'
+                       '<button type="submit" class="btn btn-link">Удалить баннер</button></form>',
+                       id=banner_id, csrf=views._csrf_field(request))
+              if banner_id else SafeHTML(""))
+    content = render(
+        "admin_banner_form.html", title=title, url=url, csrf=views._csrf_field(request),
+        errors=views._errors_block(errors), name=values.get("title", ""), link=values.get("link_url", ""),
+        placements=boxes, starts_on=values.get("starts_on", ""), ends_on=values.get("ends_on", ""),
+        active=SafeHTML(" checked" if values.get("active") else ""), preview=preview,
+        max_mb=config.BANNER_MAX_BYTES // 1_000_000, delete=delete,
+    )
+    return _admin_page(request, title, "banners", content, status)
+
+
+def _banner_values(request: Request) -> dict:
+    """Значения формы баннера из запроса."""
+    return {"title": request.form_value("title"), "link_url": request.form_value("link_url"),
+            "placements": request.form.get("placements", []), "starts_on": request.form_value("starts_on"),
+            "ends_on": request.form_value("ends_on"), "active": request.form_value("active") == "1"}
+
+
+@admin_required
+def banner_new(request: Request) -> Response:
+    """GET/POST /admin/banners/new — новый баннер (форма с загрузкой картинки)."""
+    url = "/admin/banners/new"
+    if request.method == "GET":
+        today = date.today()
+        return _banner_form(request, url, "Новый баннер", {
+            "placements": ["landing", "dashboard"], "active": True, "starts_on": today.isoformat(),
+            "ends_on": (today + timedelta(days=30)).isoformat()}, [])
+    values = _banner_values(request)
+    upload = request.files.get("image")
+    try:
+        form = ads.validate(values["title"], values["link_url"], values["placements"], values["starts_on"],
+                            values["ends_on"], values["active"], upload.data if upload else None, True)
+    except ads.BannerError as error:
+        return _banner_form(request, url, "Новый баннер", values, error.errors, status=400)
+    assert form.image is not None
+    database.create_banner(form.title, form.link_url, form.image, form.image_type, form.placements,
+                           form.starts_on, form.ends_on, form.active, time.time())
+    return redirect("/admin/banners?msg=banner_saved")
+
+
+@admin_required
+def banner_edit(request: Request, banner_id: int) -> Response:
+    """GET/POST /admin/banners/<id>/edit — изменить баннер (картинку — по желанию)."""
+    row = database.get_banner(banner_id)
+    if row is None:
+        return views.not_found(request)
+    url = f"/admin/banners/{banner_id}/edit"
+    title = f"Баннер #{banner_id}"
+    if request.method == "GET":
+        return _banner_form(request, url, title, {
+            "title": row["title"], "link_url": row["link_url"], "placements": row["placements"].split(","),
+            "starts_on": row["starts_on"], "ends_on": row["ends_on"], "active": bool(row["active"])},
+            [], banner_id)
+    values = _banner_values(request)
+    upload = request.files.get("image")
+    try:
+        form = ads.validate(values["title"], values["link_url"], values["placements"], values["starts_on"],
+                            values["ends_on"], values["active"], upload.data if upload else None, False)
+    except ads.BannerError as error:
+        return _banner_form(request, url, title, values, error.errors, banner_id, 400)
+    database.update_banner(banner_id, form.title, form.link_url, form.placements, form.starts_on,
+                           form.ends_on, form.active, form.image, form.image_type)
+    return redirect("/admin/banners?msg=banner_saved")
+
+
+@admin_required
+def banner_delete(request: Request, banner_id: int) -> Response:
+    """POST /admin/banners/<id>/delete — удалить баннер."""
+    if not database.delete_banner(banner_id):
+        return views.not_found(request)
+    return redirect("/admin/banners?msg=banner_deleted")
 
 
 # ── Проверка вопросов учителей ───────────────────────────────────────────────

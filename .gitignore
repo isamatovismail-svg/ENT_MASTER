@@ -4,9 +4,11 @@ venv/
 __pycache__/
 *.pyc
 
-# Локальная база данных
+# Локальная база данных и её резервные копии
 *.sqlite3
 *.sqlite3-journal
+*.sqlite3.gz
+backups/
 
 # Настройки IDE (общая конфигурация запуска PyCharm «Run» — в git)
 .idea/*

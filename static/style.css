@@ -2543,3 +2543,34 @@ code {
 
 .section-row th { background: var(--surface-2); text-align: left; }
 .topic-empty td { color: var(--danger); }
+
+/* ── Рекламные баннеры ────────────────────────────────────────────────────── */
+
+.ad-banner {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  margin: 24px 0;
+}
+
+.ad-banner img {
+  display: block;
+  width: 100%;
+  max-width: 1200px;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.ad-label { color: var(--muted); font-size: 0.75rem; }
+
+.ad-thumb {
+  display: block;
+  width: 120px;
+  max-height: 60px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.ad-thumb-big { width: 100%; max-width: 480px; max-height: 160px; }

@@ -1,0 +1,37 @@
+<section class="page-head">
+  <span class="eyebrow">Реклама</span>
+  <h1>📢 $title</h1>
+  <p><a class="link" href="/admin/banners">← Все баннеры</a></p>
+</section>
+
+$errors
+
+<form method="post" action="$url" enctype="multipart/form-data" class="card form admin-form" novalidate>
+  $csrf
+  <label class="field"><span>Название (подпись к картинке)</span>
+    <input type="text" name="title" value="$name" maxlength="120" required></label>
+  <label class="field"><span>Ссылка рекламодателя</span>
+    <input type="url" name="link_url" value="$link" maxlength="500" placeholder="https://example.kz" required></label>
+  <fieldset class="field-group">
+    <legend>Картинка</legend>
+    $preview
+    <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
+    <small class="muted">PNG, JPEG, GIF или WebP, не больше $max_mb МБ. Рекомендуемый размер —
+      1200 × 300 px (на телефоне баннер уменьшается).</small>
+  </fieldset>
+  <fieldset class="field-group">
+    <legend>Где показывать</legend>
+    $placements
+  </fieldset>
+  <div class="field-row">
+    <label class="field"><span>Показывать с</span><input type="date" name="starts_on" value="$starts_on" required></label>
+    <label class="field"><span>По (включительно)</span><input type="date" name="ends_on" value="$ends_on" required></label>
+  </div>
+  <label class="check"><input type="checkbox" name="active" value="1"$active> Баннер включён</label>
+  <div class="test-actions">
+    <a class="btn btn-ghost" href="/admin/banners">Отмена</a>
+    <button type="submit" class="btn btn-primary">💾 Сохранить баннер</button>
+  </div>
+</form>
+
+$delete

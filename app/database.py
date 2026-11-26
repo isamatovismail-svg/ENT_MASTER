@@ -75,6 +75,22 @@ CREATE TABLE IF NOT EXISTS assignments (
     deadline   REAL NOT NULL
 );
 
+-- Рекламные баннеры (свои, без JavaScript): картинка хранится в базе и попадает в резервные копии.
+CREATE TABLE IF NOT EXISTS banners (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,            -- подпись (alt картинки) и название в админке
+    link_url    TEXT NOT NULL,            -- куда ведёт баннер (http/https)
+    image       BLOB NOT NULL,
+    image_type  TEXT NOT NULL,            -- image/png, image/jpeg, image/gif, image/webp
+    placements  TEXT NOT NULL,            -- места показа через запятую: landing,dashboard
+    starts_on   TEXT NOT NULL,            -- ГГГГ-ММ-ДД, показывать с этого дня
+    ends_on     TEXT NOT NULL,            -- ГГГГ-ММ-ДД, по этот день включительно
+    active      INTEGER NOT NULL DEFAULT 1,
+    impressions INTEGER NOT NULL DEFAULT 0,
+    clicks      INTEGER NOT NULL DEFAULT 0,
+    created_at  REAL NOT NULL
+);
+
 -- Ученики, выбранные для задания (если for_all = 0).
 CREATE TABLE IF NOT EXISTS assignment_students (
     assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
@@ -1505,3 +1521,96 @@ def get_finished_attempts_between(
             (*user_ids, mode, after, until),
         ).fetchall()
     return [_attempt_from_row(row) for row in rows]
+
+
+# ── Рекламные баннеры ────────────────────────────────────────────────────────
+
+_BANNER_COLUMNS = (
+    "id, title, link_url, image_type, placements, starts_on, ends_on, active, impressions, clicks, "
+    "created_at, length(image) AS image_size"
+)
+
+
+def create_banner(title: str, link_url: str, image: bytes, image_type: str, placements: str,
+                  starts_on: str, ends_on: str, active: bool, now: float) -> int:
+    """Добавляет баннер и возвращает его id."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO banners (title, link_url, image, image_type, placements, starts_on, ends_on, "
+            "active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, link_url, image, image_type, placements, starts_on, ends_on, int(active), now),
+        )
+        return int(cursor.lastrowid)
+
+
+def update_banner(banner_id: int, title: str, link_url: str, placements: str, starts_on: str,
+                  ends_on: str, active: bool, image: bytes | None = None,
+                  image_type: str = "") -> bool:
+    """Меняет баннер; картинка меняется, только если передана новая. False — баннера нет."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE banners SET title = ?, link_url = ?, placements = ?, starts_on = ?, ends_on = ?, "
+            "active = ? WHERE id = ?",
+            (title, link_url, placements, starts_on, ends_on, int(active), banner_id),
+        )
+        if cursor.rowcount and image is not None:
+            connection.execute("UPDATE banners SET image = ?, image_type = ? WHERE id = ?",
+                               (image, image_type, banner_id))
+        return cursor.rowcount == 1
+
+
+def delete_banner(banner_id: int) -> bool:
+    """Удаляет баннер. False — его нет."""
+    with connect() as connection:
+        return connection.execute("DELETE FROM banners WHERE id = ?", (banner_id,)).rowcount == 1
+
+
+def list_banners() -> list[sqlite3.Row]:
+    """Все баннеры (без картинок), новые сверху."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {_BANNER_COLUMNS} FROM banners ORDER BY id DESC"
+        ).fetchall()
+
+
+def get_banner(banner_id: int) -> sqlite3.Row | None:
+    """Баннер без картинки."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {_BANNER_COLUMNS} FROM banners WHERE id = ?", (banner_id,)
+        ).fetchone()
+
+
+def get_banner_image(banner_id: int) -> tuple[bytes, str] | None:
+    """Картинка баннера и её тип."""
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT image, image_type FROM banners WHERE id = ?", (banner_id,)
+        ).fetchone()
+    return (bytes(row["image"]), row["image_type"]) if row else None
+
+
+def active_banners(placement: str, today: str) -> list[sqlite3.Row]:
+    """Включённые баннеры для места показа, срок которых включает сегодняшний день."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {_BANNER_COLUMNS} FROM banners WHERE active = 1 AND starts_on <= ? AND ends_on >= ? "
+            "AND (',' || placements || ',') LIKE ('%,' || ? || ',%')",
+            (today, today, placement),
+        ).fetchall()
+
+
+def count_banner_impression(banner_id: int) -> None:
+    """Учитывает показ баннера."""
+    with connect() as connection:
+        connection.execute("UPDATE banners SET impressions = impressions + 1 WHERE id = ?", (banner_id,))
+
+
+def count_banner_click(banner_id: int) -> str | None:
+    """Учитывает переход по баннеру и возвращает его ссылку (None — баннера нет)."""
+    with connect() as connection:
+        row = connection.execute("SELECT link_url FROM banners WHERE id = ?", (banner_id,)).fetchone()
+        if row is None:
+            return None
+        connection.execute("UPDATE banners SET clicks = clicks + 1 WHERE id = ?", (banner_id,))
+        return row["link_url"]

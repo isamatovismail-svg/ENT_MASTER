@@ -159,6 +159,8 @@ def _state_cookie(value: str, max_age: int) -> str:
     morsel["max-age"] = max_age
     morsel["httponly"] = True
     morsel["samesite"] = "Lax"
+    if config.COOKIE_SECURE:
+        morsel["secure"] = True  # на сервере с HTTPS cookie не уходит по незащищённому http
     return morsel.OutputString()
 
 

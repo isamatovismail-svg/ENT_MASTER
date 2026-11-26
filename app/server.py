@@ -8,13 +8,15 @@
 
 import logging
 import mimetypes
+from email.parser import BytesParser
+from email.policy import HTTP
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 import config
 from app import auth, router, views
-from app.web import Request, Response
+from app.web import Request, Response, UploadedFile
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,35 @@ def _parse_cookies(header: str) -> dict[str, str]:
     except CookieError:
         return {}
     return {name: morsel.value for name, morsel in cookie.items()}
+
+
+def parse_multipart(content_type: str, body: bytes) -> tuple[dict[str, list[str]], dict[str, UploadedFile]]:
+    """Разбирает тело формы multipart/form-data: текстовые поля и файлы.
+
+    Используется email.parser (модуль cgi убран из Python 3.13). Повреждённое тело даёт
+    пустую форму — обработчик ответит ошибкой проверки (например, csrf).
+    """
+    form: dict[str, list[str]] = {}
+    files: dict[str, UploadedFile] = {}
+    header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("latin-1", "replace")
+    try:
+        message = BytesParser(policy=HTTP).parsebytes(header + body)
+        parts = list(message.iter_parts()) if message.is_multipart() else []
+    except Exception:  # noqa: BLE001 — любой мусор во входных данных = пустая форма
+        return {}, {}
+    for part in parts:
+        name = part.get_param("name", header="content-disposition")
+        if not name:
+            continue
+        data = part.get_payload(decode=True) or b""
+        filename = part.get_filename()
+        if filename is not None:
+            if data:
+                files[name] = UploadedFile(filename, part.get_content_type(), data)
+            continue
+        charset = part.get_content_charset() or "utf-8"
+        form.setdefault(name, []).append(data.decode(charset, errors="replace"))
+    return form, files
 
 
 def serve_static(relative_path: str) -> Response:
@@ -87,6 +118,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             return serve_static(url.path.removeprefix("/static/"))
 
         form: dict[str, list[str]] = {}
+        files: dict[str, UploadedFile] = {}
         if method == "POST":
             try:
                 length = int(self.headers.get("Content-Length") or 0)
@@ -96,14 +128,19 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return views.error_page(None, 400, "Некорректный запрос.")
             if length > config.MAX_REQUEST_BODY_BYTES:
                 return views.error_page(None, 413, "Слишком большой запрос.")
-            body = self.rfile.read(length).decode("utf-8", errors="replace")
-            form = parse_qs(body, keep_blank_values=True)
+            body = self.rfile.read(length)
+            content_type = self.headers.get("Content-Type", "")
+            if content_type.lower().startswith("multipart/form-data"):
+                form, files = parse_multipart(content_type, body)
+            else:
+                form = parse_qs(body.decode("utf-8", errors="replace"), keep_blank_values=True)
 
         request = Request(
             method=method,
             path=url.path,
             query=parse_qs(url.query, keep_blank_values=True),
             form=form,
+            files=files,
             cookies=_parse_cookies(self.headers.get("Cookie", "")),
         )
         auth.attach_user(request)

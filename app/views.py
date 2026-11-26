@@ -14,7 +14,7 @@ from functools import wraps
 from urllib.parse import quote, urlencode
 
 import config
-from app import auth, database, ent_logic, google_auth, mailer, schools
+from app import ads, auth, database, ent_logic, google_auth, mailer, schools
 from app.database import Attempt, AttemptQuestion
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, html_response, redirect
@@ -45,6 +45,8 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "member_removed": ("info", "Ученик исключён из школы."),
     "assignment_created": ("success", "Задание выдано."),
     "assignment_deleted": ("info", "Задание удалено."),
+    "banner_saved": ("success", "Баннер сохранён."),
+    "banner_deleted": ("info", "Баннер удалён."),
     "review_approved": ("success", "Вопрос одобрен и добавлен в общий банк."),
     "review_rejected": ("info", "Вопрос отклонён, учитель увидит ваш комментарий."),
     "review_comment_needed": ("error", "Чтобы отклонить вопрос, напишите комментарий для учителя."),
@@ -297,6 +299,7 @@ def landing(request: Request) -> Response:
         subjects_count=len(config.SUBJECTS),
         profile_questions=profile.question_count,
         profile_score=profile.max_score,
+        ad=ads.banner_block("landing"),
     )
     return page(request, "Подготовка к ЕНТ", content)
 
@@ -699,8 +702,29 @@ def dashboard(request: Request) -> Response:
         total_questions=config.MOCK_TOTAL_QUESTIONS,
         duration_hours=config.MOCK_DURATION_MINUTES // 60,
         practice_count=config.PRACTICE_QUESTION_COUNT,
+        ad=ads.banner_block("dashboard"),
     )
     return page(request, "Личный кабинет", content)
+
+
+# ── Рекламные баннеры ────────────────────────────────────────────────────────
+
+def ad_click(request: Request, banner_id: int) -> Response:
+    """GET /ad/<id> — переход по баннеру: учитываем клик и ведём на сайт рекламодателя."""
+    link = database.count_banner_click(banner_id)
+    if link is None:
+        return not_found(request)
+    return redirect(link)
+
+
+def ad_image(request: Request, banner_id: int) -> Response:
+    """GET /ad/<id>/image — картинка баннера (кэшируется браузером на сутки)."""
+    found = database.get_banner_image(banner_id)
+    if found is None:
+        return not_found(request)
+    data, mime = found
+    return Response(body=data, content_type=mime,
+                    headers=[("Cache-Control", "public, max-age=86400")])
 
 
 # ── Профиль: школа ───────────────────────────────────────────────────────────
@@ -1653,7 +1677,8 @@ def result_page(request: Request, attempt_id: int) -> Response:
         '<a class="btn btn-ghost" href="/history">История попыток</a>',
         again=again,
     )
-    return page(request, "Результат", result_content(attempt, actions))
+    content = join([result_content(attempt, actions), ads.banner_block("result")])
+    return page(request, "Результат", content)
 
 
 @login_required
@@ -1694,5 +1719,5 @@ def history(request: Request) -> Response:
             '<a class="link" href="/mock">Начните пробный ЕНТ</a> или '
             '<a class="link" href="/practice">тренировку</a>.</div>'
         )
-    content = render("history.html", table=table, count=len(attempts))
+    content = render("history.html", table=table, count=len(attempts), ad=ads.banner_block("history"))
     return page(request, "История попыток", content)

@@ -46,12 +46,26 @@ def load_env(path: Path) -> dict[str, str]:
 # Переменные окружения важнее файла .env.
 _ENV = {**load_env(ENV_PATH), **os.environ}
 
+# ── Запуск на сервере ────────────────────────────────────────────────────────
+# Локально всё работает без настроек. На сервере сайт слушает 127.0.0.1:8000 за HTTPS-прокси
+# (Caddy), а в .env задаются COOKIE_SECURE=1 и при желании другой путь к базе.
+HOST = _ENV.get("HOST", HOST).strip() or HOST
+PORT = int(_ENV.get("PORT", str(PORT)).strip() or PORT)
+if _ENV.get("DATABASE_PATH", "").strip():
+    DATABASE_PATH = Path(_ENV["DATABASE_PATH"].strip())
+# 1 — cookie только по HTTPS (флаг Secure). Включать, когда сайт открыт через https://.
+COOKIE_SECURE = _ENV.get("COOKIE_SECURE", "").strip() == "1"
+# Резервные копии базы (python backup.py): папка и сколько последних копий хранить.
+BACKUP_DIR = Path(_ENV.get("BACKUP_DIR", "").strip() or BASE_DIR / "backups")
+BACKUP_KEEP = int(_ENV.get("BACKUP_KEEP", "14").strip() or 14)
+
 # ── Безопасность ─────────────────────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ent_session"
 SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60  # сессия живёт неделю
 PBKDF2_ITERATIONS = 200_000                   # чем больше, тем дороже подбор пароля
 PASSWORD_MIN_LENGTH = 8
-MAX_REQUEST_BODY_BYTES = 1_000_000            # защита от слишком больших POST-запросов
+MAX_REQUEST_BODY_BYTES = 2_000_000            # защита от слишком больших POST-запросов
+BANNER_MAX_BYTES = 1_000_000                  # картинка рекламного баннера — не больше 1 МБ
 
 # ── Почта: коды подтверждения и восстановления пароля ────────────────────────
 EMAIL_CODE_MINUTES = 15          # код из письма действует 15 минут

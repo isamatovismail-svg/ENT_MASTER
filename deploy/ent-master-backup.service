@@ -1,0 +1,15 @@
+# Резервная копия базы (python3 backup.py). Запускается таймером ent-master-backup.timer.
+[Unit]
+Description=ENT MASTER — резервная копия базы SQLite
+
+[Service]
+Type=oneshot
+User=ent
+Group=ent
+WorkingDirectory=/opt/ent-master
+ExecStart=/usr/bin/python3 /opt/ent-master/backup.py
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/ent-master /var/backups/ent-master
