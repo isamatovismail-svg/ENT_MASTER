@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS attempt_questions (
 CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_attempt_questions_attempt ON attempt_questions(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject, qtype);
+-- Для выбора «сначала невиденные вопросы»: сколько раз ученик видел вопрос.
+CREATE INDEX IF NOT EXISTS idx_attempt_questions_question ON attempt_questions(question_id, attempt_id);
 """
 
 # Колонки, добавленные после первой версии. init_db() добавляет их в старую базу,
@@ -399,6 +401,32 @@ def delete_expired_sessions(now: float) -> None:
 
 # ── Банк вопросов ────────────────────────────────────────────────────────────
 
+_UPSERT_SQL = (
+    "INSERT INTO questions "
+    "(subject, qtype, text, context, options_json, left_json, correct_json, explanation) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+    "ON CONFLICT (subject, text) DO UPDATE SET "
+    "qtype = excluded.qtype, context = excluded.context, "
+    "options_json = excluded.options_json, left_json = excluded.left_json, "
+    "correct_json = excluded.correct_json, explanation = excluded.explanation, "
+    "deleted = 0"
+)
+
+
+def _upsert_values(subject: str, question: dict) -> tuple:
+    """Значения для _UPSERT_SQL из вопроса в формате data/questions/*.json."""
+    return (
+        subject,
+        question["type"],
+        question["text"].strip(),
+        question.get("context", "").strip(),
+        json.dumps(question["options"], ensure_ascii=False),
+        json.dumps(question.get("left", []), ensure_ascii=False),
+        json.dumps(question["correct"]),
+        question.get("explanation", "").strip(),
+    )
+
+
 def upsert_question(
     subject: str,
     qtype: str,
@@ -414,27 +442,19 @@ def upsert_question(
     Благодаря этому seed.py можно запускать повторно: исправления в JSON
     попадут в базу, а дубликаты не появятся.
     """
+    question = {"type": qtype, "text": text, "context": context, "options": options,
+                "left": left, "correct": correct, "explanation": explanation}
     with connect() as connection:
-        connection.execute(
-            "INSERT INTO questions "
-            "(subject, qtype, text, context, options_json, left_json, correct_json, explanation) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT (subject, text) DO UPDATE SET "
-            "qtype = excluded.qtype, context = excluded.context, "
-            "options_json = excluded.options_json, left_json = excluded.left_json, "
-            "correct_json = excluded.correct_json, explanation = excluded.explanation, "
-            "deleted = 0",
-            (
-                subject,
-                qtype,
-                text,
-                context,
-                json.dumps(options, ensure_ascii=False),
-                json.dumps(left, ensure_ascii=False),
-                json.dumps(correct),
-                explanation,
-            ),
-        )
+        connection.execute(_UPSERT_SQL, _upsert_values(subject, question))
+
+
+def upsert_questions(subject: str, questions: list[dict]) -> None:
+    """То же, что upsert_question, но для многих вопросов в одной транзакции.
+
+    Тысячи сгенерированных вопросов так загружаются за секунды, а не минуты.
+    """
+    with connect() as connection:
+        connection.executemany(_UPSERT_SQL, [_upsert_values(subject, q) for q in questions])
 
 
 @dataclass
@@ -576,24 +596,38 @@ def question_counts() -> dict[tuple[str, str], int]:
     return {(row["subject"], row["qtype"]): row["n"] for row in rows}
 
 
-def random_questions(subject: str, qtype: str | None, limit: int) -> list[QuestionRef]:
+def random_questions(
+    subject: str, qtype: str | None, limit: int, user_id: int | None = None
+) -> list[QuestionRef]:
     """Возвращает до limit случайных вопросов предмета.
 
     Если qtype указан, выбираются только вопросы этого типа.
+    Если указан user_id, сначала идут вопросы, которые ученик ещё не видел,
+    затем те, что встречались реже всего, — так повторы появляются только
+    когда новые вопросы закончились.
     """
+    seen_order = ""
+    params: list = [subject]
+    if user_id is not None:
+        seen_order = (
+            "(SELECT COUNT(*) FROM attempt_questions aq "
+            "JOIN attempts a ON a.id = aq.attempt_id "
+            "WHERE a.user_id = ? AND aq.question_id = q.id), "
+        )
+    type_filter = ""
+    if qtype is not None:
+        type_filter = "AND q.qtype = ? "
+        params.append(qtype)
+    if user_id is not None:
+        params.append(user_id)
+    params.append(limit)
     with connect() as connection:
-        if qtype is None:
-            rows = connection.execute(
-                "SELECT id, qtype, options_json FROM questions WHERE subject = ? AND deleted = 0 "
-                "ORDER BY RANDOM() LIMIT ?",
-                (subject, limit),
-            ).fetchall()
-        else:
-            rows = connection.execute(
-                "SELECT id, qtype, options_json FROM questions "
-                "WHERE subject = ? AND qtype = ? AND deleted = 0 ORDER BY RANDOM() LIMIT ?",
-                (subject, qtype, limit),
-            ).fetchall()
+        rows = connection.execute(
+            "SELECT q.id, q.qtype, q.options_json FROM questions q "
+            f"WHERE q.subject = ? AND q.deleted = 0 {type_filter}"
+            f"ORDER BY {seen_order}RANDOM() LIMIT ?",
+            params,
+        ).fetchall()
     return [
         QuestionRef(row["id"], row["qtype"], len(json.loads(row["options_json"])))
         for row in rows

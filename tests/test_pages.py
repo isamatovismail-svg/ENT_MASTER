@@ -71,7 +71,9 @@ class PagesTests(DatabaseTestCase):
     def setUp(self) -> None:
         """Загружает банк вопросов и запускает сервер на свободном порту."""
         super().setUp()
-        _, errors = seed.seed()
+        # Сценарии страниц написаны под банк из JSON-файлов (без сгенерированных задач),
+        # чтобы проверять и неполный банк. Генераторы проверяются в test_generators.
+        _, errors = seed.seed(with_generated=False)
         self.assertEqual(errors, [])
         self.server = create_server("127.0.0.1", 0)
         self.base_url = f"http://127.0.0.1:{self.server.server_address[1]}"

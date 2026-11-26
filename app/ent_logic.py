@@ -215,7 +215,7 @@ def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
     for code in subjects:
         subject_refs: list[database.QuestionRef] = []
         for qtype, need in config.SUBJECTS[code].quota:
-            found = database.random_questions(code, qtype, need)
+            found = database.random_questions(code, qtype, need, user_id)
             subject_refs.extend(found)
             max_score += len(found) * question_max_points(qtype)
             if len(found) < need:
@@ -238,7 +238,9 @@ def build_practice(user_id: int, subject_code: str, now: float | None = None) ->
     if subject_code not in config.SUBJECTS:
         raise TestBuildError("Такого предмета нет.")
     now = time.time() if now is None else now
-    found = database.random_questions(subject_code, None, config.PRACTICE_QUESTION_COUNT)
+    found = database.random_questions(
+        subject_code, None, config.PRACTICE_QUESTION_COUNT, user_id
+    )
     if not found:
         raise TestBuildError("По этому предмету пока нет вопросов в банке.")
 

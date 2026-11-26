@@ -1,9 +1,11 @@
 """Загрузка вопросов из data/questions/*.json в базу данных.
 
-Запуск: python seed.py
+Запуск: python seed.py            — вопросы из JSON + сгенерированные расчётные задачи
+        python seed.py --no-generated — только вопросы из JSON
 Каждый вопрос проверяется (тип, число вариантов, правильные ответы, объяснение).
 Ошибочные вопросы не загружаются, а список ошибок выводится в конце.
-Скрипт можно запускать повторно: вопросы обновляются, дубликаты не появляются.
+Скрипт можно запускать повторно: вопросы обновляются, дубликаты не появляются
+(генератор при каждом запуске выдаёт одни и те же задачи).
 """
 
 import json
@@ -11,7 +13,7 @@ import sys
 from pathlib import Path
 
 import config
-from app import database
+from app import database, generators
 from app.question_bank import validate_question
 
 
@@ -47,8 +49,23 @@ def load_file(path: Path) -> tuple[int, list[str]]:
     return loaded, errors
 
 
-def seed(questions_dir: Path = config.QUESTIONS_DIR) -> tuple[int, list[str]]:
-    """Загружает все JSON-файлы из папки. Возвращает (всего загружено, все ошибки)."""
+def load_generated() -> int:
+    """Создаёт расчётные задачи генераторами и загружает их. Возвращает их количество."""
+    total = 0
+    for subject, templates in generators.SUBJECT_TEMPLATES.items():
+        for qtype in templates:
+            questions = generators.generate(subject, qtype, generators.DEFAULT_COUNTS[qtype])
+            database.upsert_questions(subject, questions)
+            total += len(questions)
+    return total
+
+
+def seed(questions_dir: Path = config.QUESTIONS_DIR,
+         with_generated: bool = True) -> tuple[int, list[str]]:
+    """Загружает все JSON-файлы из папки и (по умолчанию) сгенерированные задачи.
+
+    Возвращает (всего загружено, все ошибки).
+    """
     database.init_db()
     total = 0
     all_errors: list[str] = []
@@ -56,12 +73,14 @@ def seed(questions_dir: Path = config.QUESTIONS_DIR) -> tuple[int, list[str]]:
         loaded, errors = load_file(path)
         total += loaded
         all_errors.extend(errors)
+    if with_generated:
+        total += load_generated()
     return total, all_errors
 
 
 def main() -> int:
     """Запускает загрузку и печатает отчёт по банку вопросов. Код возврата 1 — были ошибки."""
-    total, errors = seed()
+    total, errors = seed(with_generated="--no-generated" not in sys.argv[1:])
     counts = database.question_counts()
     print(f"Загружено вопросов: {total}")
     for code, subject in config.SUBJECTS.items():
