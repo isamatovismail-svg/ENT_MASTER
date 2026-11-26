@@ -7,7 +7,9 @@
 import random
 
 from app.question_bank import validate_question
-from app.generators import math_gen, math_literacy_gen, physics_gen
+from app.generators import (
+    chemistry_gen, informatics_gen, kz_history_gen, math_gen, math_literacy_gen, physics_gen,
+)
 from app.generators.common import SkipQuestion, polish
 
 # Предмет → шаблоны по типам заданий.
@@ -15,7 +17,14 @@ SUBJECT_TEMPLATES = {
     "math": math_gen.TEMPLATES,
     "math_literacy": math_literacy_gen.TEMPLATES,
     "physics": physics_gen.TEMPLATES,
+    "kz_history": kz_history_gen.TEMPLATES,
+    "chemistry": chemistry_gen.TEMPLATES,
+    "informatics": informatics_gen.TEMPLATES,
 }
+
+# Расчётные предметы: в них большие числа разбиваются пробелами (18 480).
+# В остальных числа — это обычно годы, их трогать нельзя (1771, а не 1 771).
+NUMERIC_SUBJECTS = {"math", "math_literacy", "physics", "chemistry", "informatics"}
 
 # Сколько вопросов каждого типа создавать по умолчанию.
 DEFAULT_COUNTS = {"single": 600, "context": 120, "matching": 120, "multiple": 120}
@@ -43,7 +52,9 @@ def generate(subject: str, qtype: str, count: int, seed: int = 2026) -> list[dic
         if number in exhausted:
             continue
         try:
-            question = polish(templates[number](rng))
+            question = templates[number](rng)
+            if subject in NUMERIC_SUBJECTS:
+                question = polish(question)
         except (SkipQuestion, ZeroDivisionError):
             continue
         if len(set(question["options"])) != len(question["options"]):

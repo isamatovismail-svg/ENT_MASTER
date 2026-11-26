@@ -92,14 +92,17 @@ class GeneratorTests(unittest.TestCase):
 class SeedAndSelectionTests(DatabaseTestCase):
     """Загрузка сгенерированных задач и выбор невиденных вопросов."""
 
-    def test_seed_fills_full_mock_for_math_and_physics(self) -> None:
+    def test_seed_fills_generated_subjects(self) -> None:
         _, errors = seed.seed()
         self.assertEqual(errors, [])
         counts = database.question_counts()
-        for subject in ("math", "physics"):
+        for subject in ("math", "physics", "chemistry", "informatics"):
             for qtype, need in config.SUBJECTS[subject].quota:
-                self.assertGreaterEqual(counts[(subject, qtype)], need * 3)
+                self.assertGreaterEqual(counts[(subject, qtype)], need * 3, subject)
         self.assertGreaterEqual(counts[("math_literacy", config.SINGLE)], 300)
+        self.assertGreaterEqual(counts[("kz_history", config.SINGLE)], 150)
+        # Для пары «Математика + Физика» теперь собирается полный пробный ЕНТ.
+        self.assertEqual(ent_logic.pair_question_count(0, counts), config.MOCK_TOTAL_QUESTIONS)
         # Повторный запуск не создаёт дубликатов.
         seed.seed()
         self.assertEqual(database.question_counts(), counts)
