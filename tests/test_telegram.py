@@ -374,7 +374,7 @@ class TelegramLoginPagesTests(DatabaseTestCase):
 
     def test_link_existing_account_with_password(self) -> None:
         """Привязка к существующему аккаунту: неверный пароль не тратит токен."""
-        auth.register_user("Аружан", "aru@mail.kz", "password123", "password123")
+        auth.create_account("Аружан", "aru@mail.kz", "password123")
         browser = Browser(self.base_url)
         token = self.token()
         status, _, html, _ = browser.post("/tg/login", {
@@ -383,6 +383,14 @@ class TelegramLoginPagesTests(DatabaseTestCase):
         self.assertEqual(status, 400)
         self.assertIn("Неверная почта/телефон или пароль", html)
         self.assertIn('value="aru@mail.kz"', html)
+
+        # Аккаунт с неподтверждённой почтой привязать нельзя.
+        auth.register_user("Боря", "Новый", "new@mail.kz", "", "password123", "password123")
+        status, _, html, _ = browser.post("/tg/login", {
+            "token": token, "action": "link", "login": "new@mail.kz", "password": "password123",
+        })
+        self.assertEqual(status, 400)
+        self.assertIn("Сначала подтвердите почту", html)
 
         status, path, _, _ = browser.post("/tg/login", {
             "token": token, "action": "link", "login": "aru@mail.kz", "password": "password123",
@@ -395,7 +403,7 @@ class TelegramLoginPagesTests(DatabaseTestCase):
     def test_telegram_moves_from_auto_account(self) -> None:
         """Telegram, привязанный к авто-аккаунту, можно перенести на свой аккаунт."""
         auto_id = auth.create_telegram_user(TG_ID, "Авто")
-        auth.register_user("Аружан", "aru@mail.kz", "password123", "password123")
+        auth.create_account("Аружан", "aru@mail.kz", "password123")
         browser = Browser(self.base_url)
         browser.post("/login", {"login": "aru@mail.kz", "password": "password123"})
         token = self.token()
@@ -422,7 +430,7 @@ class TelegramLoginPagesTests(DatabaseTestCase):
         test_pages.PagesTests().register_and_login(browser, "me@mail.kz", name="Мадина")
         token = self.token()
         _, _, html, _ = browser.get(f"/tg/login?token={token}")
-        self.assertIn("Привязать к моему аккаунту «Мадина»", html)
+        self.assertIn("Привязать к моему аккаунту «Мадина Тестова»", html)
         status, _, _, _ = browser.post("/tg/login", {"token": token, "action": "current"})
         self.assertEqual(status, 403)
         status, path, _, _ = browser.post("/tg/login", {
@@ -445,8 +453,8 @@ class TelegramMigrationTests(DatabaseTestCase):
 
     def test_unique_telegram_id(self) -> None:
         """Один Telegram нельзя записать двум пользователям напрямую."""
-        first = auth.register_user("Асан", "a@mail.kz", "password1", "password1")
-        second = auth.register_user("Берик", "b@mail.kz", "password1", "password1")
+        first = auth.create_account("Асан", "a@mail.kz", "password1")
+        second = auth.create_account("Берик", "b@mail.kz", "password1")
         database.bind_telegram(first, 1)
         with self.assertRaises(sqlite3.IntegrityError), database.connect() as connection:
             connection.execute("UPDATE users SET telegram_id = 1 WHERE id = ?", (second,))

@@ -594,16 +594,21 @@ def users(request: Request) -> Response:
         needle = search.casefold()
         rows = [
             row for row in rows
-            if row["login"] == login or needle in row["name"].casefold()
+            if login in (row["login"], row["phone"]) or needle in row["name"].casefold()
             or needle in row["login"].casefold()
         ]
     table_rows = join(
         fragment(
-            "<tr><td><strong>$name</strong></td><td>$login</td><td>$role</td><td>$created</td>"
+            "<tr><td><strong>$name</strong></td><td>$login$phone$unverified</td><td>$role</td>"
+            "<td>$created</td>"
             "<td>$attempts <span class=\"muted\">(пробных: $mocks)</span></td>"
             "<td>$best</td><td>$last</td>"
             '<td><a class="link" href="/admin/users/$id">Попытки →</a></td></tr>',
             name=row["name"], login=row["login"], role=_role_badge(row["role"]),
+            phone=fragment('<br><small class="muted">$phone</small>', phone=row["phone"])
+            if row["phone"] else SafeHTML(""),
+            unverified=SafeHTML(' <span class="badge badge-warn">почта не подтверждена</span>')
+            if not row["email_verified"] else SafeHTML(""),
             created=views._format_datetime(row["created_at"]),
             attempts=row["attempts"], mocks=row["mocks"] or 0,
             best=row["best_mock"] if row["best_mock"] is not None else "—",

@@ -17,7 +17,7 @@ import config
 import seed
 from app import database, ent_logic
 from app.server import create_server
-from tests.base import DatabaseTestCase
+from tests.base import DatabaseTestCase, FakeMailer
 
 CSRF_RE = re.compile(r'name="csrf_token" value="([^"]+)"')
 
@@ -89,15 +89,22 @@ class PagesTests(DatabaseTestCase):
 
     # ── помощники ────────────────────────────────────────────────────────────
 
-    def register_and_login(self, browser: Browser, login: str, name: str = "Айгерим") -> None:
-        """Регистрирует пользователя через форму и входит."""
-        status, path, _, _ = browser.post("/register", {
-            "name": name, "login": login, "password": "password123", "password2": "password123",
+    def register_and_login(
+        self, browser: Browser, email: str, name: str = "Айгерим", phone: str = ""
+    ) -> None:
+        """Регистрирует пользователя через форму и входит, введя код из письма."""
+        status, path, html, _ = browser.post("/register", {
+            "first_name": name, "last_name": "Тестова", "email": email, "phone": phone,
+            "password": "password123", "password2": "password123",
         })
-        self.assertEqual(status, 200)
-        self.assertTrue(path.startswith("/login?"), path)
-        status, path, html, _ = browser.post("/login", {"login": login, "password": "password123"})
-        self.assertEqual((status, path), (200, "/dashboard"))
+        self.assertEqual(status, 200, html)
+        self.assertTrue(path.startswith("/verify?"), path)
+        mail = FakeMailer.active
+        assert mail is not None
+        status, path, html, _ = browser.post(
+            "/verify", {"email": email, "code": mail.last_code(email)}
+        )
+        self.assertEqual((status, path), (200, "/dashboard?msg=verified"))
         self.assertIn("Личный кабинет", html)
 
     @staticmethod
@@ -152,8 +159,7 @@ class PagesTests(DatabaseTestCase):
 
         status, _, html, _ = browser.get("/register")
         self.assertEqual(status, 200)
-        self.assertIn("Войти через Google", html)
-        self.assertRegex(html, r"<button[^>]*disabled>\s*<span class=\"google-mark\">")
+        self.assertIn("Войти через Google", html)  # активна ли кнопка — см. test_accounts
 
         self.assertEqual(browser.get("/login")[0], 200)
         status, _, css, headers = browser.get("/static/style.css")
@@ -184,12 +190,17 @@ class PagesTests(DatabaseTestCase):
         """Ошибки формы регистрации показываются на странице, введённые данные сохраняются."""
         browser = Browser(self.base_url)
         status, _, html, _ = browser.post("/register", {
-            "name": "Али", "login": "8701", "password": "123", "password2": "456",
+            "first_name": "Али", "last_name": "", "email": "ali@mail", "phone": "8701",
+            "password": "123", "password2": "456",
         })
         self.assertEqual(status, 400)
+        self.assertIn("Введите фамилию", html)
+        self.assertIn("Почта указана неверно", html)
         self.assertIn("должно быть 10 цифр", html)
         self.assertIn("не короче 8", html)
         self.assertIn('value="Али"', html)
+        self.assertIn('value="8701"', html)
+        self.assertEqual(self.mail.messages, [])
 
         status, _, html, _ = browser.post("/login", {"login": "x@y.kz", "password": "wrong-pass"})
         self.assertEqual(status, 400)
@@ -198,7 +209,7 @@ class PagesTests(DatabaseTestCase):
     def test_full_user_journey(self) -> None:
         """Регистрация → вход → пробный ЕНТ → переходы → завершение → результат → история."""
         browser = Browser(self.base_url)
-        self.register_and_login(browser, "+77011234567", name="Данияр")
+        self.register_and_login(browser, "daniyar@mail.kz", name="Данияр", phone="8 701 123 45 67")
 
         # Выбор пары: честно показано, что банк неполный, и сколько будет времени.
         status, _, html, _ = browser.get("/mock")

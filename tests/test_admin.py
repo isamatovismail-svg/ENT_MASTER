@@ -30,7 +30,7 @@ class ManageAdminTests(DatabaseTestCase):
     def test_grant_and_revoke(self) -> None:
         """Назначение и снятие роли; логин нормализуется как при входе."""
         from app import auth
-        auth.register_user("Админ", "Boss@Mail.kz", "password1", "password1")
+        auth.create_account("Админ", "boss@mail.kz", "password1")
         code, text = self.run_command("boss@mail.KZ")
         self.assertEqual(code, 0, text)
         self.assertEqual(database.get_user_credentials("boss@mail.kz")["role"], "admin")
@@ -353,12 +353,13 @@ class AdminPagesTests(DatabaseTestCase):
 
         # Поиск пользователя: по части почты и по телефону в любом виде.
         test_pages.PagesTests().register_and_login(
-            Browser(self.base_url), "8 705 967 84 20", name="Телефон")
+            Browser(self.base_url), "phone@mail.kz", name="Телефон", phone="8 705 967 84 20")
         _, _, html, _ = self.admin.get("/admin/users?" + urlencode({"q": "STUDENT"}))
         self.assertIn("Пользователи: 1", html)
         self.assertIn("student@mail.kz", html)
         _, _, html, _ = self.admin.get("/admin/users?" + urlencode({"q": "+7 (705) 967-84-20"}))
         self.assertIn("Пользователи: 1", html)
+        self.assertIn("phone@mail.kz", html)
         self.assertIn("+77059678420", html)
         status, _, html, _ = self.admin.get("/admin/users/2")
         self.assertEqual(status, 200)

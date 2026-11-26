@@ -1,0 +1,31 @@
+<section class="auth">
+  <div class="card auth-card">
+    <span class="auth-emoji" aria-hidden="true">🔐</span>
+    <h1>Новый пароль</h1>
+    <p class="muted">Введите код из письма, отправленного на <strong>$email</strong>
+      (действует $minutes минут), и придумайте новый пароль.</p>
+    $errors
+    <form method="post" action="/reset" class="form" novalidate>
+      <input type="hidden" name="email" value="$email">
+      <label class="field">
+        <span>Код из письма</span>
+        <input type="text" name="code" inputmode="numeric" maxlength="12" autocomplete="one-time-code"
+               placeholder="123456" required>
+      </label>
+      <label class="field">
+        <span>Новый пароль</span>
+        <input type="password" name="password" minlength="$min_length" autocomplete="new-password" required>
+        <small class="muted">Не короче $min_length символов.</small>
+      </label>
+      <label class="field">
+        <span>Повторите пароль</span>
+        <input type="password" name="password2" minlength="$min_length" autocomplete="new-password" required>
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Сменить пароль и войти</button>
+    </form>
+    <form method="post" action="/forgot" class="auth-switch">
+      <input type="hidden" name="email" value="$email">
+      Письмо не пришло? <button type="submit" class="btn btn-link">Отправить код ещё раз</button>
+    </form>
+  </div>
+</section>

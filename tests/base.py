@@ -1,26 +1,60 @@
 """Общая основа тестов: временная база данных и быстрые настройки хеширования."""
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 import config
-from app import database
+from app import database, mailer
+
+CODE_RE = re.compile(r"\b(\d{6})\b")
+
+
+class FakeMailer:
+    """Отправитель писем для тестов: письма складываются в список, в сеть ничего не уходит."""
+
+    active: "FakeMailer | None" = None  # текущий (для помощников, у которых нет self.mail)
+
+    def __init__(self) -> None:
+        """Пустой ящик; fail = True — имитировать сбой SMTP."""
+        self.messages: list[tuple[str, str, str]] = []
+        self.fail = False
+
+    def send(self, to: str, subject: str, body: str) -> None:
+        """Запоминает письмо (или выбрасывает MailError, если fail)."""
+        if self.fail:
+            raise mailer.MailError("SMTP недоступен")
+        self.messages.append((to, subject, body))
+
+    def last_code(self, to: str) -> str:
+        """6-значный код из последнего письма на этот адрес."""
+        for address, _, body in reversed(self.messages):
+            if address == to:
+                match = CODE_RE.search(body)
+                assert match is not None, body
+                return match.group(1)
+        raise AssertionError(f"писем на {to} не было")
 
 
 class DatabaseTestCase(unittest.TestCase):
     """Каждый тест работает с новой пустой базой во временной папке."""
 
     def setUp(self) -> None:
-        """Создаёт временную базу и уменьшает число итераций PBKDF2 для скорости."""
+        """Создаёт временную базу, подменяет почту и уменьшает число итераций PBKDF2."""
         self._tmp = tempfile.TemporaryDirectory()
         database.configure(Path(self._tmp.name) / "test.sqlite3")
         database.init_db()
         self._iterations = config.PBKDF2_ITERATIONS
         config.PBKDF2_ITERATIONS = 1_000
+        self.mail = FakeMailer()
+        FakeMailer.active = self.mail
+        mailer.set_sender(self.mail)
 
     def tearDown(self) -> None:
         """Возвращает настройки и удаляет временную базу."""
+        mailer.set_sender(None)
+        FakeMailer.active = None
         config.PBKDF2_ITERATIONS = self._iterations
         database.configure(config.DATABASE_PATH)
         self._tmp.cleanup()

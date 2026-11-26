@@ -81,6 +81,10 @@ def tg_login_submit(request: Request) -> Response:
         user = auth.authenticate(login, request.form_value("password"))
         if user is None:
             return _page(request, token, info, ["Неверная почта/телефон или пароль."], login, 400)
+        if not user.email_verified:
+            return _page(request, token, info,
+                         ["Сначала подтвердите почту: войдите на сайт и введите код из письма."],
+                         login, 400)
         user_id = user.id
     elif action == "current":
         if request.user is None or not auth.check_csrf(request):

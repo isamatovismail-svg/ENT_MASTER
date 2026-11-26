@@ -14,7 +14,7 @@ from functools import wraps
 from urllib.parse import quote, urlencode
 
 import config
-from app import auth, database, ent_logic
+from app import auth, database, ent_logic, google_auth, mailer
 from app.database import Attempt, AttemptQuestion
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, html_response, redirect
@@ -22,7 +22,19 @@ from app.web import Request, Response, html_response, redirect
 # Сообщения, которые можно показать через параметр ?msg=код.
 # В URL передаётся только код, поэтому подставить свой текст через ссылку нельзя.
 MESSAGES: dict[str, tuple[str, str]] = {
-    "registered": ("success", "Регистрация прошла успешно. Теперь войдите в аккаунт."),
+    "code_sent": ("success", "Мы отправили 6-значный код на вашу почту. Проверьте и папку «Спам»."),
+    "verify_needed": (
+        "info", "Почта ещё не подтверждена. Введите код из письма — мы отправили его на вашу почту.",
+    ),
+    "verified": ("success", "Почта подтверждена. Добро пожаловать в ENT MASTER!"),
+    "already_verified": ("info", "Почта уже подтверждена — войдите в аккаунт."),
+    "reset_sent": (
+        "info",
+        "Если аккаунт с такой почтой есть, мы отправили на неё код для смены пароля.",
+    ),
+    "password_changed": ("success", "Пароль изменён. Вы вошли в аккаунт."),
+    "google_off": ("info", "Вход через Google пока не настроен."),
+    "google_failed": ("error", "Не удалось войти через Google. Попробуйте ещё раз."),
     "logged_out": ("info", "Вы вышли из аккаунта."),
     "login_required": ("info", "Войдите, чтобы открыть эту страницу."),
     "saved": ("success", "Ответы сохранены."),
@@ -47,6 +59,8 @@ MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "q_missing": ("error", "Такого вопроса нет — возможно, его уже удалили."),
 }
+
+MAIL_FAILED = "Не удалось отправить письмо с кодом. Попробуйте ещё раз через минуту."
 
 MODE_NAMES = {ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"}
 
@@ -266,18 +280,39 @@ def landing(request: Request) -> Response:
     return page(request, "Подготовка к ЕНТ", content)
 
 
-def _register_form(
-    request: Request, errors: list[str], name: str = "", login: str = ""
-) -> Response:
-    """Отрисовывает страницу регистрации (с ошибками, если они есть)."""
+def google_button() -> SafeHTML:
+    """Кнопка «Войти через Google»: ссылка, если ключи заданы в .env, иначе неактивна."""
+    if google_auth.enabled():
+        return SafeHTML(
+            '<a class="btn btn-google btn-block" href="/auth/google">'
+            '<span class="google-mark">G</span> Войти через Google</a>'
+        )
+    return SafeHTML(
+        '<button type="button" class="btn btn-google btn-block" disabled>'
+        '<span class="google-mark">G</span> Войти через Google <span class="soon">скоро</span>'
+        "</button>"
+    )
+
+
+def _register_form(request: Request, errors: list[str]) -> Response:
+    """Отрисовывает страницу регистрации; введённые значения (кроме паролей) сохраняются."""
     content = render(
         "register.html",
         errors=_errors_block(errors),
-        name=name,
-        login=login,
+        first_name=request.form_value("first_name"),
+        last_name=request.form_value("last_name"),
+        email=request.form_value("email"),
+        phone=request.form_value("phone"),
         min_length=config.PASSWORD_MIN_LENGTH,
+        google=google_button(),
     )
     return page(request, "Регистрация", content, 400 if errors else 200)
+
+
+def verify_url(email: str, msg: str = "") -> str:
+    """Адрес страницы ввода кода подтверждения."""
+    query = {"email": email, **({"msg": msg} if msg else {})}
+    return "/verify?" + urlencode(query)
 
 
 def register_page(request: Request) -> Response:
@@ -291,22 +326,28 @@ def register_submit(request: Request) -> Response:
     """POST /register — проверка полей и создание аккаунта."""
     if request.user is not None:
         return redirect("/dashboard")
-    name = request.form_value("name")
-    login = request.form_value("login")
     try:
-        auth.register_user(
-            name, login, request.form_value("password"), request.form_value("password2")
+        user_id = auth.register_user(
+            request.form_value("first_name"), request.form_value("last_name"),
+            request.form_value("email"), request.form_value("phone"),
+            request.form_value("password"), request.form_value("password2"),
         )
     except auth.ValidationError as error:
-        return _register_form(request, error.errors, name, login)
-    query = urlencode({"msg": "registered", "login": auth.normalize_login(login)})
-    return redirect(f"/login?{query}")
+        return _register_form(request, error.errors)
+    email = auth.normalize_email(request.form_value("email"))
+    try:
+        auth.send_email_code(user_id, email, auth.VERIFY)
+    except mailer.MailError:
+        return _register_form(request, [MAIL_FAILED])
+    # Если код уже отправляли меньше минуты назад, действует прежний код.
+    return redirect(verify_url(email, "code_sent"))
 
 
 def _login_form(request: Request, errors: list[str], login: str, next_url: str) -> Response:
     """Отрисовывает страницу входа."""
     content = render(
-        "login.html", errors=_errors_block(errors), login=login, next=next_url
+        "login.html", errors=_errors_block(errors), login=login, next=next_url,
+        google=google_button(),
     )
     return page(request, "Вход", content, 400 if errors else 200)
 
@@ -329,6 +370,14 @@ def login_submit(request: Request) -> Response:
     user = auth.authenticate(login, request.form_value("password"))
     if user is None:
         return _login_form(request, ["Неверная почта/телефон или пароль."], login, next_url)
+    if not user.email_verified:
+        # Пароль верный, но почта не подтверждена: отправляем код (если не отправляли
+        # только что) и ведём на страницу ввода кода.
+        try:
+            auth.send_email_code(user.id, user.login, auth.VERIFY)
+        except mailer.MailError:
+            return _login_form(request, [MAIL_FAILED], login, next_url)
+        return redirect(verify_url(user.login, "verify_needed"))
     # При входе всегда создаётся новая сессия, старая (если была) удаляется.
     if request.session_key:
         database.delete_session(request.session_key)

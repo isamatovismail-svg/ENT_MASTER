@@ -982,6 +982,13 @@ select:focus {
   text-align: center;
 }
 
+/* Имя и фамилия в одной строке; на узком экране — друг под другом. */
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
 /* ── Кабинет ──────────────────────────────────────────────────────────────── */
 
 .big-actions {

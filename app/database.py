@@ -29,7 +29,23 @@ CREATE TABLE IF NOT EXISTS users (
     salt          TEXT NOT NULL,
     created_at    REAL NOT NULL,
     role          TEXT NOT NULL DEFAULT 'user',  -- 'user' или 'admin'
-    telegram_id   INTEGER                        -- привязанный аккаунт Telegram (или NULL)
+    telegram_id   INTEGER,                       -- привязанный аккаунт Telegram (или NULL)
+    phone         TEXT,                          -- телефон +7XXXXXXXXXX (необязательно, не подтверждается)
+    -- 0 — зарегистрировался по почте и ещё не ввёл код из письма (войти нельзя).
+    -- Старые аккаунты (до подтверждения почты) считаются подтверждёнными.
+    email_verified INTEGER NOT NULL DEFAULT 1
+);
+
+-- Коды из писем: подтверждение почты (verify) и восстановление пароля (reset).
+-- У пользователя не больше одного действующего кода каждого вида. Хранится только хеш.
+CREATE TABLE IF NOT EXISTS email_codes (
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose    TEXT NOT NULL CHECK (purpose IN ('verify', 'reset')),
+    code_hash  TEXT NOT NULL,
+    expires_at REAL NOT NULL,
+    sent_at    REAL NOT NULL,
+    attempts   INTEGER NOT NULL DEFAULT 0,  -- сколько раз ввели неверный код
+    PRIMARY KEY (user_id, purpose)
 );
 
 -- Одноразовые ссылки входа из Telegram-бота. Хранится только SHA-256 от токена.
@@ -109,6 +125,8 @@ CREATE INDEX IF NOT EXISTS idx_attempt_questions_question ON attempt_questions(q
 _ADDED_COLUMNS = (
     ("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
     ("users", "telegram_id", "INTEGER"),
+    ("users", "phone", "TEXT"),
+    ("users", "email_verified", "INTEGER NOT NULL DEFAULT 1"),
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("questions", "edited_by_admin", "INTEGER NOT NULL DEFAULT 0"),
@@ -127,6 +145,7 @@ class User:
     name: str
     login: str
     role: str = ROLE_USER
+    email_verified: bool = True
 
     @property
     def is_admin(self) -> bool:
@@ -228,29 +247,120 @@ def init_db() -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id) "
             "WHERE telegram_id IS NOT NULL"
         )
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) "
+            "WHERE phone IS NOT NULL"
+        )
 
 
 # ── Пользователи ─────────────────────────────────────────────────────────────
 
-def create_user(name: str, login: str, password_hash: str, salt: str, created_at: float) -> int:
+def create_user(
+    name: str,
+    login: str,
+    password_hash: str,
+    salt: str,
+    created_at: float,
+    phone: str | None = None,
+    email_verified: bool = True,
+) -> int:
     """Добавляет пользователя и возвращает его id.
 
-    Если логин занят, sqlite3 выбросит IntegrityError (ограничение UNIQUE).
+    Если логин или телефон заняты, sqlite3 выбросит IntegrityError (ограничение UNIQUE).
     """
     with connect() as connection:
         cursor = connection.execute(
-            "INSERT INTO users (name, login, password_hash, salt, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (name, login, password_hash, salt, created_at),
+            "INSERT INTO users (name, login, password_hash, salt, created_at, phone, email_verified) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, login, password_hash, salt, created_at, phone, int(email_verified)),
         )
         return int(cursor.lastrowid)
 
 
-def set_user_role(login: str, role: str) -> bool:
-    """Меняет роль пользователя по логину. False — такого пользователя нет."""
+def update_unverified_user(
+    user_id: int, name: str, phone: str | None, password_hash: str, salt: str
+) -> bool:
+    """Повторная регистрация на ту же почту до подтверждения: новые имя, телефон и пароль.
+
+    False — аккаунт уже подтверждён (тогда его менять нельзя) или не найден.
+    """
     with connect() as connection:
-        cursor = connection.execute("UPDATE users SET role = ? WHERE login = ?", (role, login))
+        cursor = connection.execute(
+            "UPDATE users SET name = ?, phone = ?, password_hash = ?, salt = ? "
+            "WHERE id = ? AND email_verified = 0",
+            (name, phone, password_hash, salt, user_id),
+        )
         return cursor.rowcount == 1
+
+
+def set_email_verified(user_id: int) -> None:
+    """Отмечает почту пользователя подтверждённой."""
+    with connect() as connection:
+        connection.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+
+
+def set_password(user_id: int, password_hash: str, salt: str) -> None:
+    """Меняет пароль и завершает все сессии пользователя (на всех устройствах)."""
+    with connect() as connection:
+        connection.execute(
+            "UPDATE users SET password_hash = ?, salt = ? WHERE id = ?",
+            (password_hash, salt, user_id),
+        )
+        connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+
+def set_user_role(login: str, role: str) -> bool:
+    """Меняет роль пользователя по логину или телефону. False — такого пользователя нет."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE users SET role = ? WHERE id = "
+            "(SELECT id FROM users WHERE login = ? OR phone = ? ORDER BY login = ? DESC LIMIT 1)",
+            (role, login, login, login),
+        )
+        return cursor.rowcount == 1
+
+
+# ── Коды из писем ────────────────────────────────────────────────────────────
+
+def save_email_code(
+    user_id: int, purpose: str, code_hash: str, expires_at: float, sent_at: float
+) -> None:
+    """Сохраняет новый код (прежний код того же вида перестаёт действовать)."""
+    with connect() as connection:
+        connection.execute(
+            "INSERT INTO email_codes (user_id, purpose, code_hash, expires_at, sent_at, attempts) "
+            "VALUES (?, ?, ?, ?, ?, 0) "
+            "ON CONFLICT (user_id, purpose) DO UPDATE SET code_hash = excluded.code_hash, "
+            "expires_at = excluded.expires_at, sent_at = excluded.sent_at, attempts = 0",
+            (user_id, purpose, code_hash, expires_at, sent_at),
+        )
+
+
+def get_email_code(user_id: int, purpose: str) -> sqlite3.Row | None:
+    """Код пользователя: хеш, срок, время отправки и число неверных попыток."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT code_hash, expires_at, sent_at, attempts FROM email_codes "
+            "WHERE user_id = ? AND purpose = ?",
+            (user_id, purpose),
+        ).fetchone()
+
+
+def add_email_code_attempt(user_id: int, purpose: str) -> None:
+    """Учитывает ещё одну неверную попытку ввода кода."""
+    with connect() as connection:
+        connection.execute(
+            "UPDATE email_codes SET attempts = attempts + 1 WHERE user_id = ? AND purpose = ?",
+            (user_id, purpose),
+        )
+
+
+def delete_email_code(user_id: int, purpose: str) -> None:
+    """Удаляет код (он использован)."""
+    with connect() as connection:
+        connection.execute(
+            "DELETE FROM email_codes WHERE user_id = ? AND purpose = ?", (user_id, purpose)
+        )
 
 
 # ── Telegram ─────────────────────────────────────────────────────────────────
@@ -323,7 +433,7 @@ def list_users_with_stats() -> list[sqlite3.Row]:
     """Все пользователи со сводкой попыток (для админки), новые сверху."""
     with connect() as connection:
         return connection.execute(
-            "SELECT u.id, u.name, u.login, u.role, u.created_at, "
+            "SELECT u.id, u.name, u.login, u.role, u.created_at, u.phone, u.email_verified, "
             "COUNT(a.id) AS attempts, "
             "SUM(a.mode = 'mock') AS mocks, "
             "MAX(CASE WHEN a.mode = 'mock' THEN a.score END) AS best_mock, "
@@ -355,12 +465,26 @@ def login_exists(login: str) -> bool:
         return row is not None
 
 
+def phone_taken(phone: str, except_user_id: int = 0) -> bool:
+    """Телефон уже есть у другого аккаунта: как логин (старые аккаунты) или в профиле."""
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT 1 FROM users WHERE (login = ? OR phone = ?) AND id != ?",
+            (phone, phone, except_user_id),
+        ).fetchone()
+        return row is not None
+
+
 def get_user_credentials(login: str) -> sqlite3.Row | None:
-    """Возвращает id, имя, логин, хеш и соль пользователя для проверки пароля."""
+    """Данные для проверки пароля: id, имя, логин, роль, подтверждена ли почта, хеш и соль.
+
+    Искать можно по логину (почта, старый телефонный логин, tg…) или по телефону из профиля.
+    """
     with connect() as connection:
         return connection.execute(
-            "SELECT id, name, login, role, password_hash, salt FROM users WHERE login = ?",
-            (login,),
+            "SELECT id, name, login, role, email_verified, password_hash, salt FROM users "
+            "WHERE login = ? OR phone = ? ORDER BY login = ? DESC LIMIT 1",
+            (login, login, login),
         ).fetchone()
 
 

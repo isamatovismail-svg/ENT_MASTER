@@ -8,14 +8,16 @@ hashlib.pbkdf2_hmac (тысячи повторов SHA-256), что делает
 
 import hashlib
 import hmac
+import math
 import re
 import secrets
 import sqlite3
 import time
+from dataclasses import dataclass
 from http.cookies import SimpleCookie
 
 import config
-from app import database
+from app import database, mailer
 from app.database import User
 from app.web import Request
 
@@ -27,6 +29,7 @@ PHONE_ERROR = (
     "Пример: +7 705 123 45 67"
 )
 NAME_MAX_LENGTH = 60
+TELEGRAM_NAME_FALLBACK = "Ученик"  # имя, если Telegram или Google его не сообщили
 
 
 class ValidationError(Exception):
@@ -101,56 +104,127 @@ def normalize_login(raw: str) -> str:
     return value
 
 
-def validate_registration(name: str, login: str, password: str, password2: str) -> tuple[str, str]:
-    """Проверяет все поля регистрации. Возвращает (имя, логин) или выбрасывает ValidationError."""
-    errors: list[str] = []
-    clean_name = " ".join(name.split())
-    clean_login = normalize_login(login)
+def _clean_text(raw: str) -> str:
+    """Убирает лишние пробелы."""
+    return " ".join(raw.split())
 
-    if len(clean_name) < 2:
-        errors.append("Введите имя (не короче 2 символов).")
-    elif len(clean_name) > NAME_MAX_LENGTH:
-        errors.append(f"Имя слишком длинное (максимум {NAME_MAX_LENGTH} символов).")
 
-    if not clean_login:
-        errors.append("Введите почту или номер телефона.")
-    elif "@" in clean_login:
-        if not EMAIL_RE.match(clean_login) or len(clean_login) > 254:
-            errors.append("Почта указана неверно. Пример: aru@mail.kz")
-    else:
-        try:
-            clean_login = normalize_phone(login)
-        except ValueError as error:
-            errors.append(str(error))
-
+def _check_password(password: str, password2: str, errors: list[str]) -> None:
+    """Проверяет длину пароля и повтор, дописывает ошибки в errors."""
     if len(password) < config.PASSWORD_MIN_LENGTH:
         errors.append(f"Пароль должен быть не короче {config.PASSWORD_MIN_LENGTH} символов.")
     elif password != password2:
         errors.append("Пароли не совпадают.")
 
-    if not errors and database.login_exists(clean_login):
-        errors.append("Пользователь с такой почтой или телефоном уже зарегистрирован.")
+
+def normalize_email(raw: str) -> str:
+    """Почта без пробелов по краям и в нижнем регистре."""
+    return raw.strip().lower()
+
+
+def find_email_user(email: str) -> sqlite3.Row | None:
+    """Аккаунт с такой почтой (id, name, login, email_verified, …) или None."""
+    email = normalize_email(email)
+    if "@" not in email:
+        return None
+    return database.get_user_credentials(email)
+
+
+@dataclass
+class Registration:
+    """Проверенные поля формы регистрации."""
+
+    name: str              # «Имя Фамилия»
+    email: str
+    phone: str | None
+    pending_user_id: int   # неподтверждённый аккаунт с той же почтой (0 — нет)
+
+
+def validate_registration(
+    first_name: str, last_name: str, email: str, phone: str, password: str, password2: str
+) -> Registration:
+    """Проверяет все поля регистрации или выбрасывает ValidationError со списком ошибок."""
+    errors: list[str] = []
+    first = _clean_text(first_name)
+    last = _clean_text(last_name)
+    clean_email = normalize_email(email)
+    clean_phone: str | None = None
+
+    if len(first) < 2:
+        errors.append("Введите имя (не короче 2 символов).")
+    if not last:
+        errors.append("Введите фамилию.")
+    if len(first) + len(last) + 1 > NAME_MAX_LENGTH:
+        errors.append(f"Имя и фамилия слишком длинные (максимум {NAME_MAX_LENGTH} символов вместе).")
+
+    if not clean_email:
+        errors.append("Введите почту.")
+    elif not EMAIL_RE.match(clean_email) or len(clean_email) > 254:
+        errors.append("Почта указана неверно. Пример: aru@mail.kz")
+
+    if phone.strip():
+        try:
+            clean_phone = normalize_phone(phone)
+        except ValueError as error:
+            errors.append(str(error))
+
+    _check_password(password, password2, errors)
+
+    pending_user_id = 0
+    if not errors:
+        existing = find_email_user(clean_email)
+        if existing is not None and existing["email_verified"]:
+            errors.append(
+                "Пользователь с такой почтой уже зарегистрирован. Войдите или восстановите пароль."
+            )
+        elif existing is not None:
+            pending_user_id = existing["id"]
+        if clean_phone and database.phone_taken(clean_phone, pending_user_id):
+            errors.append("Этот номер телефона уже указан в другом аккаунте.")
 
     if errors:
         raise ValidationError(errors)
-    return clean_name, clean_login
+    return Registration(f"{first} {last}", clean_email, clean_phone, pending_user_id)
 
 
-def register_user(name: str, login: str, password: str, password2: str) -> int:
-    """Регистрирует пользователя и возвращает его id (или выбрасывает ValidationError)."""
-    clean_name, clean_login = validate_registration(name, login, password, password2)
+def register_user(
+    first_name: str, last_name: str, email: str, phone: str, password: str, password2: str
+) -> int:
+    """Создаёт неподтверждённый аккаунт и возвращает его id (или выбрасывает ValidationError).
+
+    Войти в аккаунт можно только после ввода кода из письма (send_email_code + verify_email).
+    Если на эту почту уже начинали регистрацию и не подтвердили её, прежние данные
+    заменяются новыми: без кода из письма такой аккаунт всё равно бесполезен.
+    """
+    form = validate_registration(first_name, last_name, email, phone, password, password2)
     password_hash, salt = hash_password(password)
     try:
-        return database.create_user(clean_name, clean_login, password_hash, salt, time.time())
+        if form.pending_user_id and database.update_unverified_user(
+            form.pending_user_id, form.name, form.phone, password_hash, salt
+        ):
+            return form.pending_user_id
+        return database.create_user(form.name, form.email, password_hash, salt, time.time(),
+                                    phone=form.phone, email_verified=False)
     except sqlite3.IntegrityError as error:
-        # Логин могли занять между проверкой и вставкой (два запроса одновременно).
+        # Почту или телефон могли занять между проверкой и записью (два запроса одновременно).
         raise ValidationError(
             ["Пользователь с такой почтой или телефоном уже зарегистрирован."]
         ) from error
 
 
+def create_account(name: str, login: str, password: str, phone: str | None = None) -> int:
+    """Сразу подтверждённый аккаунт (вход через Google, тесты). Возвращает id."""
+    password_hash, salt = hash_password(password)
+    clean_name = _clean_text(name)[:NAME_MAX_LENGTH] or TELEGRAM_NAME_FALLBACK
+    return database.create_user(clean_name, login, password_hash, salt, time.time(), phone=phone)
+
+
 def authenticate(login: str, password: str) -> User | None:
-    """Проверяет логин и пароль. Возвращает пользователя или None."""
+    """Проверяет логин и пароль. Возвращает пользователя или None.
+
+    Если почта ещё не подтверждена, у пользователя email_verified = False — вход
+    в этом случае не выполняется, а ученика отправляют вводить код.
+    """
     row = database.get_user_credentials(normalize_login(login))
     if row is None:
         # Считаем хеш и для несуществующего логина, чтобы по времени ответа
@@ -159,7 +233,155 @@ def authenticate(login: str, password: str) -> User | None:
         return None
     if not verify_password(password, row["salt"], row["password_hash"]):
         return None
-    return User(row["id"], row["name"], row["login"], row["role"])
+    return User(row["id"], row["name"], row["login"], row["role"], bool(row["email_verified"]))
+
+
+# ── Коды из писем ────────────────────────────────────────────────────────────
+
+VERIFY = "verify"  # подтверждение почты после регистрации
+RESET = "reset"    # восстановление пароля
+
+_MAIL_TEXTS = {
+    VERIFY: (
+        "Код подтверждения ENT MASTER: {code}",
+        "Здравствуйте!\n\nВаш код подтверждения почты на ENT MASTER: {code}\n\n"
+        "Код действует {minutes} минут. Если вы не регистрировались, просто проигнорируйте письмо.",
+    ),
+    RESET: (
+        "Восстановление пароля ENT MASTER: {code}",
+        "Здравствуйте!\n\nКод для смены пароля на ENT MASTER: {code}\n\n"
+        "Код действует {minutes} минут. Если вы не просили сменить пароль, "
+        "просто проигнорируйте письмо — пароль останется прежним.",
+    ),
+}
+
+CODE_ERRORS = {
+    "wrong": "Неверный код. Осталось попыток: {left}.",
+    "expired": "Срок действия кода истёк. Нажмите «Отправить код ещё раз».",
+    "blocked": "Слишком много неверных попыток. Нажмите «Отправить код ещё раз».",
+    "missing": "Код не найден или уже использован. Нажмите «Отправить код ещё раз».",
+}
+
+
+def _code_hash(user_id: int, purpose: str, code: str) -> str:
+    """SHA-256 от кода (вместе с id и видом кода) — только он хранится в базе."""
+    return hashlib.sha256(f"{purpose}:{user_id}:{code}".encode("utf-8")).hexdigest()
+
+
+def resend_wait_seconds(user_id: int, purpose: str) -> int:
+    """Сколько секунд ждать до следующей отправки кода (0 — можно отправлять)."""
+    row = database.get_email_code(user_id, purpose)
+    if row is None:
+        return 0
+    left = row["sent_at"] + config.EMAIL_CODE_RESEND_SECONDS - time.time()
+    return max(0, math.ceil(left))
+
+
+def send_email_code(user_id: int, email: str, purpose: str) -> int:
+    """Отправляет на почту новый 6-значный код.
+
+    Возвращает 0, если письмо отправлено, или сколько секунд ещё ждать
+    (новый код — не чаще раза в минуту). Ошибка отправки — mailer.MailError.
+    """
+    wait = resend_wait_seconds(user_id, purpose)
+    if wait:
+        return wait
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    subject, body = _MAIL_TEXTS[purpose]
+    minutes = config.EMAIL_CODE_MINUTES
+    mailer.send(email, subject.format(code=code), body.format(code=code, minutes=minutes))
+    now = time.time()
+    database.save_email_code(user_id, purpose, _code_hash(user_id, purpose, code),
+                             now + minutes * 60, now)
+    return 0
+
+
+def check_email_code(user_id: int, purpose: str, code: str) -> str | None:
+    """Проверяет код. None — код верный (и больше не действует), иначе текст ошибки.
+
+    После EMAIL_CODE_MAX_ATTEMPTS неверных вводов код перестаёт действовать.
+    """
+    code = re.sub(r"\s", "", code)
+    row = database.get_email_code(user_id, purpose)
+    if row is None:
+        return CODE_ERRORS["missing"]
+    if row["attempts"] >= config.EMAIL_CODE_MAX_ATTEMPTS:
+        return CODE_ERRORS["blocked"]
+    if row["expires_at"] < time.time():
+        return CODE_ERRORS["expired"]
+    if hmac.compare_digest(_code_hash(user_id, purpose, code), row["code_hash"]):
+        database.delete_email_code(user_id, purpose)
+        return None
+    database.add_email_code_attempt(user_id, purpose)
+    left = config.EMAIL_CODE_MAX_ATTEMPTS - row["attempts"] - 1
+    if left <= 0:
+        return CODE_ERRORS["blocked"]
+    return CODE_ERRORS["wrong"].format(left=left)
+
+
+def verify_email(email: str, code: str) -> int:
+    """Подтверждает почту кодом из письма и возвращает id пользователя.
+
+    Ошибка (неверный код, аккаунта нет или он уже подтверждён) — ValidationError.
+    """
+    user = find_email_user(email)
+    if user is None or user["email_verified"]:
+        raise ValidationError([CODE_ERRORS["missing"]])
+    error = check_email_code(user["id"], VERIFY, code)
+    if error:
+        raise ValidationError([error])
+    database.set_email_verified(user["id"])
+    return int(user["id"])
+
+
+def reset_password(email: str, code: str, password: str, password2: str) -> int:
+    """Меняет пароль по коду из письма и возвращает id пользователя.
+
+    Все прежние сессии завершаются. Раз код пришёл на почту, она считается подтверждённой.
+    """
+    errors: list[str] = []
+    _check_password(password, password2, errors)
+    if errors:
+        raise ValidationError(errors)
+    user = find_email_user(email)
+    if user is None:
+        raise ValidationError([CODE_ERRORS["missing"]])
+    error = check_email_code(user["id"], RESET, code)
+    if error:
+        raise ValidationError([error])
+    password_hash, salt = hash_password(password)
+    database.set_password(user["id"], password_hash, salt)
+    database.set_email_verified(user["id"])
+    database.delete_email_code(user["id"], VERIFY)
+    return int(user["id"])
+
+
+# ── Вход через Google ────────────────────────────────────────────────────────
+
+def google_user(email: str, first_name: str, last_name: str) -> int:
+    """Аккаунт для входа через Google: найденный по почте или новый. Возвращает id.
+
+    Google уже подтвердил почту. Если на неё была начата, но не подтверждена
+    регистрация, пароль из той регистрации сбрасывается на случайный: его мог
+    задать кто-то чужой, кто вписал эту почту.
+    """
+    email = normalize_email(email)
+    existing = find_email_user(email)
+    if existing is not None:
+        if not existing["email_verified"]:
+            password_hash, salt = hash_password(secrets.token_urlsafe(32))
+            database.set_password(existing["id"], password_hash, salt)
+            database.set_email_verified(existing["id"])
+            database.delete_email_code(existing["id"], VERIFY)
+        return int(existing["id"])
+    name = _clean_text(f"{first_name} {last_name}") or email.split("@", 1)[0]
+    try:
+        return create_account(name, email, secrets.token_urlsafe(32))
+    except sqlite3.IntegrityError:
+        # Тот же аккаунт создал параллельный запрос.
+        row = find_email_user(email)
+        assert row is not None
+        return int(row["id"])
 
 
 # ── Сессии ───────────────────────────────────────────────────────────────────
@@ -220,9 +442,6 @@ def check_csrf(request: Request) -> bool:
 
 
 # ── Вход через Telegram-бота ─────────────────────────────────────────────────
-
-TELEGRAM_NAME_FALLBACK = "Ученик"
-
 
 def telegram_login_url(telegram_id: int, telegram_name: str) -> str:
     """Создаёт одноразовую ссылку входа на сайт (действует TELEGRAM_LOGIN_TOKEN_MINUTES минут)."""

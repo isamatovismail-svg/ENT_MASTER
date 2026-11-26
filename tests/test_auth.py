@@ -24,45 +24,58 @@ class PasswordHashingTests(DatabaseTestCase):
 
 
 class RegistrationTests(DatabaseTestCase):
-    """Проверка полей регистрации."""
+    """Проверка полей регистрации (имя, фамилия, почта, телефон по желанию, пароль)."""
 
-    def assert_invalid(
-        self, name: str, login: str, password: str, password2: str, fragment: str
-    ) -> None:
+    def register(self, first: str = "Али", last: str = "Ахметов", email: str = "ali@mail.kz",
+                 phone: str = "", password: str = "password1", password2: str | None = None) -> int:
+        """Регистрация с разумными значениями по умолчанию."""
+        return auth.register_user(first, last, email, phone, password,
+                                  password if password2 is None else password2)
+
+    def assert_invalid(self, fragment: str, **fields: str) -> None:
         """Убеждается, что регистрация отклонена с сообщением, содержащим fragment."""
         with self.assertRaises(auth.ValidationError) as context:
-            auth.register_user(name, login, password, password2)
+            self.register(**fields)
         self.assertTrue(
             any(fragment in error for error in context.exception.errors),
             context.exception.errors,
         )
 
-    def test_register_with_email_and_phone(self) -> None:
-        """Можно зарегистрироваться и по почте, и по телефону."""
-        password = "password1"
-        self.assertGreater(auth.register_user("Айгерим", "Aru@Mail.kz", password, password), 0)
-        self.assertGreater(
-            auth.register_user("Данияр", "+7 701 123-45-67", password, password), 0
-        )
-        self.assertTrue(database.login_exists("aru@mail.kz"))
-        self.assertTrue(database.login_exists("+77011234567"))
+    def test_register_creates_unverified_account(self) -> None:
+        """Аккаунт создаётся неподтверждённым; телефон необязателен и нормализуется."""
+        first = self.register(email="Aru@Mail.kz", first="Айгерим", last="Касымова")
+        second = self.register(email="dan@mail.kz", phone="+7 701 123-45-67")
+        user = database.get_user_credentials("aru@mail.kz")
+        self.assertEqual((user["id"], user["name"], user["email_verified"]),
+                         (first, "Айгерим Касымова", 0))
+        self.assertEqual(database.get_user_credentials("+77011234567")["id"], second)
 
     def test_invalid_fields(self) -> None:
         """Каждое неверное поле даёт понятную ошибку."""
-        self.assert_invalid("", "a@b.kz", "password1", "password1", "имя")
-        self.assert_invalid("Али", "not-an-email@", "password1", "password1", "Почта")
-        self.assert_invalid("Али", "8 701 123 45", "password1", "password1", "10 цифр")
-        self.assert_invalid("Али", "+7701123", "password1", "password1", "10 цифр")
-        self.assert_invalid("Али", "+8 701 123 45 67", "password1", "password1", "10 цифр")
-        self.assert_invalid("Али", "a@b.kz", "short", "short", "не короче 8")
-        self.assert_invalid("Али", "a@b.kz", "password1", "password2", "не совпадают")
+        self.assert_invalid("имя", first="")
+        self.assert_invalid("фамилию", last=" ")
+        self.assert_invalid("Введите почту", email="")
+        self.assert_invalid("Почта", email="not-an-email@")
+        self.assert_invalid("10 цифр", phone="8 701 123 45")
+        self.assert_invalid("10 цифр", phone="+8 701 123 45 67")
+        self.assert_invalid("не короче 8", password="short")
+        self.assert_invalid("не совпадают", password2="password2")
 
-    def test_duplicate_login_rejected(self) -> None:
-        """Повторная регистрация того же логина запрещена (регистр почты не важен)."""
-        auth.register_user("Али", "ali@mail.kz", "password1", "password1")
-        self.assert_invalid(
-            "Али 2", "ALI@mail.kz", "password1", "password1", "уже зарегистрирован"
-        )
+    def test_duplicates(self) -> None:
+        """Подтверждённую почту и чужой телефон занять нельзя (регистр почты не важен)."""
+        user_id = self.register(phone="87011234567")
+        database.set_email_verified(user_id)
+        self.assert_invalid("уже зарегистрирован", email="ALI@mail.kz")
+        self.assert_invalid("уже указан", email="other@mail.kz", phone="7011234567")
+
+    def test_unverified_registration_can_be_repeated(self) -> None:
+        """Пока почта не подтверждена, повторная регистрация заменяет имя, телефон и пароль."""
+        user_id = self.register(password="password1")
+        self.assertEqual(self.register(first="Алихан", phone="87011234567", password="newpass99"),
+                         user_id)
+        user = auth.authenticate("ali@mail.kz", "newpass99")
+        assert user is not None
+        self.assertEqual((user.id, user.name, user.email_verified), (user_id, "Алихан Ахметов", False))
 
 
 class PhoneTests(DatabaseTestCase):
@@ -88,15 +101,20 @@ class PhoneTests(DatabaseTestCase):
 
     def test_register_and_login_with_any_format(self) -> None:
         """Зарегистрировался в одном виде — входит в любом другом; дубликат не пройдёт."""
-        user_id = auth.register_user("Данияр", "8 705 967 84 20", "password1", "password1")
-        self.assertTrue(database.login_exists("+77059678420"))
+        user_id = auth.register_user("Данияр", "Ким", "dan@mail.kz", "8 705 967 84 20",
+                                     "password1", "password1")
+        # Старый аккаунт, где телефон был логином, тоже находится по любому виду номера.
+        old_id = auth.create_account("Старый", "+77011234567", "password1")
+        self.assertEqual(auth.authenticate("8 701 123 45 67", "password1").id, old_id)
         for raw in ("+7 (705) 967-84-20", "87059678420", "77059678420", "7059678420"):
             user = auth.authenticate(raw, "password1")
             self.assertIsNotNone(user, raw)
             assert user is not None
             self.assertEqual(user.id, user_id)
         with self.assertRaises(auth.ValidationError):
-            auth.register_user("Другой", "7059678420", "password1", "password1")
+            auth.register_user("Другой", "Ким", "x@mail.kz", "7059678420", "password1", "password1")
+        with self.assertRaises(auth.ValidationError):
+            auth.register_user("Другой", "Ким", "y@mail.kz", "87011234567", "password1", "password1")
 
 
 class LoginAndSessionTests(DatabaseTestCase):
@@ -105,7 +123,7 @@ class LoginAndSessionTests(DatabaseTestCase):
     def setUp(self) -> None:
         """Регистрирует тестового пользователя."""
         super().setUp()
-        self.user_id = auth.register_user("Мария", "maria@mail.kz", "password1", "password1")
+        self.user_id = auth.create_account("Мария", "maria@mail.kz", "password1")
 
     def test_authenticate(self) -> None:
         """Вход работает только с правильным паролем и существующим логином."""

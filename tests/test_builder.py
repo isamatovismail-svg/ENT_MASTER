@@ -13,7 +13,7 @@ class BuildTests(DatabaseTestCase):
     def setUp(self) -> None:
         """Создаёт пользователя для попыток."""
         super().setUp()
-        self.user_id = auth.register_user("Ерлан", "erlan@mail.kz", "password1", "password1")
+        self.user_id = auth.create_account("Ерлан", "erlan@mail.kz", "password1")
 
     def test_full_mock_has_120_questions_and_140_points(self) -> None:
         """При полном банке собирается ровно 120 заданий на 140 баллов без нехватки."""
@@ -163,6 +163,11 @@ class MigrationTests(DatabaseTestCase):
             " UNIQUE (attempt_id, question_id));"
             "INSERT INTO questions (subject, qtype, text, options_json, correct_json)"
             " VALUES ('math', 'single', 'старый вопрос', '[\"1\", \"2\"]', '[\"A\"]');"
+            "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,"
+            " login TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, salt TEXT NOT NULL,"
+            " created_at REAL NOT NULL);"
+            "INSERT INTO users (name, login, password_hash, salt, created_at)"
+            " VALUES ('Старый', 'old@mail.kz', 'h', 's', 0);"
         )
         old.commit()
         old.close()
@@ -171,14 +176,19 @@ class MigrationTests(DatabaseTestCase):
         database.init_db()
         database.init_db()  # повторный запуск безопасен
         with database.connect() as connection:
-            for table, column in (("questions", "explanation"),
+            for table, column in (("users", "email_verified"),
+                                  ("users", "phone"),
+                                  ("questions", "explanation"),
                                   ("questions", "edited_by_admin"),
                                   ("attempt_questions", "option_order_json"),
                                   ("attempt_questions", "checked")):
                 columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
                 self.assertIn(column, columns)
             row = connection.execute("SELECT text, explanation FROM questions").fetchone()
+            user = connection.execute("SELECT email_verified, phone FROM users").fetchone()
         self.assertEqual((row["text"], row["explanation"]), ("старый вопрос", ""))
+        # Аккаунты, созданные до подтверждения почты, считаются подтверждёнными.
+        self.assertEqual((user["email_verified"], user["phone"]), (1, None))
 
 
 class FinishTests(DatabaseTestCase):
@@ -187,7 +197,7 @@ class FinishTests(DatabaseTestCase):
     def setUp(self) -> None:
         """Готовит пользователя и попытку с ответами."""
         super().setUp()
-        self.user_id = auth.register_user("Асель", "asel@mail.kz", "password1", "password1")
+        self.user_id = auth.create_account("Асель", "asel@mail.kz", "password1")
         self.add_questions("kz_history", config.SINGLE, 3)
         self.add_questions("math", config.MULTIPLE, 1)
         self.attempt_id = ent_logic.build_mock(self.user_id, 0, now=1_000.0)

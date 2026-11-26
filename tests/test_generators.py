@@ -128,7 +128,7 @@ class SeedAndSelectionTests(DatabaseTestCase):
 
     def test_unseen_questions_come_first(self) -> None:
         self.add_questions("physics", config.SINGLE, 30)
-        user_id = auth.register_user("Асель", "asel@mail.kz", "password1", "password1")
+        user_id = auth.create_account("Асель", "asel@mail.kz", "password1")
         seen: set[int] = set()
         for _ in range(3):  # 3 тренировки по 10 заданий = все 30 вопросов без повторов
             attempt_id = ent_logic.build_practice(user_id, "physics")
@@ -140,8 +140,8 @@ class SeedAndSelectionTests(DatabaseTestCase):
 
     def test_other_users_history_does_not_matter(self) -> None:
         self.add_questions("physics", config.SINGLE, 10)
-        first = auth.register_user("Тимур", "timur@mail.kz", "password1", "password1")
-        second = auth.register_user("Жанна", "zhanna@mail.kz", "password1", "password1")
+        first = auth.create_account("Тимур", "timur@mail.kz", "password1")
+        second = auth.create_account("Жанна", "zhanna@mail.kz", "password1")
         ent_logic.build_practice(first, "physics")
         attempt_id = ent_logic.build_practice(second, "physics")
         self.assertEqual(len(database.get_attempt_questions(attempt_id)), 10)

@@ -2,17 +2,30 @@
   <div class="card auth-card">
     <span class="auth-emoji" aria-hidden="true">🚀</span>
     <h1>Регистрация</h1>
-    <p class="muted">Создайте аккаунт, чтобы сохранять результаты и историю попыток.</p>
+    <p class="muted">Создайте аккаунт, чтобы сохранять результаты и историю попыток.
+      На почту придёт код подтверждения.</p>
     $errors
     <form method="post" action="/register" class="form" novalidate>
+      <div class="field-row">
+        <label class="field">
+          <span>Имя</span>
+          <input type="text" name="first_name" value="$first_name" maxlength="60" autocomplete="given-name" required>
+        </label>
+        <label class="field">
+          <span>Фамилия</span>
+          <input type="text" name="last_name" value="$last_name" maxlength="60" autocomplete="family-name" required>
+        </label>
+      </div>
       <label class="field">
-        <span>Имя</span>
-        <input type="text" name="name" value="$name" maxlength="60" autocomplete="name" required>
+        <span>Почта</span>
+        <input type="email" name="email" value="$email" maxlength="254" autocomplete="email"
+               placeholder="aru@mail.kz" required>
       </label>
       <label class="field">
-        <span>Почта или номер телефона</span>
-        <input type="text" name="login" value="$login" maxlength="254" autocomplete="username"
-               placeholder="aru@mail.kz или 8 701 123 45 67" required>
+        <span>Телефон <small class="muted">(необязательно)</small></span>
+        <input type="tel" name="phone" value="$phone" maxlength="30" autocomplete="tel"
+               placeholder="8 701 123 45 67">
+        <small class="muted">С ним можно входить вместо почты.</small>
       </label>
       <label class="field">
         <span>Пароль</span>
@@ -26,9 +39,7 @@
       <button type="submit" class="btn btn-primary btn-block">Зарегистрироваться</button>
     </form>
     <div class="divider"><span>или</span></div>
-    <button type="button" class="btn btn-google btn-block" disabled>
-      <span class="google-mark">G</span> Войти через Google <span class="soon">скоро</span>
-    </button>
+    $google
     <p class="auth-switch">Уже есть аккаунт? <a class="link" href="/login">Войти</a></p>
   </div>
 </section>

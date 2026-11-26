@@ -53,6 +53,25 @@ PBKDF2_ITERATIONS = 200_000                   # чем больше, тем до
 PASSWORD_MIN_LENGTH = 8
 MAX_REQUEST_BODY_BYTES = 1_000_000            # защита от слишком больших POST-запросов
 
+# ── Почта: коды подтверждения и восстановления пароля ────────────────────────
+EMAIL_CODE_MINUTES = 15          # код из письма действует 15 минут
+EMAIL_CODE_MAX_ATTEMPTS = 5      # после 5 неверных вводов нужен новый код
+EMAIL_CODE_RESEND_SECONDS = 60   # новый код — не чаще раза в минуту
+# SMTP (например, Gmail: smtp.gmail.com, порт 465, SSL, пароль приложения).
+# Если не настроен — письма печатаются в консоль (режим разработки).
+SMTP_HOST = _ENV.get("SMTP_HOST", "").strip()
+SMTP_PORT = int(_ENV.get("SMTP_PORT", "465").strip() or 465)
+SMTP_USER = _ENV.get("SMTP_USER", "").strip()
+SMTP_PASSWORD = _ENV.get("SMTP_PASSWORD", "").strip()
+MAIL_FROM = _ENV.get("MAIL_FROM", "").strip() or SMTP_USER
+
+# ── Вход через Google (OAuth 2.0) ────────────────────────────────────────────
+GOOGLE_CLIENT_ID = _ENV.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = _ENV.get("GOOGLE_CLIENT_SECRET", "").strip()
+GOOGLE_REDIRECT_URI = _ENV.get("GOOGLE_REDIRECT_URI", "").strip()
+OAUTH_STATE_COOKIE_NAME = "ent_oauth_state"
+OAUTH_STATE_LIFETIME_SECONDS = 10 * 60
+
 # ── Telegram-бот ─────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = _ENV.get("TELEGRAM_BOT_TOKEN", "").strip()
 # Адрес сайта для ссылок из бота (без / в конце).
