@@ -92,6 +92,16 @@ TELEGRAM_BOT_TOKEN = _ENV.get("TELEGRAM_BOT_TOKEN", "").strip()
 SITE_URL = _ENV.get("SITE_URL", f"http://localhost:{PORT}").strip().rstrip("/")
 TELEGRAM_LOGIN_TOKEN_MINUTES = 10   # одноразовая ссылка входа действует 10 минут
 TELEGRAM_POLL_TIMEOUT = 30          # long polling: сколько секунд Telegram держит запрос
+# Кому бот присылает оповещения о сбоях и резервные копии базы: chat id через запятую.
+# Пусто — всем главным администраторам, у которых к аккаунту привязан Telegram.
+ADMIN_TELEGRAM_CHAT_IDS = [int(x) for x in _ENV.get("ADMIN_TELEGRAM_CHAT_ID", "").replace(" ", "").split(",")
+                           if x.lstrip("-").isdigit()]
+# Проверка «сайт отвечает» (python notify.py healthcheck, на сервере — каждые 5 минут).
+HEALTHCHECK_URL = _ENV.get("HEALTHCHECK_URL", "").strip() or f"http://{HOST}:{PORT}/"
+# Файл состояния оповещений: чтобы не присылать одно и то же много раз подряд.
+ALERT_STATE_PATH = Path(_ENV.get("ALERT_STATE_PATH", "").strip() or BASE_DIR / ".alert_state.json")
+ALERT_COOLDOWN_SECONDS = 10 * 60    # одинаковое оповещение — не чаще раза в 10 минут
+TELEGRAM_FILE_LIMIT_BYTES = 50 * 1024 * 1024  # Bot API принимает файлы до 50 МБ
 
 # ── Режимы тестирования ──────────────────────────────────────────────────────
 MOCK_DURATION_MINUTES = 240   # пробный ЕНТ — 4 часа на полные 120 заданий

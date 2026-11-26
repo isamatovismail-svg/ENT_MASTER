@@ -11,7 +11,8 @@
 #   3. создаёт системного пользователя ent и папки /opt/ent-master, /var/backups/ent-master;
 #   4. создаёт .env (если его нет) с SITE_URL, COOKIE_SECURE=1 и папкой копий;
 #   5. загружает банк вопросов (seed.py);
-#   6. включает службы systemd: сайт, бот (если есть токен), ежедневную копию базы;
+#   6. включает службы systemd: сайт, бот (если есть токен), ежедневную копию базы
+#      (с отправкой в Telegram), проверку сайта каждые 5 минут, оповещения о сбоях;
 #   7. настраивает Caddy: HTTPS-сертификат для домена и прокси на 127.0.0.1:8000.
 set -euo pipefail
 
@@ -75,8 +76,10 @@ COOKIE_SECURE=1
 BACKUP_DIR=$BACKUP_DIR
 BACKUP_KEEP=14
 
-# Telegram-бот (необязательно):
+# Telegram-бот. Токен нужен и для оповещений о сбоях и отправки резервных копий:
 # TELEGRAM_BOT_TOKEN=
+# Кому слать оповещения и копии базы (ваш chat id; пусто — администраторам с привязанным Telegram):
+# ADMIN_TELEGRAM_CHAT_ID=
 
 # Почта для кодов подтверждения (Gmail, пароль приложения):
 # SMTP_HOST=smtp.gmail.com
@@ -99,9 +102,9 @@ echo "== 5. Банк вопросов"
 sudo -u "$APP_USER" python3 "$APP_DIR/seed.py"
 
 echo "== 6. Службы systemd"
-cp "$APP_DIR"/deploy/ent-master-*.service "$APP_DIR"/deploy/ent-master-backup.timer /etc/systemd/system/
+cp "$APP_DIR"/deploy/ent-master-*.service "$APP_DIR"/deploy/ent-master-*.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now ent-master-site.service ent-master-backup.timer
+systemctl enable --now ent-master-site.service ent-master-backup.timer ent-master-health.timer
 if grep -Eq '^TELEGRAM_BOT_TOKEN=.+' "$ENV_FILE"; then
   systemctl enable --now ent-master-bot.service
 else
@@ -119,5 +122,6 @@ echo "Готово. Проверьте:"
 echo "  https://$DOMAIN                         — сайт (сертификат появится в течение минуты)"
 echo "  systemctl status ent-master-site        — состояние сайта"
 echo "  journalctl -u ent-master-site -f        — журнал сайта"
-echo "  systemctl list-timers ent-master-backup — когда следующая резервная копия"
+echo "  systemctl list-timers 'ent-master-*'   — когда следующая копия и проверка сайта"
+echo "  sudo -u $APP_USER python3 $APP_DIR/notify.py test — пробное оповещение в Telegram"
 echo "Назначить администратора: sudo -u $APP_USER python3 $APP_DIR/manage_admin.py <почта>"

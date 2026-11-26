@@ -17,3 +17,6 @@ backups/
 
 # Секреты: токен Telegram-бота
 .env
+
+# Состояние оповещений о сбоях (notify.py)
+.alert_state.json

@@ -1,0 +1,10 @@
+# Проверка сайта каждые 5 минут.
+[Unit]
+Description=ENT MASTER — проверка сайта каждые 5 минут
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

@@ -1,6 +1,7 @@
 """Резервная копия базы данных SQLite.
 
-Запуск: python backup.py
+Запуск: python backup.py              — копия на этом компьютере (сервере)
+        python backup.py --telegram   — копия и отправка файла главному администратору в Telegram
     Делает копию ent_master.sqlite3 в папку backups/ (BACKUP_DIR в .env) с датой в имени,
     проверяет её (PRAGMA integrity_check), сжимает gzip и оставляет только последние
     BACKUP_KEEP копий (по умолчанию 14). На сервере запускается раз в сутки таймером systemd
@@ -71,8 +72,9 @@ def remove_old(target_dir: Path, keep: int) -> list[Path]:
     return old
 
 
-def main() -> int:
-    """Делает копию и печатает результат. Код возврата 1 — ошибка (systemd покажет сбой)."""
+def main(argv: list[str] | None = None) -> int:
+    """Делает копию (и по --telegram отправляет её). Код возврата 1 — ошибка (systemd покажет сбой)."""
+    argv = sys.argv[1:] if argv is None else argv
     try:
         path = make_backup()
     except (BackupError, sqlite3.Error, OSError) as error:
@@ -80,6 +82,16 @@ def main() -> int:
         return 1
     size_kb = path.stat().st_size // 1024
     print(f"Резервная копия: {path} ({size_kb} КБ). Хранится копий: {len(list_backups(path.parent))}.")
+    if "--telegram" in argv:
+        # Импорт здесь: обычной копии на компьютере модули бота не нужны.
+        from app import alerts
+
+        sent = alerts.send_backup(path)
+        if not sent:
+            print("Копия НЕ отправлена в Telegram: нет токена бота или получателя, либо ошибка сети.",
+                  file=sys.stderr)
+            return 1
+        print(f"Копия отправлена в Telegram получателям: {sent}.")
     return 0
 
 

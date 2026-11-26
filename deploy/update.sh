@@ -32,8 +32,9 @@ echo "== Банк вопросов"
 sudo -u "$APP_USER" python3 "$APP_DIR/seed.py"
 
 echo "== Службы"
-cp "$APP_DIR"/deploy/ent-master-*.service "$APP_DIR"/deploy/ent-master-backup.timer /etc/systemd/system/
+cp "$APP_DIR"/deploy/ent-master-*.service "$APP_DIR"/deploy/ent-master-*.timer /etc/systemd/system/
 systemctl daemon-reload
+systemctl enable --now ent-master-health.timer
 systemctl restart ent-master-site.service
 if systemctl is-enabled --quiet ent-master-bot.service; then
   systemctl restart ent-master-bot.service

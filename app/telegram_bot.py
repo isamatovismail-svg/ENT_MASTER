@@ -13,6 +13,7 @@
 
 import json
 import logging
+import secrets
 import time
 import urllib.error
 import urllib.request
@@ -58,7 +59,29 @@ class TelegramAPI:
             headers={"Content-Type": "application/json"},
         )
         # Long polling держит запрос до timeout секунд — ждём чуть дольше.
-        timeout = int(params.get("timeout", 0)) + 15
+        return self._send(request, int(params.get("timeout", 0)) + 15)
+
+    def send_document(self, chat_id: int, filename: str, data: bytes, caption: str = "") -> Any:
+        """Отправляет файл (sendDocument). Тело multipart/form-data собирается вручную."""
+        boundary = secrets.token_hex(16)
+        parts = []
+        for name, value in (("chat_id", str(chat_id)), ("caption", caption)):
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
+                         f"{value}\r\n".encode("utf-8"))
+        safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; '
+                     f'filename="{safe_name}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+                     .encode("utf-8") + data + b"\r\n")
+        parts.append(f"--{boundary}--\r\n".encode("ascii"))
+        request = urllib.request.Request(
+            API_URL.format(token=self._token, method="sendDocument"),
+            data=b"".join(parts),
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        return self._send(request, 120)
+
+    def _send(self, request: urllib.request.Request, timeout: int) -> Any:
+        """Выполняет запрос к Bot API и возвращает поле result (ошибка — TelegramError)."""
         try:
             with self._opener(request, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))

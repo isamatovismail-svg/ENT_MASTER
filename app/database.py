@@ -468,6 +468,16 @@ def get_user_by_telegram(telegram_id: int) -> User | None:
     return User(row["id"], row["name"], row["login"], row["role"]) if row else None
 
 
+def admin_telegram_ids() -> list[int]:
+    """Telegram главных администраторов, привязавших аккаунт (для оповещений о сбоях)."""
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT telegram_id FROM users WHERE role = ? AND telegram_id IS NOT NULL ORDER BY id",
+            (ROLE_ADMIN,),
+        ).fetchall()
+    return [row["telegram_id"] for row in rows]
+
+
 def bind_telegram(user_id: int, telegram_id: int) -> None:
     """Привязывает Telegram к пользователю (и отвязывает его от прежнего аккаунта)."""
     with connect() as connection:
