@@ -2497,3 +2497,42 @@ code {
 .delta-up { color: var(--success); }
 .delta-down { color: var(--danger); }
 .delta-same { color: var(--muted); }
+
+/* ── Вопросы учителей и проверка ──────────────────────────────────────────── */
+
+.review-card,
+.my-question { display: grid; gap: 12px; margin-bottom: 16px; }
+
+.review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-reject { display: grid; gap: 8px; justify-items: start; }
+
+.review-comment {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+}
+
+.question-preview {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.preview-options,
+.preview-left { margin: 8px 0; padding-left: 20px; }
+
+.preview-correct { color: var(--success); font-weight: 650; }

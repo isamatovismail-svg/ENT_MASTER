@@ -18,6 +18,11 @@ ROLE_USER = "user"
 ROLE_TEACHER = "teacher"  # учитель — администратор своей школы
 ROLE_ADMIN = "admin"      # главный администратор, полный доступ
 
+# Статус вопроса: на проверке, одобрен (участвует в тестах), отклонён.
+Q_PENDING = "pending"
+Q_APPROVED = "approved"
+Q_REJECTED = "rejected"
+
 # Статус ученика в школе: ждёт подтверждения учителя, подтверждён, отклонён.
 SCHOOL_PENDING = "pending"
 SCHOOL_APPROVED = "approved"
@@ -120,6 +125,13 @@ CREATE TABLE IF NOT EXISTS questions (
     deleted      INTEGER NOT NULL DEFAULT 0,
     -- 1 — вопрос создан или изменён в админке: seed.py его больше не перезаписывает.
     edited_by_admin INTEGER NOT NULL DEFAULT 0,
+    -- Вопросы учителей проходят проверку: pending (на проверке), approved, rejected.
+    -- В тесты и во все выборки банка попадают только approved.
+    status         TEXT NOT NULL DEFAULT 'approved',
+    author_id      INTEGER,                   -- учитель-автор (NULL — банк/админ)
+    review_comment TEXT NOT NULL DEFAULT '',  -- комментарий администратора
+    submitted_at   REAL,                      -- когда отправлен на проверку
+    reviewed_at    REAL,                      -- когда проверен
     UNIQUE (subject, text)
 );
 
@@ -174,6 +186,11 @@ _ADDED_COLUMNS = (
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("questions", "edited_by_admin", "INTEGER NOT NULL DEFAULT 0"),
+    ("questions", "status", "TEXT NOT NULL DEFAULT 'approved'"),
+    ("questions", "author_id", "INTEGER"),
+    ("questions", "review_comment", "TEXT NOT NULL DEFAULT ''"),
+    ("questions", "submitted_at", "REAL"),
+    ("questions", "reviewed_at", "REAL"),
     ("attempt_questions", "option_order_json", "TEXT"),
     ("attempt_questions", "checked", "INTEGER NOT NULL DEFAULT 0"),
 )
@@ -599,8 +616,9 @@ _UPSERT_SQL = (
     "options_json = excluded.options_json, left_json = excluded.left_json, "
     "correct_json = excluded.correct_json, explanation = excluded.explanation, "
     "deleted = 0 "
-    # Вопросы, исправленные в админке, не трогаем: ручная правка важнее файла.
-    "WHERE questions.edited_by_admin = 0"
+    # Вопросы, исправленные в админке, и вопросы учителей не трогаем:
+    # ручная правка важнее файла.
+    "WHERE questions.edited_by_admin = 0 AND questions.author_id IS NULL"
 )
 
 
@@ -662,11 +680,15 @@ class Question:
     correct: list[str]
     explanation: str
     used: int = 0  # в скольких попытках встречался
+    status: str = Q_APPROVED
+    author_id: int | None = None
+    review_comment: str = ""
+    submitted_at: float | None = None
 
 
 _QUESTION_COLUMNS = (
     "q.id, q.subject, q.qtype, q.text, q.context, q.options_json, q.left_json, "
-    "q.correct_json, q.explanation, "
+    "q.correct_json, q.explanation, q.status, q.author_id, q.review_comment, q.submitted_at, "
     "(SELECT COUNT(*) FROM attempt_questions aq WHERE aq.question_id = q.id) AS used"
 )
 
@@ -684,31 +706,37 @@ def _question_from_row(row: sqlite3.Row) -> Question:
         correct=json.loads(row["correct_json"]),
         explanation=row["explanation"],
         used=row["used"],
+        status=row["status"],
+        author_id=row["author_id"],
+        review_comment=row["review_comment"],
+        submitted_at=row["submitted_at"],
     )
 
 
 def list_questions(subject: str | None = None) -> list[Question]:
-    """Действующие (не удалённые) вопросы банка, по предмету или все; новые сверху."""
+    """Действующие (не удалённые и одобренные) вопросы банка, по предмету или все; новые сверху."""
     with connect() as connection:
         if subject is None:
             rows = connection.execute(
-                f"SELECT {_QUESTION_COLUMNS} FROM questions q WHERE q.deleted = 0 "
-                "ORDER BY q.id DESC"
+                f"SELECT {_QUESTION_COLUMNS} FROM questions q "
+                "WHERE q.deleted = 0 AND q.status = 'approved' ORDER BY q.id DESC"
             ).fetchall()
         else:
             rows = connection.execute(
                 f"SELECT {_QUESTION_COLUMNS} FROM questions q "
-                "WHERE q.deleted = 0 AND q.subject = ? ORDER BY q.id DESC",
+                "WHERE q.deleted = 0 AND q.status = 'approved' AND q.subject = ? "
+                "ORDER BY q.id DESC",
                 (subject,),
             ).fetchall()
     return [_question_from_row(row) for row in rows]
 
 
 def get_question(question_id: int) -> Question | None:
-    """Действующий вопрос по id."""
+    """Действующий (не удалённый и одобренный) вопрос банка по id."""
     with connect() as connection:
         row = connection.execute(
-            f"SELECT {_QUESTION_COLUMNS} FROM questions q WHERE q.id = ? AND q.deleted = 0",
+            f"SELECT {_QUESTION_COLUMNS} FROM questions q "
+            "WHERE q.id = ? AND q.deleted = 0 AND q.status = 'approved'",
             (question_id,),
         ).fetchone()
     return _question_from_row(row) if row else None
@@ -752,7 +780,7 @@ def update_question(question: Question) -> bool:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
             "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
-            "edited_by_admin = 1 WHERE id = ? AND deleted = 0",
+            "edited_by_admin = 1 WHERE id = ? AND deleted = 0 AND status = 'approved'",
             (*_question_values(question), question.id),
         )
         return cursor.rowcount == 1
@@ -768,7 +796,7 @@ def delete_question(question_id: int) -> str:
     with connect() as connection:
         row = connection.execute(
             "SELECT (SELECT COUNT(*) FROM attempt_questions WHERE question_id = q.id) AS used "
-            "FROM questions q WHERE q.id = ? AND q.deleted = 0",
+            "FROM questions q WHERE q.id = ? AND q.deleted = 0 AND q.status = 'approved'",
             (question_id,),
         ).fetchone()
         if row is None:
@@ -780,12 +808,137 @@ def delete_question(question_id: int) -> str:
         return "deleted"
 
 
+# ── Вопросы учителей и проверка ──────────────────────────────────────────────
+
+def insert_teacher_question(question: Question, author_id: int, now: float) -> int:
+    """Вопрос учителя: сохраняется со статусом «на проверке» и в тесты не попадает.
+
+    Дубликат текста в предмете — IntegrityError.
+    """
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO questions "
+            "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, "
+            "status, author_id, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (*_question_values(question), Q_PENDING, author_id, now),
+        )
+        return int(cursor.lastrowid)
+
+
+def list_author_questions(author_id: int) -> list[Question]:
+    """Все вопросы учителя (любой статус), новые сверху."""
+    with connect() as connection:
+        rows = connection.execute(
+            f"SELECT {_QUESTION_COLUMNS} FROM questions q "
+            "WHERE q.author_id = ? AND q.deleted = 0 ORDER BY q.id DESC",
+            (author_id,),
+        ).fetchall()
+    return [_question_from_row(row) for row in rows]
+
+
+def get_author_question(question_id: int, author_id: int) -> Question | None:
+    """Вопрос учителя — только если он автор."""
+    with connect() as connection:
+        row = connection.execute(
+            f"SELECT {_QUESTION_COLUMNS} FROM questions q "
+            "WHERE q.id = ? AND q.author_id = ? AND q.deleted = 0",
+            (question_id, author_id),
+        ).fetchone()
+    return _question_from_row(row) if row else None
+
+
+def resubmit_author_question(question: Question, author_id: int, now: float) -> bool:
+    """Учитель исправил вопрос на проверке или отклонённый — он снова уходит на проверку.
+
+    Одобренный вопрос учитель изменить не может (False). Дубликат текста — IntegrityError.
+    """
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
+            "status = 'pending', review_comment = '', submitted_at = ?, reviewed_at = NULL "
+            "WHERE id = ? AND author_id = ? AND deleted = 0 AND status != 'approved'",
+            (*_question_values(question), now, question.id, author_id),
+        )
+        return cursor.rowcount == 1
+
+
+def delete_author_question(question_id: int, author_id: int) -> bool:
+    """Учитель удаляет свой вопрос на проверке или отклонённый (в тестах он не был)."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "DELETE FROM questions WHERE id = ? AND author_id = ? AND status != 'approved' "
+            "AND NOT EXISTS (SELECT 1 FROM attempt_questions WHERE question_id = questions.id)",
+            (question_id, author_id),
+        )
+        return cursor.rowcount == 1
+
+
+def list_pending_questions() -> list[tuple[Question, sqlite3.Row]]:
+    """Очередь проверки: вопросы на проверке (старые сверху) и их авторы со школами."""
+    with connect() as connection:
+        rows = connection.execute(
+            f"SELECT {_QUESTION_COLUMNS}, u.name AS author_name, u.login AS author_login, "
+            "s.city AS school_city, s.name AS school_name "
+            "FROM questions q LEFT JOIN users u ON u.id = q.author_id "
+            "LEFT JOIN schools s ON s.id = u.school_id "
+            "WHERE q.status = 'pending' AND q.deleted = 0 ORDER BY q.submitted_at, q.id"
+        ).fetchall()
+    return [(_question_from_row(row), row) for row in rows]
+
+
+def count_pending_questions() -> int:
+    """Сколько вопросов ждут проверки."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT COUNT(*) FROM questions WHERE status = 'pending' AND deleted = 0"
+        ).fetchone()[0]
+
+
+def get_pending_question(question_id: int) -> Question | None:
+    """Вопрос из очереди проверки."""
+    with connect() as connection:
+        row = connection.execute(
+            f"SELECT {_QUESTION_COLUMNS} FROM questions q "
+            "WHERE q.id = ? AND q.status = 'pending' AND q.deleted = 0",
+            (question_id,),
+        ).fetchone()
+    return _question_from_row(row) if row else None
+
+
+def review_question(question_id: int, status: str, comment: str, now: float) -> bool:
+    """Одобряет (approved) или отклоняет (rejected) вопрос на проверке. False — его нет."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE questions SET status = ?, review_comment = ?, reviewed_at = ? "
+            "WHERE id = ? AND status = 'pending' AND deleted = 0",
+            (status, comment, now, question_id),
+        )
+        return cursor.rowcount == 1
+
+
+def approve_with_changes(question: Question, comment: str, now: float) -> bool:
+    """Администратор исправляет вопрос на проверке и сразу одобряет его.
+
+    Вопрос помечается edited_by_admin. Дубликат текста — IntegrityError.
+    """
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, "
+            "edited_by_admin = 1, status = 'approved', review_comment = ?, reviewed_at = ? "
+            "WHERE id = ? AND status = 'pending' AND deleted = 0",
+            (*_question_values(question), comment, now, question.id),
+        )
+        return cursor.rowcount == 1
+
+
 def question_counts() -> dict[tuple[str, str], int]:
     """Сколько вопросов в банке: словарь {(предмет, тип): количество}."""
     with connect() as connection:
         rows = connection.execute(
-            "SELECT subject, qtype, COUNT(*) AS n FROM questions WHERE deleted = 0 "
-            "GROUP BY subject, qtype"
+            "SELECT subject, qtype, COUNT(*) AS n FROM questions "
+            "WHERE deleted = 0 AND status = 'approved' GROUP BY subject, qtype"
         ).fetchall()
     return {(row["subject"], row["qtype"]): row["n"] for row in rows}
 
@@ -818,7 +971,7 @@ def random_questions(
     with connect() as connection:
         rows = connection.execute(
             "SELECT q.id, q.qtype, q.options_json FROM questions q "
-            f"WHERE q.subject = ? AND q.deleted = 0 {type_filter}"
+            f"WHERE q.subject = ? AND q.deleted = 0 AND q.status = 'approved' {type_filter}"
             f"ORDER BY {seen_order}RANDOM() LIMIT ?",
             params,
         ).fetchall()

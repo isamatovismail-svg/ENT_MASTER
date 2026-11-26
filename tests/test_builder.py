@@ -177,6 +177,8 @@ class MigrationTests(DatabaseTestCase):
         database.init_db()  # повторный запуск безопасен
         with database.connect() as connection:
             for table, column in (("users", "email_verified"),
+                                  ("questions", "status"),
+                                  ("questions", "author_id"),
                                   ("users", "phone"),
                                   ("questions", "explanation"),
                                   ("questions", "edited_by_admin"),
@@ -184,9 +186,10 @@ class MigrationTests(DatabaseTestCase):
                                   ("attempt_questions", "checked")):
                 columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
                 self.assertIn(column, columns)
-            row = connection.execute("SELECT text, explanation FROM questions").fetchone()
+            row = connection.execute("SELECT text, explanation, status FROM questions").fetchone()
             user = connection.execute("SELECT email_verified, phone FROM users").fetchone()
-        self.assertEqual((row["text"], row["explanation"]), ("старый вопрос", ""))
+        self.assertEqual((row["text"], row["explanation"], row["status"]),
+                         ("старый вопрос", "", "approved"))  # старые вопросы остаются в банке
         # Аккаунты, созданные до подтверждения почты, считаются подтверждёнными.
         self.assertEqual((user["email_verified"], user["phone"]), (1, None))
 

@@ -7,12 +7,14 @@ school_id из адреса сверяется со школой учителя 
 у подтверждённых учеников.
 """
 
+import sqlite3
+import time
 from collections.abc import Callable
 from datetime import date
 from functools import wraps
 
 import config
-from app import database, ent_logic, schools, views
+from app import database, ent_logic, question_form, schools, views
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, redirect
 
@@ -54,10 +56,12 @@ def _page(request: Request, school, title: str, content: SafeHTML, status: int =
         '<span class="admin-badge">🏫 $school</span>'
         '<a class="admin-tab" href="/teacher/$id">👥 Ученики и задания</a>'
         '<a class="admin-tab" href="/teacher/$id/assignments/new">＋ Новое задание</a>'
-        "$all</nav>$content",
+        "$questions$all</nav>$content",
         school=schools.school_title(school["city"], school["name"]), id=school["id"],
         all=SafeHTML('<a class="admin-tab" href="/teacher">🗂 Все школы</a>'
                      if request.user is not None and request.user.is_admin else ""),
+        questions=SafeHTML('<a class="admin-tab" href="/teacher/questions">📝 Мои вопросы</a>'
+                           if request.user is not None and request.user.is_teacher else ""),
         content=content,
     )
     return views.page(request, f"Кабинет учителя — {title}", head, status)
@@ -442,3 +446,150 @@ def assignment_delete(request: Request, school, assignment_id: int) -> Response:
     return redirect(f"/teacher/{school['id']}?msg=assignment_deleted")
 
 
+
+
+# ── Мои вопросы: учитель предлагает вопросы в общий банк ─────────────────────
+
+QUESTION_STATUS = {
+    database.Q_PENDING: '<span class="badge badge-warn">⏳ на проверке</span>',
+    database.Q_APPROVED: '<span class="badge badge-ok">✅ одобрен</span>',
+    database.Q_REJECTED: '<span class="badge badge-wrong">❌ отклонён</span>',
+}
+
+
+def teacher_only(view: View) -> View:
+    """Декоратор: вход + csrf и роль учителя (вопросы учителя привязаны к нему самому)."""
+
+    @wraps(view)
+    def wrapper(request: Request, **kwargs: object) -> Response:
+        """Пускает только учителя со школой."""
+        school_id = _teacher_school_id(request)
+        school = database.get_school(school_id) if school_id is not None else None
+        if school is None:
+            return views.error_page(
+                request, 403, "Раздел «Мои вопросы» доступен только учителям. "
+                "Администратор проверяет вопросы в админке → «Проверка».")
+        return view(request, school=school, **kwargs)
+
+    return views.login_required(wrapper)
+
+
+@teacher_only
+def my_questions(request: Request, school) -> Response:
+    """GET /teacher/questions — вопросы учителя, их статусы и комментарии администратора."""
+    assert request.user is not None
+    items = database.list_author_questions(request.user.id)
+    csrf = views._csrf_field(request)
+    rows = []
+    for question in items:
+        comment = (fragment('<p class="review-comment">💬 $comment</p>', comment=question.review_comment)
+                   if question.review_comment else SafeHTML(""))
+        if question.status == database.Q_APPROVED:
+            actions = SafeHTML('<span class="muted small">в общем банке</span>')
+        else:
+            actions = fragment(
+                '<a class="link" href="/teacher/questions/$id/edit">Изменить</a>'
+                '<form method="post" action="/teacher/questions/$id/delete" class="inline-form">$csrf'
+                '<button type="submit" class="btn btn-link">Удалить</button></form>',
+                id=question.id, csrf=csrf,
+            )
+        rows.append(fragment(
+            '<article class="card my-question"><header class="review-head">$status'
+            '<span class="muted small">#$id · $icon $subject · $type · отправлен $date</span></header>'
+            '<p><strong>$text</strong></p>$comment<div class="review-actions">$actions</div></article>',
+            status=SafeHTML(QUESTION_STATUS.get(question.status, "")), id=question.id,
+            icon=views._icon(question.subject), subject=config.SUBJECTS[question.subject].name,
+            type=config.QUESTION_TYPE_NAMES[question.qtype],
+            date=_date(question.submitted_at), text=question.text, comment=comment,
+            actions=actions,
+        ))
+    counts = {status: sum(q.status == status for q in items) for status in QUESTION_STATUS}
+    content = fragment(
+        '<section class="page-head admin-head"><div><span class="eyebrow">Мои вопросы</span>'
+        "<h1>📝 Вопросы для общего банка</h1>"
+        '<p class="muted">На проверке: $pending · одобрено: $approved · отклонено: $rejected. '
+        "Новый вопрос попадает в тесты только после одобрения администратором — тогда он "
+        "доступен ученикам всех школ. Отклонённый вопрос можно исправить и отправить снова.</p>"
+        '</div><a class="btn btn-primary" href="/teacher/questions/new">＋ Предложить вопрос</a>'
+        "</section>$list",
+        pending=counts[database.Q_PENDING], approved=counts[database.Q_APPROVED],
+        rejected=counts[database.Q_REJECTED],
+        list=join(rows) if rows else SafeHTML(
+            '<div class="card empty">Вы ещё не предлагали вопросов.</div>'),
+    )
+    return _page(request, school, "Мои вопросы", content)
+
+
+def _question_page(request: Request, school, form, url: str, title: str, errors: list[str],
+                   status: int = 200, note: SafeHTML | None = None) -> Response:
+    """Форма вопроса учителя (та же, что в админке)."""
+    content = question_form.form_content(
+        request, form, url, url, title, errors, note,
+        back_url="/teacher/questions", back_label="← К моим вопросам",
+        submit_label="📨 Отправить на проверку",
+    )
+    return _page(request, school, title, content, status)
+
+
+@teacher_only
+def my_question_new(request: Request, school) -> Response:
+    """GET/POST /teacher/questions/new — новый вопрос уходит на проверку."""
+    assert request.user is not None
+    url = "/teacher/questions/new"
+    if request.method == "POST":
+        form = question_form.form_from_request(request)
+        question, errors = question_form.build_question(form)
+        if question is not None:
+            try:
+                database.insert_teacher_question(question, request.user.id, time.time())
+            except sqlite3.IntegrityError:
+                errors = question_form.duplicate_error()
+            else:
+                return redirect("/teacher/questions?msg=tq_submitted")
+        return _question_page(request, school, form, url, "Новый вопрос", errors, 400)
+    form = question_form.QuestionForm(qtype=question_form.requested_type(request, config.SINGLE))
+    subject = request.query_value("subject")
+    form.subject = subject if subject in config.SUBJECTS else ""
+    return _question_page(request, school, form, url, "Новый вопрос", [])
+
+
+@teacher_only
+def my_question_edit(request: Request, school, question_id: int) -> Response:
+    """GET/POST /teacher/questions/<id>/edit — исправить вопрос на проверке или отклонённый."""
+    assert request.user is not None
+    existing = database.get_author_question(question_id, request.user.id)
+    if existing is None:
+        return views.not_found(request)
+    if existing.status == database.Q_APPROVED:
+        return redirect("/teacher/questions?msg=tq_locked")
+    url = f"/teacher/questions/{question_id}/edit"
+    title = f"Вопрос #{question_id}"
+    note = (views._notice("warning", f"Комментарий администратора: {existing.review_comment}")
+            if existing.review_comment else None)
+    if request.method == "POST":
+        form = question_form.form_from_request(request)
+        question, errors = question_form.build_question(form, question_id)
+        if question is not None:
+            try:
+                saved = database.resubmit_author_question(question, request.user.id, time.time())
+            except sqlite3.IntegrityError:
+                errors = question_form.duplicate_error()
+            else:
+                if not saved:
+                    return redirect("/teacher/questions?msg=tq_locked")
+                return redirect("/teacher/questions?msg=tq_resubmitted")
+        return _question_page(request, school, form, url, title, errors, 400, note)
+    form = question_form.form_from_question(
+        existing, question_form.requested_type(request, existing.qtype))
+    return _question_page(request, school, form, url, title, [], note=note)
+
+
+@teacher_only
+def my_question_delete(request: Request, school, question_id: int) -> Response:
+    """POST /teacher/questions/<id>/delete — удалить свой вопрос (если он ещё не одобрен)."""
+    assert request.user is not None
+    if database.get_author_question(question_id, request.user.id) is None:
+        return views.not_found(request)
+    if not database.delete_author_question(question_id, request.user.id):
+        return redirect("/teacher/questions?msg=tq_locked")
+    return redirect("/teacher/questions?msg=tq_deleted")

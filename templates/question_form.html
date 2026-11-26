@@ -1,7 +1,7 @@
 <section class="page-head">
-  <span class="eyebrow">Банк вопросов</span>
+  <span class="eyebrow">Вопрос</span>
   <h1>$title</h1>
-  <p><a class="link" href="/admin/questions">← К списку вопросов</a></p>
+  <p><a class="link" href="$back_url">$back_label</a></p>
 </section>
 
 $note
@@ -31,7 +31,7 @@ $errors
   <label class="field"><span>Объяснение — почему ответ правильный (2–4 предложения)</span>
     <textarea name="explanation" rows="4" maxlength="$text_max" required>$explanation</textarea></label>
   <div class="test-actions">
-    <a class="btn btn-ghost" href="/admin/questions">Отмена</a>
-    <button type="submit" class="btn btn-primary">💾 Сохранить вопрос</button>
+    <a class="btn btn-ghost" href="$back_url">Отмена</a>
+    <button type="submit" class="btn btn-primary">$submit_label</button>
   </div>
 </form>
