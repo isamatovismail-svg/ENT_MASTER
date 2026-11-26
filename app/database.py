@@ -15,7 +15,13 @@ from pathlib import Path
 import config
 
 ROLE_USER = "user"
-ROLE_ADMIN = "admin"
+ROLE_TEACHER = "teacher"  # учитель — администратор своей школы
+ROLE_ADMIN = "admin"      # главный администратор, полный доступ
+
+# Статус ученика в школе: ждёт подтверждения учителя, подтверждён, отклонён.
+SCHOOL_PENDING = "pending"
+SCHOOL_APPROVED = "approved"
+SCHOOL_REJECTED = "rejected"
 
 # Путь к файлу базы. Тесты подменяют его через configure().
 _db_path: Path = config.DATABASE_PATH
@@ -33,7 +39,42 @@ CREATE TABLE IF NOT EXISTS users (
     phone         TEXT,                          -- телефон +7XXXXXXXXXX (необязательно, не подтверждается)
     -- 0 — зарегистрировался по почте и ещё не ввёл код из письма (войти нельзя).
     -- Старые аккаунты (до подтверждения почты) считаются подтверждёнными.
-    email_verified INTEGER NOT NULL DEFAULT 1
+    email_verified INTEGER NOT NULL DEFAULT 1,
+    -- Школа: у ученика — куда он подал заявку (school_status), у учителя — его школа.
+    school_id     INTEGER,
+    school_status TEXT,                          -- pending / approved / rejected (или NULL)
+    last_login_at REAL                           -- время последнего входа
+);
+
+-- Школы: город + номер или название. key — нормализованная пара «город|школа»,
+-- чтобы «Школа №12» и «12» в одном городе были одной школой.
+CREATE TABLE IF NOT EXISTS schools (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    city       TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    key        TEXT NOT NULL UNIQUE,
+    created_at REAL NOT NULL
+);
+
+-- Задания учителя: N пробных ЕНТ (любая или конкретная пара) или N тренировок по предмету.
+CREATE TABLE IF NOT EXISTS assignments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    school_id  INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    mode       TEXT NOT NULL CHECK (mode IN ('mock', 'practice')),
+    -- Тренировка: код предмета. Пробный ЕНТ: «math,physics» или '' — любая пара.
+    target     TEXT NOT NULL DEFAULT '',
+    count      INTEGER NOT NULL,
+    for_all    INTEGER NOT NULL DEFAULT 1,  -- 1 — всем подтверждённым ученикам школы
+    created_at REAL NOT NULL,
+    deadline   REAL NOT NULL
+);
+
+-- Ученики, выбранные для задания (если for_all = 0).
+CREATE TABLE IF NOT EXISTS assignment_students (
+    assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (assignment_id, user_id)
 );
 
 -- Коды из писем: подтверждение почты (verify) и восстановление пароля (reset).
@@ -127,6 +168,9 @@ _ADDED_COLUMNS = (
     ("users", "telegram_id", "INTEGER"),
     ("users", "phone", "TEXT"),
     ("users", "email_verified", "INTEGER NOT NULL DEFAULT 1"),
+    ("users", "school_id", "INTEGER"),
+    ("users", "school_status", "TEXT"),
+    ("users", "last_login_at", "REAL"),
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("questions", "edited_by_admin", "INTEGER NOT NULL DEFAULT 0"),
@@ -149,8 +193,13 @@ class User:
 
     @property
     def is_admin(self) -> bool:
-        """True, если пользователь — администратор."""
+        """True, если пользователь — главный администратор."""
         return self.role == ROLE_ADMIN
+
+    @property
+    def is_teacher(self) -> bool:
+        """True, если пользователь — учитель (администратор своей школы)."""
+        return self.role == ROLE_TEACHER
 
 
 @dataclass
@@ -241,7 +290,13 @@ def init_db() -> None:
             existing = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
             if column not in existing:
                 # Имена таблиц и колонок — константы этого модуля, не данные пользователя.
-                connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                try:
+                    connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                except sqlite3.OperationalError as error:
+                    # run.py запускает сайт и бота одновременно: оба видят старую базу,
+                    # и колонку может успеть добавить второй процесс. Это не ошибка.
+                    if "duplicate column name" not in str(error):
+                        raise
         # Индекс создаётся после миграции: в старой базе колонки telegram_id ещё не было.
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id) "
@@ -250,6 +305,9 @@ def init_db() -> None:
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) "
             "WHERE phone IS NOT NULL"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_school ON users(school_id, school_status)"
         )
 
 
@@ -490,14 +548,18 @@ def get_user_credentials(login: str) -> sqlite3.Row | None:
 
 # ── Сессии ───────────────────────────────────────────────────────────────────
 
-def create_session(token_hash: str, user_id: int, csrf_token: str, expires_at: float) -> None:
-    """Сохраняет новую сессию. В базе хранится только хеш токена, не сам токен."""
+def create_session(
+    token_hash: str, user_id: int, csrf_token: str, expires_at: float, now: float | None = None
+) -> None:
+    """Сохраняет новую сессию (в базе только хеш токена) и время входа пользователя."""
     with connect() as connection:
         connection.execute(
             "INSERT INTO sessions (token_hash, user_id, csrf_token, expires_at) "
             "VALUES (?, ?, ?, ?)",
             (token_hash, user_id, csrf_token, expires_at),
         )
+        if now is not None:
+            connection.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (now, user_id))
 
 
 def get_session_user(token_hash: str, now: float) -> tuple[User, str] | None:
@@ -1008,3 +1070,240 @@ def complete_attempt(
             [(value, aq_id, attempt_id) for aq_id, value in points.items()],
         )
     return True
+
+
+# ── Школы ────────────────────────────────────────────────────────────────────
+
+def get_or_create_school(city: str, name: str, key: str, now: float) -> int:
+    """id школы с таким ключом; если её нет — создаёт (дубликатов не бывает: key UNIQUE)."""
+    with connect() as connection:
+        connection.execute(
+            "INSERT INTO schools (city, name, key, created_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (key) DO NOTHING",
+            (city, name, key, now),
+        )
+        row = connection.execute("SELECT id FROM schools WHERE key = ?", (key,)).fetchone()
+        return int(row["id"])
+
+
+def get_school(school_id: int) -> sqlite3.Row | None:
+    """Школа по id: id, city, name."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT id, city, name FROM schools WHERE id = ?", (school_id,)
+        ).fetchone()
+
+
+def list_schools() -> list[sqlite3.Row]:
+    """Все школы со счётчиками учеников, заявок и учителей (для главного администратора)."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT s.id, s.city, s.name, "
+            "SUM(u.role != 'teacher' AND u.school_status = 'approved') AS students, "
+            "SUM(u.role != 'teacher' AND u.school_status = 'pending') AS pending, "
+            "SUM(u.role = 'teacher') AS teachers "
+            "FROM schools s LEFT JOIN users u ON u.school_id = s.id "
+            "GROUP BY s.id ORDER BY s.city, s.name"
+        ).fetchall()
+
+
+def get_user_school(user_id: int) -> sqlite3.Row | None:
+    """Школа пользователя и его статус в ней: school_id, school_status, role, city, name."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT u.school_id, u.school_status, u.role, s.city, s.name "
+            "FROM users u JOIN schools s ON s.id = u.school_id WHERE u.id = ?",
+            (user_id,),
+        ).fetchone()
+
+
+def set_user_school(user_id: int, school_id: int | None, status: str | None) -> None:
+    """Записывает ученика в школу с заданным статусом (None, None — без школы).
+
+    Учителя так не меняются: их школу назначает главный администратор.
+    """
+    with connect() as connection:
+        connection.execute(
+            "UPDATE users SET school_id = ?, school_status = ? WHERE id = ? AND role != 'teacher'",
+            (school_id, status, user_id),
+        )
+
+
+def set_member_status(school_id: int, user_id: int, status: str | None) -> bool:
+    """Учитель подтверждает, отклоняет (rejected) или исключает (None) ученика своей школы.
+
+    False — такого ученика в этой школе нет.
+    """
+    with connect() as connection:
+        if status is None:
+            cursor = connection.execute(
+                "UPDATE users SET school_id = NULL, school_status = NULL "
+                "WHERE id = ? AND school_id = ? AND role != 'teacher'",
+                (user_id, school_id),
+            )
+        else:
+            cursor = connection.execute(
+                "UPDATE users SET school_status = ? "
+                "WHERE id = ? AND school_id = ? AND role != 'teacher' AND school_status IS NOT NULL",
+                (status, user_id, school_id),
+            )
+        return cursor.rowcount == 1
+
+
+def make_teacher(login: str, school_id: int) -> bool:
+    """Назначает пользователя (по логину или телефону) учителем школы. False — не найден."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE users SET role = ?, school_id = ?, school_status = ? WHERE id = "
+            "(SELECT id FROM users WHERE login = ? OR phone = ? ORDER BY login = ? DESC LIMIT 1)",
+            (ROLE_TEACHER, school_id, SCHOOL_APPROVED, login, login, login),
+        )
+        return cursor.rowcount == 1
+
+
+def revoke_role(login: str) -> bool:
+    """Снимает роль администратора или учителя (учитель при этом уходит из школы)."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE users SET "
+            "school_id = CASE WHEN role = 'teacher' THEN NULL ELSE school_id END, "
+            "school_status = CASE WHEN role = 'teacher' THEN NULL ELSE school_status END, "
+            "role = 'user' WHERE id = "
+            "(SELECT id FROM users WHERE login = ? OR phone = ? ORDER BY login = ? DESC LIMIT 1)",
+            (login, login, login),
+        )
+        return cursor.rowcount == 1
+
+
+def list_school_members(school_id: int, status: str) -> list[sqlite3.Row]:
+    """Ученики школы с этим статусом и сводкой их завершённых попыток.
+
+    mocks/practices — число пробных и тренировок, avg_mock/best_mock — средний и лучший
+    балл пробного ЕНТ, avg_percent — средний процент по всем попыткам.
+    """
+    with connect() as connection:
+        return connection.execute(
+            "SELECT u.id, u.name, u.login, u.phone, u.created_at, u.last_login_at, "
+            "COALESCE(SUM(a.mode = 'mock'), 0) AS mocks, "
+            "COALESCE(SUM(a.mode = 'practice'), 0) AS practices, "
+            "AVG(CASE WHEN a.mode = 'mock' THEN a.score END) AS avg_mock, "
+            "MAX(CASE WHEN a.mode = 'mock' THEN a.score END) AS best_mock, "
+            "AVG(CASE WHEN a.max_score > 0 THEN a.score * 100.0 / a.max_score END) AS avg_percent "
+            "FROM users u LEFT JOIN attempts a ON a.user_id = u.id AND a.status = 'finished' "
+            "WHERE u.school_id = ? AND u.school_status = ? AND u.role != 'teacher' "
+            "GROUP BY u.id ORDER BY u.name COLLATE NOCASE, u.id",
+            (school_id, status),
+        ).fetchall()
+
+
+def get_school_student(school_id: int, user_id: int) -> sqlite3.Row | None:
+    """Подтверждённый ученик этой школы (id, name, login, phone, created_at, last_login_at)."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT id, name, login, phone, created_at, last_login_at FROM users "
+            "WHERE id = ? AND school_id = ? AND school_status = 'approved' AND role != 'teacher'",
+            (user_id, school_id),
+        ).fetchone()
+
+
+# ── Задания учителя ──────────────────────────────────────────────────────────
+
+_ASSIGNMENT_COLUMNS = (
+    "id, school_id, created_by, mode, target, count, for_all, created_at, deadline"
+)
+
+
+def create_assignment(
+    school_id: int, created_by: int, mode: str, target: str, count: int,
+    created_at: float, deadline: float, student_ids: list[int] | None,
+) -> int:
+    """Создаёт задание. student_ids = None — для всех учеников школы."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO assignments "
+            "(school_id, created_by, mode, target, count, for_all, created_at, deadline) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (school_id, created_by, mode, target, count, int(student_ids is None),
+             created_at, deadline),
+        )
+        assignment_id = int(cursor.lastrowid)
+        connection.executemany(
+            "INSERT OR IGNORE INTO assignment_students (assignment_id, user_id) VALUES (?, ?)",
+            [(assignment_id, user_id) for user_id in student_ids or []],
+        )
+        return assignment_id
+
+
+def list_assignments(school_id: int) -> list[sqlite3.Row]:
+    """Задания школы, новые сверху."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {_ASSIGNMENT_COLUMNS} FROM assignments WHERE school_id = ? "
+            "ORDER BY created_at DESC, id DESC",
+            (school_id,),
+        ).fetchall()
+
+
+def get_assignment(assignment_id: int, school_id: int) -> sqlite3.Row | None:
+    """Задание, только если оно принадлежит этой школе."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {_ASSIGNMENT_COLUMNS} FROM assignments WHERE id = ? AND school_id = ?",
+            (assignment_id, school_id),
+        ).fetchone()
+
+
+def delete_assignment(assignment_id: int, school_id: int) -> bool:
+    """Удаляет задание своей школы. False — его нет."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "DELETE FROM assignments WHERE id = ? AND school_id = ?", (assignment_id, school_id)
+        )
+        return cursor.rowcount == 1
+
+
+def assignment_students(assignment: sqlite3.Row) -> list[sqlite3.Row]:
+    """Кому выдано задание: подтверждённые ученики школы (все или выбранные), по имени."""
+    query = (
+        "SELECT u.id, u.name, u.login FROM users u "
+        "WHERE u.school_id = ? AND u.school_status = 'approved' AND u.role != 'teacher' "
+    )
+    params: tuple = (assignment["school_id"],)
+    if not assignment["for_all"]:
+        query += (
+            "AND u.id IN (SELECT user_id FROM assignment_students WHERE assignment_id = ?) "
+        )
+        params += (assignment["id"],)
+    with connect() as connection:
+        return connection.execute(query + "ORDER BY u.name COLLATE NOCASE, u.id", params).fetchall()
+
+
+def list_student_assignments(user_id: int) -> list[sqlite3.Row]:
+    """Задания ученика: только из школы, где он подтверждён; ближайший срок сверху."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {', '.join('a.' + c for c in _ASSIGNMENT_COLUMNS.split(', '))} "
+            "FROM assignments a JOIN users u ON u.school_id = a.school_id "
+            "WHERE u.id = ? AND u.school_status = 'approved' AND u.role != 'teacher' "
+            "AND (a.for_all = 1 OR EXISTS (SELECT 1 FROM assignment_students s "
+            "WHERE s.assignment_id = a.id AND s.user_id = u.id)) "
+            "ORDER BY a.deadline, a.id",
+            (user_id,),
+        ).fetchall()
+
+
+def get_finished_attempts_between(
+    user_ids: list[int], mode: str, after: float, until: float
+) -> list[Attempt]:
+    """Завершённые попытки учеников в режиме mode с after < finished_at <= until."""
+    if not user_ids:
+        return []
+    marks = ", ".join("?" * len(user_ids))  # в текст SQL идут только знаки «?»
+    with connect() as connection:
+        rows = connection.execute(
+            f"SELECT {_ATTEMPT_COLUMNS} FROM attempts "
+            f"WHERE user_id IN ({marks}) AND mode = ? AND status = 'finished' "
+            "AND finished_at > ? AND finished_at <= ? ORDER BY finished_at, id",
+            (*user_ids, mode, after, until),
+        ).fetchall()
+    return [_attempt_from_row(row) for row in rows]

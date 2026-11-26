@@ -2421,3 +2421,79 @@ code {
 
 .tg-option { margin-top: 16px; }
 .tg-option p { margin: 8px 0 0; text-align: center; }
+
+/* ── Школа, задания и кабинет учителя ─────────────────────────────────────── */
+
+.school-card h3 { margin: 18px 0 10px; }
+
+.field-group {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.field-group legend { padding: 0 6px; font-weight: 700; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.check input { width: 18px; height: 18px; accent-color: var(--color-primary); }
+
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 16px;
+  padding-left: 26px;
+}
+
+.inline-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.member-list,
+.assignment-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-list li,
+.assignment-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.member-list li > div,
+.assignment-item > div {
+  display: grid;
+  gap: 2px;
+  min-width: 200px;
+  flex: 1;
+}
+
+.assignment-item progress { width: 120px; }
+
+.growth-table progress { width: 140px; vertical-align: middle; }
+
+.delta { font-weight: 700; }
+.delta-up { color: var(--success); }
+.delta-down { color: var(--danger); }
+.delta-same { color: var(--muted); }

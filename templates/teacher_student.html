@@ -1,0 +1,42 @@
+<section class="page-head">
+  <span class="eyebrow">Ученик</span>
+  <h1>$name</h1>
+  <p class="muted">$login · последний вход: $last</p>
+  <p><a class="link" href="/teacher/$sid">← Все ученики</a></p>
+</section>
+
+<section class="stat-grid">
+  <article class="stat-card stat-total"><p class="stat-title">Пробных ЕНТ</p>
+    <p class="stat-value">$mocks</p><p class="stat-note">тренировок: $practices</p></article>
+  <article class="stat-card stat-best"><p class="stat-title">Лучший пробный ЕНТ</p>
+    <p class="stat-value">$best <span>из $max_score</span></p></article>
+  <article class="stat-card stat-avg"><p class="stat-title">Средний балл ЕНТ</p>
+    <p class="stat-value">$average <span>из $max_score</span></p></article>
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>📊 Баллы по предметам</h2>
+    $strengths
+  </div>
+  <div class="card">
+    <h2>🔧 Слабые предметы</h2>
+    <p class="muted small">Где процент набранных баллов ниже всего.</p>
+    $weak
+  </div>
+</section>
+
+<section class="card">
+  <h2>📈 Рост результата</h2>
+  $growth
+</section>
+
+<section class="section">
+  <h2>🕒 История попыток</h2>
+  $history
+</section>
+
+<form method="post" action="/teacher/$sid/members/$uid" class="section">
+  $csrf
+  <button type="submit" name="action" value="remove" class="btn btn-link">Исключить из школы</button>
+</form>

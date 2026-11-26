@@ -242,3 +242,38 @@ class FinishTests(DatabaseTestCase):
         finished = self.load()
         self.assertTrue(finished.is_finished)
         self.assertEqual(finished.finished_at, attempt.deadline)
+
+
+class ConcurrentMigrationTests(DatabaseTestCase):
+    """Сайт и бот обновляют старую базу одновременно (run.py)."""
+
+    def test_column_added_by_other_process_is_not_an_error(self) -> None:
+        real_connect = database.connect
+
+        class Racing:
+            """Обёртка соединения: PRAGMA table_info «не видит» колонку phone, будто её ещё нет."""
+
+            def __init__(self, connection):
+                self._c = connection
+
+            def execute(self, sql, *args):
+                cursor = self._c.execute(sql, *args)
+                if sql.startswith("PRAGMA table_info(users)"):
+                    return [row for row in cursor.fetchall() if row["name"] != "phone"]
+                return cursor
+
+            def __getattr__(self, name):
+                return getattr(self._c, name)
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def racing_connect():
+            with real_connect() as connection:
+                yield Racing(connection)
+
+        database.connect = racing_connect
+        try:
+            database.init_db()  # колонка phone уже есть, но проверка её «не видит»
+        finally:
+            database.connect = real_connect

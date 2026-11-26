@@ -27,6 +27,21 @@
                placeholder="8 701 123 45 67">
         <small class="muted">С ним можно входить вместо почты.</small>
       </label>
+      <fieldset class="field-group">
+        <legend>Школа <small class="muted">(необязательно)</small></legend>
+        <div class="field-row">
+          <label class="field">
+            <span>Город</span>
+            <input type="text" name="school_city" value="$school_city" maxlength="60" placeholder="Алматы">
+          </label>
+          <label class="field">
+            <span>Номер или название школы</span>
+            <input type="text" name="school_name" value="$school_name" maxlength="100" placeholder="12 или НИШ">
+          </label>
+        </div>
+        <small class="muted">Оставьте пустым, если без школы. Учитель школы подтвердит заявку
+          и сможет давать задания.</small>
+      </fieldset>
       <label class="field">
         <span>Пароль</span>
         <input type="password" name="password" minlength="$min_length" autocomplete="new-password" required>

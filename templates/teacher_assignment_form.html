@@ -1,0 +1,41 @@
+<section class="page-head">
+  <span class="eyebrow">Новое задание</span>
+  <h1>📋 Выдать задание</h1>
+  <p class="muted">Засчитываются только попытки, завершённые после выдачи задания и до конца дня срока.</p>
+</section>
+
+<form method="post" action="/teacher/$sid/assignments/new" class="card form" novalidate>
+  $csrf
+  $errors
+  <fieldset class="field-group">
+    <legend>Что сделать</legend>
+    <label class="check"><input type="radio" name="mode" value="mock"$mock_checked> 📝 Пробные ЕНТ</label>
+    <label class="field">
+      <span>Пара профильных предметов (для пробного ЕНТ)</span>
+      <select name="pair"><option value=""$any_pair>Любая пара — на выбор ученика</option>$pairs</select>
+    </label>
+    <label class="check"><input type="radio" name="mode" value="practice"$practice_checked> 🎯 Тренировки</label>
+    <label class="field">
+      <span>Предмет (для тренировки)</span>
+      <select name="subject"><option value=""$no_subject>— выберите предмет —</option>$subjects</select>
+    </label>
+  </fieldset>
+  <div class="field-row">
+    <label class="field">
+      <span>Сколько раз</span>
+      <input type="number" name="count" value="$count" min="1" max="$max_count" required>
+    </label>
+    <label class="field">
+      <span>Срок (включительно)</span>
+      <input type="date" name="deadline" value="$deadline" min="$today" required>
+    </label>
+  </div>
+  <fieldset class="field-group">
+    <legend>Кому</legend>
+    <label class="check"><input type="radio" name="for_all" value="1"$all_checked> Всем ученикам школы
+      <small class="muted">(и тем, кого подтвердят позже)</small></label>
+    <label class="check"><input type="radio" name="for_all" value="0"$some_checked> Выбранным:</label>
+    <div class="check-grid">$students</div>
+  </fieldset>
+  <button type="submit" class="btn btn-primary">Выдать задание</button>
+</form>

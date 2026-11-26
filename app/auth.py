@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from http.cookies import SimpleCookie
 
 import config
-from app import database, mailer
+from app import database, mailer, schools
 from app.database import User
 from app.web import Request
 
@@ -138,10 +138,12 @@ class Registration:
     email: str
     phone: str | None
     pending_user_id: int   # неподтверждённый аккаунт с той же почтой (0 — нет)
+    school: tuple[str, str] | None = None  # (город, школа) или None — без школы
 
 
 def validate_registration(
-    first_name: str, last_name: str, email: str, phone: str, password: str, password2: str
+    first_name: str, last_name: str, email: str, phone: str, password: str, password2: str,
+    school_city: str = "", school_name: str = "",
 ) -> Registration:
     """Проверяет все поля регистрации или выбрасывает ValidationError со списком ошибок."""
     errors: list[str] = []
@@ -168,6 +170,12 @@ def validate_registration(
         except ValueError as error:
             errors.append(str(error))
 
+    school = None
+    try:
+        school = schools.validate_school(school_city, school_name)
+    except schools.SchoolError as error:
+        errors.extend(error.errors)
+
     _check_password(password, password2, errors)
 
     pending_user_id = 0
@@ -184,11 +192,12 @@ def validate_registration(
 
     if errors:
         raise ValidationError(errors)
-    return Registration(f"{first} {last}", clean_email, clean_phone, pending_user_id)
+    return Registration(f"{first} {last}", clean_email, clean_phone, pending_user_id, school)
 
 
 def register_user(
-    first_name: str, last_name: str, email: str, phone: str, password: str, password2: str
+    first_name: str, last_name: str, email: str, phone: str, password: str, password2: str,
+    school_city: str = "", school_name: str = "",
 ) -> int:
     """Создаёт неподтверждённый аккаунт и возвращает его id (или выбрасывает ValidationError).
 
@@ -196,20 +205,29 @@ def register_user(
     Если на эту почту уже начинали регистрацию и не подтвердили её, прежние данные
     заменяются новыми: без кода из письма такой аккаунт всё равно бесполезен.
     """
-    form = validate_registration(first_name, last_name, email, phone, password, password2)
+    form = validate_registration(first_name, last_name, email, phone, password, password2,
+                                 school_city, school_name)
     password_hash, salt = hash_password(password)
     try:
         if form.pending_user_id and database.update_unverified_user(
             form.pending_user_id, form.name, form.phone, password_hash, salt
         ):
-            return form.pending_user_id
-        return database.create_user(form.name, form.email, password_hash, salt, time.time(),
-                                    phone=form.phone, email_verified=False)
+            user_id = form.pending_user_id
+        else:
+            user_id = database.create_user(form.name, form.email, password_hash, salt,
+                                           time.time(), phone=form.phone, email_verified=False)
     except sqlite3.IntegrityError as error:
         # Почту или телефон могли занять между проверкой и записью (два запроса одновременно).
         raise ValidationError(
             ["Пользователь с такой почтой или телефоном уже зарегистрирован."]
         ) from error
+    # Школа: заявка ждёт подтверждения учителя (или «без школы»).
+    if form.school is None:
+        database.set_user_school(user_id, None, None)
+    else:
+        database.set_user_school(user_id, schools.find_or_create_school(*form.school),
+                                 database.SCHOOL_PENDING)
+    return user_id
 
 
 def create_account(name: str, login: str, password: str, phone: str | None = None) -> int:
@@ -410,7 +428,7 @@ def start_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
     database.create_session(
         _token_hash(token), user_id, secrets.token_urlsafe(32),
-        now + config.SESSION_LIFETIME_SECONDS,
+        now + config.SESSION_LIFETIME_SECONDS, now=now,
     )
     return _cookie_header(token, config.SESSION_LIFETIME_SECONDS)
 

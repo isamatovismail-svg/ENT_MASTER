@@ -44,7 +44,7 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
                 status: int = 200) -> Response:
     """Страница админки: подменю разделов + содержимое."""
     links = (("/admin", "📊 Обзор", "home"), ("/admin/questions", "📚 Вопросы", "questions"),
-             ("/admin/users", "👥 Пользователи", "users"))
+             ("/admin/users", "👥 Пользователи", "users"), ("/teacher", "🏫 Школы", "schools"))
     menu = join(
         fragment('<a href="$href" class="admin-tab$active">$label</a>', href=href, label=label,
                  active=SafeHTML(" admin-tab-active" if key == current else ""))
@@ -577,6 +577,8 @@ def _role_badge(role: str) -> SafeHTML:
     """Плашка роли пользователя."""
     if role == database.ROLE_ADMIN:
         return SafeHTML('<span class="badge badge-partial">⚙️ админ</span>')
+    if role == database.ROLE_TEACHER:
+        return SafeHTML('<span class="badge badge-ok">🏫 учитель</span>')
     return SafeHTML('<span class="badge">ученик</span>')
 
 

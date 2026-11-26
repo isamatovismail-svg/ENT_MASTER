@@ -14,7 +14,7 @@ from functools import wraps
 from urllib.parse import quote, urlencode
 
 import config
-from app import auth, database, ent_logic, google_auth, mailer
+from app import auth, database, ent_logic, google_auth, mailer, schools
 from app.database import Attempt, AttemptQuestion
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, html_response, redirect
@@ -35,6 +35,16 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "password_changed": ("success", "Пароль изменён. Вы вошли в аккаунт."),
     "google_off": ("info", "Вход через Google пока не настроен."),
     "google_failed": ("error", "Не удалось войти через Google. Попробуйте ещё раз."),
+    "school_requested": (
+        "success", "Заявка отправлена. Учитель школы увидит ваши результаты после подтверждения.",
+    ),
+    "school_same": ("info", "Вы уже в этой школе."),
+    "school_left": ("info", "Вы вышли из школы."),
+    "member_approved": ("success", "Ученик подтверждён — теперь видны его результаты."),
+    "member_rejected": ("info", "Заявка отклонена."),
+    "member_removed": ("info", "Ученик исключён из школы."),
+    "assignment_created": ("success", "Задание выдано."),
+    "assignment_deleted": ("info", "Задание удалено."),
     "logged_out": ("info", "Вы вышли из аккаунта."),
     "login_required": ("info", "Войдите, чтобы открыть эту страницу."),
     "saved": ("success", "Ответы сохранены."),
@@ -151,9 +161,12 @@ def _nav(request: Request) -> SafeHTML:
         '<a href="/mock">📝 Пробный ЕНТ</a>'
         '<a href="/practice">🎯 Тренировка</a>'
         '<a href="/history">📈 История</a>'
-        "$admin"
+        '<a href="/profile">👤 Профиль</a>'
+        "$teacher$admin"
         '<form method="post" action="/logout" class="nav-form">$csrf'
         '<button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>',
+        teacher=SafeHTML('<a class="nav-admin" href="/teacher">🏫 Учителю</a>'
+                         if request.user.is_teacher else ""),
         admin=SafeHTML('<a class="nav-admin" href="/admin">⚙️ Админка</a>' if request.user.is_admin else ""),
         csrf=_csrf_field(request),
     )
@@ -303,6 +316,8 @@ def _register_form(request: Request, errors: list[str]) -> Response:
         last_name=request.form_value("last_name"),
         email=request.form_value("email"),
         phone=request.form_value("phone"),
+        school_city=request.form_value("school_city"),
+        school_name=request.form_value("school_name"),
         min_length=config.PASSWORD_MIN_LENGTH,
         google=google_button(),
     )
@@ -331,6 +346,8 @@ def register_submit(request: Request) -> Response:
             request.form_value("first_name"), request.form_value("last_name"),
             request.form_value("email"), request.form_value("phone"),
             request.form_value("password"), request.form_value("password2"),
+            school_city=request.form_value("school_city"),
+            school_name=request.form_value("school_name"),
         )
     except auth.ValidationError as error:
         return _register_form(request, error.errors)
@@ -502,6 +519,74 @@ def _continue_blocks(user_id: int) -> SafeHTML:
     return join(blocks)
 
 
+def school_status_text(row) -> SafeHTML:
+    """Школа пользователя и статус заявки — для кабинета и профиля."""
+    if row is None:
+        return SafeHTML('<p class="muted">Вы не состоите в школе.</p>')
+    title = schools.school_title(row["city"], row["name"])
+    if row["role"] == database.ROLE_TEACHER:
+        badge = '<span class="badge badge-partial">учитель</span>'
+    else:
+        badge = {
+            database.SCHOOL_APPROVED: '<span class="badge badge-ok">подтверждено</span>',
+            database.SCHOOL_PENDING: '<span class="badge badge-warn">ждёт подтверждения учителя</span>',
+            database.SCHOOL_REJECTED: '<span class="badge badge-wrong">заявка отклонена</span>',
+        }.get(row["school_status"], "")
+    return fragment("<p><strong>🏫 $title</strong> $badge</p>", title=title, badge=SafeHTML(badge))
+
+
+def _deadline_text(deadline: float) -> str:
+    """Срок задания: «до 30.11.2026»."""
+    return "до " + datetime.fromtimestamp(deadline).strftime("%d.%m.%Y")
+
+
+ASSIGNMENT_STATUS = {
+    "done": ('<span class="badge badge-ok">✅ выполнено</span>'),
+    "overdue": ('<span class="badge badge-wrong">не выполнено</span>'),
+    "active": ('<span class="badge badge-warn">в процессе</span>'),
+}
+
+
+def _school_block(user_id: int) -> SafeHTML:
+    """Кабинет ученика: его школа и задания учителя."""
+    row = database.get_user_school(user_id)
+    assignments = database.list_student_assignments(user_id)
+    if row is None and not assignments:
+        return SafeHTML(
+            '<section class="card school-card"><div class="card-title-row"><h2>🏫 Школа</h2>'
+            '<a class="link" href="/profile">Указать школу →</a></div>'
+            '<p class="muted">Укажите школу — учитель сможет давать задания и видеть ваш прогресс.'
+            "</p></section>"
+        )
+    items = []
+    for assignment in assignments:
+        progress = schools.student_progress(assignment, user_id)
+        if progress is None:
+            continue
+        link = "/mock" if assignment["mode"] == "mock" else "/practice"
+        items.append(fragment(
+            '<li class="assignment-item"><div><strong>$title</strong>'
+            '<small class="muted">$deadline · сделано $done из $count</small></div>'
+            '<progress max="$count" value="$done">$done / $count</progress>'
+            '$status<a class="link" href="$link">Выполнить →</a></li>',
+            title=schools.assignment_title(assignment["mode"], assignment["target"],
+                                           assignment["count"]),
+            deadline=_deadline_text(assignment["deadline"]), done=progress.done,
+            count=assignment["count"], status=SafeHTML(ASSIGNMENT_STATUS[progress.status]),
+            link=link,
+        ))
+    tasks = (
+        fragment('<h3>📋 Задания учителя</h3><ul class="assignment-list">$items</ul>',
+                 items=join(items))
+        if items else SafeHTML("")
+    )
+    return fragment(
+        '<section class="card school-card"><div class="card-title-row"><h2>🏫 Школа</h2>'
+        '<a class="link" href="/profile">Изменить →</a></div>$status$tasks</section>',
+        status=school_status_text(row), tasks=tasks,
+    )
+
+
 @login_required
 def dashboard(request: Request) -> Response:
     """GET /dashboard — личный кабинет со статистикой и последними попытками."""
@@ -568,6 +653,7 @@ def dashboard(request: Request) -> Response:
         "dashboard.html",
         name=request.user.name,
         continue_block=_continue_blocks(user_id),
+        school_block=_school_block(user_id),
         best_card=best_card,
         last_card=last_card,
         total_card=total_card,
@@ -584,6 +670,76 @@ def dashboard(request: Request) -> Response:
         practice_count=config.PRACTICE_QUESTION_COUNT,
     )
     return page(request, "Личный кабинет", content)
+
+
+# ── Профиль: школа ───────────────────────────────────────────────────────────
+
+def _profile_page(request: Request, errors: list[str], city: str = "", name: str = "",
+                  status: int = 200) -> Response:
+    """Профиль: данные аккаунта и выбор школы."""
+    assert request.user is not None
+    row = database.get_user_school(request.user.id)
+    if row is not None and row["role"] == database.ROLE_TEACHER:
+        school_form = SafeHTML(
+            '<p class="muted">Школу учителя назначает главный администратор.</p>'
+        )
+    else:
+        leave = (
+            fragment(
+                '<form method="post" action="/profile/school" class="inline-form">$csrf'
+                '<button type="submit" name="action" value="leave" class="btn btn-link">'
+                "Выйти из школы</button></form>",
+                csrf=_csrf_field(request),
+            )
+            if row is not None else SafeHTML("")
+        )
+        school_form = render(
+            "profile_school_form.html",
+            csrf=_csrf_field(request),
+            city=city if errors else (row["city"] if row else ""),
+            name=name if errors else (row["name"] if row else ""),
+            button="Сменить школу" if row is not None else "Отправить заявку",
+            leave=leave,
+        )
+    content = render(
+        "profile.html",
+        name=request.user.name,
+        login=request.user.login,
+        errors=_errors_block(errors),
+        school_status=school_status_text(row),
+        school_form=school_form,
+    )
+    return page(request, "Профиль", content, status)
+
+
+@login_required
+def profile(request: Request) -> Response:
+    """GET /profile — профиль ученика и его школа."""
+    return _profile_page(request, [])
+
+
+@login_required
+def profile_school(request: Request) -> Response:
+    """POST /profile/school — выбрать/сменить школу (нужно подтверждение) или выйти из неё."""
+    user_id = _user_id(request)
+    current = database.get_user_school(user_id)
+    if current is not None and current["role"] == database.ROLE_TEACHER:
+        return error_page(request, 403, "Школу учителя назначает главный администратор.")
+    if request.form_value("action") == "leave":
+        database.set_user_school(user_id, None, None)
+        return redirect("/profile?msg=school_left")
+    city, name = request.form_value("city"), request.form_value("name")
+    try:
+        if schools.validate_school(city, name) is None:
+            return _profile_page(
+                request, ["Укажите город и номер (или название) школы."], city, name, 400
+            )
+        school_id = schools.join_school(user_id, city, name)
+    except schools.SchoolError as error:
+        return _profile_page(request, error.errors, city, name, 400)
+    same = (current is not None and current["school_id"] == school_id
+            and current["school_status"] != database.SCHOOL_REJECTED)
+    return redirect("/profile?msg=" + ("school_same" if same else "school_requested"))
 
 
 # ── Пробный ЕНТ: выбор пары и старт ─────────────────────────────────────────

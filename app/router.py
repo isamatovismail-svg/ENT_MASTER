@@ -8,7 +8,7 @@
 import re
 from collections.abc import Callable
 
-from app import account_views, admin_views, telegram_views, views
+from app import account_views, admin_views, teacher_views, telegram_views, views
 from app.web import Request, Response
 
 View = Callable[..., Response]
@@ -46,6 +46,20 @@ ROUTES: list[tuple[str, str, View]] = [
     ("POST", "/attempt/<int:attempt_id>/<subject>", views.section_submit),
     ("GET", "/result/<int:attempt_id>", views.result_page),
     ("GET", "/history", views.history),
+    ("GET", "/profile", views.profile),
+    ("POST", "/profile/school", views.profile_school),
+    # Кабинет учителя (учитель своей школы и главный администратор)
+    ("GET", "/teacher", teacher_views.teacher_home),
+    ("GET", "/teacher/<int:school_id>", teacher_views.school_page),
+    ("POST", "/teacher/<int:school_id>/members/<int:user_id>", teacher_views.member_action),
+    ("GET", "/teacher/<int:school_id>/students/<int:user_id>", teacher_views.student_card),
+    ("GET", "/teacher/<int:school_id>/students/<int:user_id>/attempts/<int:attempt_id>",
+     teacher_views.student_attempt),
+    ("GET", "/teacher/<int:school_id>/assignments/new", teacher_views.assignment_new),
+    ("POST", "/teacher/<int:school_id>/assignments/new", teacher_views.assignment_new),
+    ("GET", "/teacher/<int:school_id>/assignments/<int:assignment_id>", teacher_views.assignment_page),
+    ("POST", "/teacher/<int:school_id>/assignments/<int:assignment_id>/delete",
+     teacher_views.assignment_delete),
     # Админ-панель (только для роли admin)
     ("GET", "/admin", admin_views.dashboard),
     ("GET", "/admin/questions", admin_views.questions),

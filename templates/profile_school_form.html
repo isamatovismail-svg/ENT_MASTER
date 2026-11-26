@@ -1,0 +1,17 @@
+<form method="post" action="/profile/school" class="form" novalidate>
+  $csrf
+  <div class="field-row">
+    <label class="field">
+      <span>Город</span>
+      <input type="text" name="city" value="$city" maxlength="60" placeholder="Алматы" required>
+    </label>
+    <label class="field">
+      <span>Номер или название школы</span>
+      <input type="text" name="name" value="$name" maxlength="100" placeholder="12 или НИШ" required>
+    </label>
+  </div>
+  <p class="muted small">Если такой школы ещё нет на сайте, она будет создана. Пока учитель
+    не подтвердит заявку, он не видит ваших результатов.</p>
+  <button type="submit" name="action" value="join" class="btn btn-primary">$button</button>
+</form>
+$leave
