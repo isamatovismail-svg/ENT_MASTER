@@ -8,8 +8,9 @@ import random
 
 from app.question_bank import validate_question
 from app.generators import (
-    biology_gen, chemistry_gen, geography_gen, informatics_gen, kz_history_gen, law_gen, math_gen,
-    math_literacy_gen, physics_gen, world_history_gen,
+    biology_gen, chemistry_gen, foreign_language_gen, geography_gen, informatics_gen, kazakh_language_gen,
+    kazakh_literature_gen, kz_history_gen, law_gen, math_gen, math_literacy_gen, physics_gen,
+    russian_language_gen, russian_literature_gen, world_history_gen,
 )
 from app.generators.common import SkipQuestion, polish
 
@@ -25,6 +26,11 @@ SUBJECT_TEMPLATES = {
     "biology": biology_gen.TEMPLATES,
     "world_history": world_history_gen.TEMPLATES,
     "law": law_gen.TEMPLATES,
+    "russian_language": russian_language_gen.TEMPLATES,
+    "russian_literature": russian_literature_gen.TEMPLATES,
+    "kazakh_language": kazakh_language_gen.TEMPLATES,
+    "kazakh_literature": kazakh_literature_gen.TEMPLATES,
+    "foreign_language": foreign_language_gen.TEMPLATES,
 }
 
 # Расчётные предметы: в них большие числа разбиваются пробелами (18 480).

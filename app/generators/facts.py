@@ -16,6 +16,32 @@ from typing import Callable
 from app.generators.common import SkipQuestion, matching, multiple, single
 
 
+# Служебные фразы шаблонов на языке предмета: русский, казахский, английский.
+PHRASES = {
+    "ru": {"match": "Установите соответствие {title}: 1) {a}; 2) {b}.",
+           "right": "Подходят: ",
+           "describe": "Прочитайте описание и ответьте на вопрос. {who}",
+           "described": "В тексте описан объект «{name}»: {about}.",
+           "about_q": "О ком или о чём идёт речь в описании «{about}»?",
+           "about_ctx": "Описание: {about}.",
+           "about_expl": "Это описание подходит к варианту «{name}»: {about}."},
+    "kk": {"match": "Сәйкестендіріңіз ({title}): 1) {a}; 2) {b}.",
+           "right": "Дұрыс жауаптар: ",
+           "describe": "Сипаттаманы оқып, сұраққа жауап беріңіз. {who}",
+           "described": "Мәтінде «{name}» сипатталған: {about}.",
+           "about_q": "Сипаттама кім немесе не туралы: «{about}»?",
+           "about_ctx": "Сипаттама: {about}.",
+           "about_expl": "Бұл сипаттама «{name}» нұсқасына сәйкес келеді: {about}."},
+    "en": {"match": "Match {title}: 1) {a}; 2) {b}.",
+           "right": "Correct answers: ",
+           "describe": "Read the description and answer the question. {who}",
+           "described": "The text describes “{name}”: {about}.",
+           "about_q": "Who or what is described: “{about}”?",
+           "about_ctx": "Description: {about}.",
+           "about_expl": "This description fits “{name}”: {about}."},
+}
+
+
 @dataclass(frozen=True)
 class Event:
     """Событие с датой."""
@@ -129,7 +155,8 @@ def _century(start: int) -> str:
 
 
 def fact_templates(facts: list[Fact], titles: dict[str, str],
-                   what_phrases: dict[str, str] | None = None) -> tuple[list[Callable], list[Callable]]:
+                   what_phrases: dict[str, str] | None = None,
+                   lang: str = "ru") -> tuple[list[Callable], list[Callable]]:
     """Шаблоны по таблице фактов: (один ответ, соответствие).
 
     titles — заголовки заданий на соответствие по группам:
@@ -169,10 +196,12 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
         if len(members) < 4:
             raise SkipQuestion
         picked = rng.sample(members, 4)
-        if len({f.about for f in picked}) < 4:
+        # У одного автора бывает несколько произведений: все четыре строки должны быть
+        # от разных «имён», иначе лишний вариант тоже оказался бы верным.
+        if len({f.about for f in picked}) < 4 or len({f.name for f in picked}) < 4:
             raise SkipQuestion
         a, b = picked[0], picked[1]
-        text = f"Установите соответствие {titles[group]}: 1) {a.name}; 2) {b.name}."
+        text = PHRASES[lang]["match"].format(title=titles[group], a=a.name, b=b.name)
         explanation = f"{a.name} — {a.about}. {b.name} — {b.about}."
         return matching(rng, text, [(a.name, a.about), (b.name, b.about)],
                         [picked[2].about, picked[3].about], explanation)
@@ -193,7 +222,7 @@ class Category:
     note: str = ""           # общее объяснение правила
 
 
-def category_templates(categories: list[Category]) -> list[Callable]:
+def category_templates(categories: list[Category], lang: str = "ru") -> list[Callable]:
     """Задания с несколькими ответами: 1–3 правильных из 6 вариантов."""
 
     def choose_all(rng: random.Random) -> dict:
@@ -204,13 +233,13 @@ def category_templates(categories: list[Category]) -> list[Callable]:
         wrong = rng.sample(cat.wrong, 6 - len(right))
         names = sorted(right + wrong)
         text = f"{cat.question}: {', '.join(names)}?"
-        explanation = (cat.note + " " if cat.note else "") + "Подходят: " + ", ".join(sorted(right)) + "."
+        explanation = (cat.note + " " if cat.note else "") + PHRASES[lang]["right"] + ", ".join(sorted(right)) + "."
         return multiple(rng, text, right, wrong, explanation)
 
     return [choose_all]
 
 
-def context_templates(facts: list[Fact]) -> list[Callable]:
+def context_templates(facts: list[Fact], lang: str = "ru") -> list[Callable]:
     """Задания по контексту: описание (note) без имени, нужно узнать, о ком или о чём речь."""
     usable = [f for f in facts if f.note and f.name.split()[0].lower() not in f.note.lower()]
 
@@ -222,23 +251,31 @@ def context_templates(facts: list[Fact]) -> list[Callable]:
         if len(others) < 3:
             raise SkipQuestion
         wrong = [f.name for f in rng.sample(others, min(6, len(others)))]
-        explanation = f"В тексте описан объект «{fact.name}»: {fact.about}."
-        return single(rng, f"Прочитайте описание и ответьте на вопрос. {fact.who}", fact.name, wrong, explanation,
+        phrases = PHRASES[lang]
+        explanation = phrases["described"].format(name=fact.name, about=fact.about)
+        return single(rng, phrases["describe"].format(who=fact.who), fact.name, wrong, explanation,
                       context=fact.note)
 
+    # «Описание» из одного названия произведения («Евгений Онегин») — не описание; такие строки пропускаем.
+    # Описание из одного-двух слов («sang») — тоже не описание.
+    describable = [f for f in facts if not f.about.startswith("«") and len(f.about.split()) >= 3]
+
     def by_about(rng: random.Random) -> dict:
-        fact = rng.choice(facts)
+        if not describable:
+            raise SkipQuestion
+        fact = rng.choice(describable)
         others = [f for f in facts if f.group == fact.group and f.name != fact.name]
         if len(others) < 3:
             raise SkipQuestion
         wrong = [f.name for f in rng.sample(others, min(6, len(others)))]
-        context = f"Описание: {fact.about}." + (f" {fact.note}" if fact.note and fact.name.split()[0].lower()
-                                                not in fact.note.lower() else "")
-        explanation = f"Это описание подходит к варианту «{fact.name}»: {fact.about}."
-        return single(rng, f"О ком или о чём идёт речь в описании «{fact.about}»?", fact.name, wrong,
+        phrases = PHRASES[lang]
+        context = phrases["about_ctx"].format(about=fact.about) + (
+            f" {fact.note}" if fact.note and fact.name.split()[0].lower() not in fact.note.lower() else "")
+        explanation = phrases["about_expl"].format(name=fact.name, about=fact.about)
+        return single(rng, phrases["about_q"].format(about=fact.about), fact.name, wrong,
                       explanation, context=context)
 
-    return ([by_description] if usable else []) + [by_about]
+    return ([by_description] if usable else []) + ([by_about] if describable else [])
 
 
 def event_context_templates(events: list[Event]) -> list[Callable]:
@@ -258,24 +295,24 @@ def event_context_templates(events: list[Event]) -> list[Callable]:
 
 def build(events: list[Event] | None = None, facts: list[Fact] | None = None,
           titles: dict[str, str] | None = None, what_phrases: dict[str, str] | None = None,
-          categories: list[Category] | None = None, extra: dict[str, list[Callable]] | None = None
-          ) -> dict[str, list[Callable]]:
+          categories: list[Category] | None = None, extra: dict[str, list[Callable]] | None = None,
+          lang: str = "ru") -> dict[str, list[Callable]]:
     """Собирает TEMPLATES профильного предмета из таблиц: все четыре типа заданий ЕНТ."""
     templates: dict[str, list[Callable]] = {"single": [], "context": [], "matching": [], "multiple": []}
-    if events:
+    if events:  # шаблоны событий пока только на русском
         single_t, multiple_t, matching_t = event_templates(events)
         templates["single"] += single_t
         templates["multiple"] += multiple_t
         templates["matching"] += matching_t
         templates["context"] += event_context_templates(events)
     if facts:
-        single_t, matching_t = fact_templates(facts, titles or {}, what_phrases)
+        single_t, matching_t = fact_templates(facts, titles or {}, what_phrases, lang)
         templates["single"] += single_t
         if titles:
             templates["matching"] += matching_t
-        templates["context"] += context_templates(facts)
+        templates["context"] += context_templates(facts, lang)
     if categories:
-        templates["multiple"] += category_templates(categories)
+        templates["multiple"] += category_templates(categories, lang)
     for qtype, functions in (extra or {}).items():
         templates[qtype] += functions
     return {qtype: functions for qtype, functions in templates.items() if functions}

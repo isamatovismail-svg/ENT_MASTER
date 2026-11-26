@@ -112,16 +112,16 @@ class SeedAndSelectionTests(DatabaseTestCase):
         _, errors = seed.seed()
         self.assertEqual(errors, [])
         counts = database.question_counts()
-        for subject in ("math", "physics", "chemistry", "informatics", "geography", "biology",
-                        "world_history", "law"):
+        for subject in generators.SUBJECT_TEMPLATES:
+            if subject in config.COMPULSORY_CODES:
+                continue
             for qtype, need in config.SUBJECTS[subject].quota:
                 self.assertGreaterEqual(counts[(subject, qtype)], need * 3, subject)
         self.assertGreaterEqual(counts[("math_literacy", config.SINGLE)], 300)
         self.assertGreaterEqual(counts[("kz_history", config.SINGLE)], 150)
-        # Полный пробный ЕНТ собирается для всех пар, где нет языков и литературы.
+        # Полный пробный ЕНТ (120 заданий) собирается для каждой пары профильных предметов.
         for index, pair in enumerate(config.PROFILE_PAIRS):
-            if set(pair) <= set(generators.SUBJECT_TEMPLATES):
-                self.assertEqual(ent_logic.pair_question_count(index, counts), config.MOCK_TOTAL_QUESTIONS, pair)
+            self.assertEqual(ent_logic.pair_question_count(index, counts), config.MOCK_TOTAL_QUESTIONS, pair)
         # Повторный запуск не создаёт дубликатов.
         seed.seed()
         self.assertEqual(database.question_counts(), counts)

@@ -1,0 +1,47 @@
+"""Общие шаблоны литературы: «автор → произведения», «герой → произведение», термины."""
+
+import random
+from typing import Callable
+
+from app.generators.common import single
+from app.generators.facts import Category, Fact
+
+
+def author_facts(works: dict[str, list[str]], who: str) -> list[Fact]:
+    """Факты «автор — произведение». who — шаблон вопроса с {work}: «Кто автор произведения «{work}»?»."""
+    return [Fact(author, f"«{work}»", who.format(work=work), "1", "автор")
+            for author, titles in works.items() for work in titles]
+
+
+def character_facts(characters: list[tuple[str, str]], who: str) -> list[Fact]:
+    """Факты «герой — произведение». who — шаблон с {work}: «Кто главный герой произведения «{work}»?»."""
+    return [Fact(name, f"«{work}»", who.format(work=work), "1", "герой") for name, work in characters]
+
+
+def author_categories(works: dict[str, list[str]], question: str, note: str) -> list[Category]:
+    """«Выберите произведения автора X»: для каждого автора, у которого больше одного произведения."""
+    categories = []
+    for author, titles in works.items():
+        if len(titles) < 2:
+            continue
+        others = tuple(f"«{w}»" for other, ws in works.items() if other != author for w in ws)
+        categories.append(Category(question.format(author=author), tuple(f"«{w}»" for w in titles), others,
+                                   note.format(author=author)))
+    return categories
+
+
+def hero_context(works: dict[str, list[str]], characters: list[tuple[str, str]],
+                 context_tpl: str, question_tpl: str, explanation_tpl: str) -> list[Callable]:
+    """Задание по контексту: справка «кто написал» + вопрос о герое этого произведения."""
+    author_of = {work: author for author, titles in works.items() for work in titles}
+    usable = [(hero, work) for hero, work in characters if work in author_of]
+
+    def hero_by_work(rng: random.Random) -> dict:
+        hero, work = rng.choice(usable)
+        wrong = [h for h, w in rng.sample([c for c in usable if c[1] != work], 3)]
+        author = author_of[work]
+        return single(rng, question_tpl.format(author=author, work=work), hero, wrong,
+                      explanation_tpl.format(hero=hero, work=work, author=author),
+                      context=context_tpl.format(author=author, work=work))
+
+    return [hero_by_work] if len(usable) >= 4 else []
