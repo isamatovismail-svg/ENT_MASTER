@@ -8,6 +8,7 @@
 
 import random
 
+import config
 from app.question_bank import validate_question
 from app.generators import (
     biology_gen, chemistry_gen, foreign_language_gen, geography_gen, informatics_gen, kazakh_language_gen,
@@ -35,6 +36,21 @@ SUBJECT_TEMPLATES = {
     "foreign_language": foreign_language_gen.TEMPLATES,
 }
 
+# Казахские версии шаблонов (app/generators/kk_*.py) — для предметов, вопросы которых зависят
+# от языка обучения. У предметов со своим языком (казахский/русский язык и литература) и у
+# общего иностранного языка одна версия.
+from app.generators import kk_gen  # noqa: E402
+
+KK_TEMPLATES = kk_gen.TEMPLATES
+
+
+def templates_for(subject: str, lang: str = "ru") -> dict:
+    """Шаблоны предмета для языка вопросов: ru — исходные, kk — казахские версии."""
+    if lang == "kk" and subject not in config.SUBJECT_OWN_LANGUAGE and subject not in config.SHARED_LANGUAGE_SUBJECTS:
+        return KK_TEMPLATES.get(subject, {})
+    return SUBJECT_TEMPLATES[subject]
+
+
 # Расчётные предметы: в них большие числа разбиваются пробелами (18 480).
 # В остальных числа — это обычно годы, их трогать нельзя (1771, а не 1 771).
 NUMERIC_SUBJECTS = {"math", "math_literacy", "physics", "chemistry", "informatics"}
@@ -43,17 +59,18 @@ NUMERIC_SUBJECTS = {"math", "math_literacy", "physics", "chemistry", "informatic
 DEFAULT_COUNTS = {"single": 600, "context": 120, "matching": 120, "multiple": 120}
 
 
-def generate(subject: str, qtype: str, count: int, seed: int = 2026) -> list[dict]:
+def generate(subject: str, qtype: str, count: int, seed: int = 2026, lang: str = "ru") -> list[dict]:
     """Создаёт до count разных вопросов (тексты не повторяются).
 
     seed делает результат воспроизводимым: повторный запуск даёт те же вопросы,
     и seed.py не наплодит дубликатов. Шаблоны используются по очереди,
     чтобы задачи были разнообразными.
     """
-    templates = SUBJECT_TEMPLATES[subject].get(qtype, [])
+    templates = templates_for(subject, lang).get(qtype, [])
     if not templates:
         return []
-    rng = random.Random(f"{seed}:{subject}:{qtype}")
+    # У русской версии ключ генератора прежний — уже загруженные задачи не меняются.
+    rng = random.Random(f"{seed}:{subject}:{qtype}" + ("" if lang == "ru" else f":{lang}"))
     questions: list[dict] = []
     seen: set[str] = set()
     exhausted: set[int] = set()
@@ -89,5 +106,6 @@ def generate(subject: str, qtype: str, count: int, seed: int = 2026) -> list[dic
             raise ValueError(f"{templates[number].__name__}: {problems}")
         misses[number] = 0
         seen.add(key)
+        question["language"] = config.question_language(subject, lang)
         questions.append(question)
     return questions

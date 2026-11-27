@@ -348,7 +348,9 @@ def question_delete(request: Request, question_id: int) -> Response:
 @admin_required
 def topics_report(request: Request) -> Response:
     """GET /admin/topics?subject=… — темы спецификации и сколько вопросов банка на каждую."""
-    counts = database.topic_counts()
+    # Покрытие считается отдельно для каждого языка: так видно, каких казахских вопросов не хватает.
+    by_language = {lang: database.topic_counts(lang) for lang in config.LANGUAGES}
+    ru, kk = by_language["ru"], by_language["kk"]
     subject = request.query_value("subject")
     if subject not in config.SUBJECTS:
         subject = ""
@@ -356,42 +358,50 @@ def topics_report(request: Request) -> Response:
     summary_rows = []
     for code, info in config.SUBJECTS.items():
         items = topics.topics_for(code)
-        covered = sum(1 for item in items if counts.get((code, item.code), 0))
-        untagged = counts.get((code, ""), 0)
+        covered = {lang: sum(1 for item in items if by_language[lang].get((code, item.code), 0))
+                   for lang in config.LANGUAGES}
+        untagged = ru.get((code, ""), 0) + (kk.get((code, ""), 0) if code not in config.SHARED_LANGUAGE_SUBJECTS else 0)
         summary_rows.append(fragment(
             '<tr><td><a class="subject-link" href="/admin/topics?subject=$code">$icon $name</a></td>'
-            '<td>$covered из $total</td><td><progress max="$total" value="$covered">$covered</progress></td>'
+            '<td>$ru из $total <progress max="$total" value="$ru">$ru</progress></td>'
+            '<td>$kk из $total <progress max="$total" value="$kk">$kk</progress></td>'
             "<td>$untagged</td></tr>",
-            code=code, icon=views._icon(code), name=info.name, covered=covered, total=len(items),
-            untagged=untagged or "—",
+            code=code, icon=views._icon(code), name=info.name, ru=covered["ru"], kk=covered["kk"],
+            total=len(items), untagged=untagged or "—",
         ))
     summary = fragment(
         '<div class="table-wrap"><table class="table"><thead><tr><th>Предмет</th>'
-        "<th>Тем с вопросами</th><th></th><th>Вопросов без темы</th></tr></thead>"
-        "<tbody>$rows</tbody></table></div>",
+        "<th>Тем с вопросами: русский</th><th>Тем с вопросами: казахский</th><th>Вопросов без темы</th>"
+        "</tr></thead><tbody>$rows</tbody></table></div>",
         rows=join(summary_rows),
     )
 
     details = SafeHTML("")
     if subject:
         items = topics.topics_for(subject)
-        total = sum(counts.get((subject, item.code), 0) for item in items) or 1
+        totals = {lang: sum(by_language[lang].get((subject, item.code), 0) for item in items) or 1
+                  for lang in config.LANGUAGES}
         rows = []
         section = None
         for item in items:
             if item.section != section:
                 section = item.section
                 rows.append(fragment('<tr class="section-row"><th colspan="4">$s</th></tr>', s=section))
-            n = counts.get((subject, item.code), 0)
+            cells = []
+            for lang in config.LANGUAGES:
+                n = by_language[lang].get((subject, item.code), 0)
+                share = f"{round(n * 100 / totals[lang], 1):g}%".replace(".", ",") if n else "—"
+                cells.append(fragment("<td>$n · $share</td>", n=n or t("нет"), share=share))
             rows.append(fragment(
-                '<tr class="$cls"><td>$code</td><td>$name</td><td>$n</td><td>$share</td></tr>',
-                cls="topic-empty" if not n else "", code=item.code, name=item.name, n=n or t("нет"),
-                share=f"{round(n * 100 / total, 1):g}%".replace(".", ",") if n else "—",
+                '<tr class="$cls"><td>$code</td><td>$name</td>$cells</tr>',
+                cls="topic-empty" if not all(by_language[lang].get((subject, item.code), 0)
+                                             for lang in config.LANGUAGES) else "",
+                code=item.code, name=item.name, cells=join(cells),
             ))
         details = fragment(
             '<section class="section"><h2>$icon $name: темы спецификации</h2>'
             '<div class="table-wrap"><table class="table"><thead><tr><th>№</th><th>Тема</th>'
-            "<th>Вопросов в банке</th><th>Доля в банке</th></tr></thead><tbody>$rows</tbody>"
+            "<th>Русский: вопросов · доля</th><th>Казахский: вопросов · доля</th></tr></thead><tbody>$rows</tbody>"
             "</table></div></section>",
             icon=views._icon(subject), name=config.SUBJECTS[subject].name, rows=join(rows),
         )

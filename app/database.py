@@ -151,6 +151,8 @@ CREATE TABLE IF NOT EXISTS questions (
     reviewed_at    REAL,                      -- когда проверен
     -- Тема по спецификации НЦТ: номер из app/topics.py («05»), '' — без темы.
     topic          TEXT NOT NULL DEFAULT '',
+    -- Язык вопроса: ru / kk. Иностранный язык — общий (на английском), см. config.SHARED_LANGUAGE_SUBJECTS.
+    language       TEXT NOT NULL DEFAULT 'ru',
     UNIQUE (subject, text)
 );
 
@@ -229,6 +231,7 @@ _ADDED_COLUMNS = (
     ("questions", "submitted_at", "REAL"),
     ("questions", "reviewed_at", "REAL"),
     ("questions", "topic", "TEXT NOT NULL DEFAULT ''"),
+    ("questions", "language", "TEXT NOT NULL DEFAULT 'ru'"),
     ("attempt_questions", "option_order_json", "TEXT"),
     ("attempt_questions", "checked", "INTEGER NOT NULL DEFAULT 0"),
 )
@@ -364,6 +367,14 @@ def init_db() -> None:
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_users_school ON users(school_id, school_status)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_questions_language ON questions(subject, language, qtype)"
+        )
+        # До этапа 10 язык не хранился: казахский язык и литература всегда были на казахском.
+        connection.execute(
+            "UPDATE questions SET language = 'kk' WHERE subject IN ('kazakh_language', 'kazakh_literature') "
+            "AND language = 'ru'"
         )
 
 
@@ -680,9 +691,9 @@ def delete_expired_sessions(now: float) -> None:
 
 _UPSERT_SQL = (
     "INSERT INTO questions "
-    "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, topic) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-    "ON CONFLICT (subject, text) DO UPDATE SET topic = excluded.topic, "
+    "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, topic, language) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+    "ON CONFLICT (subject, text) DO UPDATE SET topic = excluded.topic, language = excluded.language, "
     "qtype = excluded.qtype, context = excluded.context, "
     "options_json = excluded.options_json, left_json = excluded.left_json, "
     "correct_json = excluded.correct_json, explanation = excluded.explanation, "
@@ -705,6 +716,7 @@ def _upsert_values(subject: str, question: dict) -> tuple:
         json.dumps(question["correct"]),
         question.get("explanation", "").strip(),
         question.get("topic", ""),
+        question.get("language", "ru"),
     )
 
 
@@ -718,6 +730,7 @@ def upsert_question(
     correct: list[str],
     explanation: str = "",
     topic: str = "",
+    language: str = "ru",
 ) -> None:
     """Добавляет вопрос или обновляет существующий с тем же предметом и текстом.
 
@@ -725,7 +738,8 @@ def upsert_question(
     попадут в базу, а дубликаты не появятся.
     """
     question = {"type": qtype, "text": text, "context": context, "options": options,
-                "left": left, "correct": correct, "explanation": explanation, "topic": topic}
+                "left": left, "correct": correct, "explanation": explanation, "topic": topic,
+                "language": language}
     with connect() as connection:
         connection.execute(_UPSERT_SQL, _upsert_values(subject, question))
 
@@ -758,11 +772,13 @@ class Question:
     author_id: int | None = None
     review_comment: str = ""
     submitted_at: float | None = None
+    language: str = "ru"  # ru / kk
 
 
 _QUESTION_COLUMNS = (
     "q.id, q.subject, q.qtype, q.text, q.context, q.options_json, q.left_json, "
     "q.correct_json, q.explanation, q.topic, q.status, q.author_id, q.review_comment, q.submitted_at, "
+    "q.language, "
     "(SELECT COUNT(*) FROM attempt_questions aq WHERE aq.question_id = q.id) AS used"
 )
 
@@ -785,6 +801,7 @@ def _question_from_row(row: sqlite3.Row) -> Question:
         author_id=row["author_id"],
         review_comment=row["review_comment"],
         submitted_at=row["submitted_at"],
+        language=row["language"],
     )
 
 
@@ -829,6 +846,7 @@ def _question_values(question: Question) -> tuple:
         json.dumps(question.correct),
         question.explanation,
         question.topic,
+        question.language,
     )
 
 
@@ -841,7 +859,7 @@ def insert_question(question: Question) -> int:
         cursor = connection.execute(
             "INSERT INTO questions "
             "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, "
-            "topic, edited_by_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            "topic, language, edited_by_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
             _question_values(question),
         )
         return int(cursor.lastrowid)
@@ -855,7 +873,7 @@ def update_question(question: Question) -> bool:
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, language = ?, "
             "edited_by_admin = 1 WHERE id = ? AND deleted = 0 AND status = 'approved'",
             (*_question_values(question), question.id),
         )
@@ -895,7 +913,7 @@ def insert_teacher_question(question: Question, author_id: int, now: float) -> i
         cursor = connection.execute(
             "INSERT INTO questions "
             "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, "
-            "topic, status, author_id, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "topic, language, status, author_id, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (*_question_values(question), Q_PENDING, author_id, now),
         )
         return int(cursor.lastrowid)
@@ -931,7 +949,7 @@ def resubmit_author_question(question: Question, author_id: int, now: float) -> 
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, language = ?, "
             "status = 'pending', review_comment = '', submitted_at = ?, reviewed_at = NULL "
             "WHERE id = ? AND author_id = ? AND deleted = 0 AND status != 'approved'",
             (*_question_values(question), now, question.id, author_id),
@@ -1001,7 +1019,7 @@ def approve_with_changes(question: Question, comment: str, now: float) -> bool:
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
-            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, "
+            "options_json = ?, left_json = ?, correct_json = ?, explanation = ?, topic = ?, language = ?, "
             "edited_by_admin = 1, status = 'approved', review_comment = ?, reviewed_at = ? "
             "WHERE id = ? AND status = 'pending' AND deleted = 0",
             (*_question_values(question), comment, now, question.id),
@@ -1022,14 +1040,28 @@ def retire_untagged_questions() -> int:
         return cursor.rowcount
 
 
-def topic_counts() -> dict[tuple[str, str], int]:
-    """Сколько вопросов банка (одобренных, не удалённых) на каждую тему: {(предмет, тема): n}."""
+def topic_counts(language: str | None = None) -> dict[tuple[str, str], int]:
+    """Сколько вопросов банка (одобренных, не удалённых) на каждую тему: {(предмет, тема): n}.
+
+    language — только вопросы этого языка (общие предметы — все), None — все языки.
+    """
+    where, params = _language_filter(language)
     with connect() as connection:
         rows = connection.execute(
-            "SELECT subject, topic, COUNT(*) AS n FROM questions "
-            "WHERE deleted = 0 AND status = 'approved' GROUP BY subject, topic"
+            "SELECT subject, topic, COUNT(*) AS n FROM questions q "
+            f"WHERE deleted = 0 AND status = 'approved' {where} GROUP BY subject, topic", params,
         ).fetchall()
     return {(row["subject"], row["topic"]): row["n"] for row in rows}
+
+
+def _language_filter(language: str | None) -> tuple[str, list]:
+    """Условие «вопрос на языке ученика»: у общих предметов (иностранный язык) и у предметов
+    со своим языком (казахский/русский язык и литература) язык ученика не важен."""
+    if language is None:
+        return "", []
+    free = config.SHARED_LANGUAGE_SUBJECTS + tuple(config.SUBJECT_OWN_LANGUAGE)
+    marks = ", ".join("?" * len(free))
+    return f"AND (q.language = ? OR q.subject IN ({marks})) ", [language, *free]
 
 
 def get_topic_results(user_id: int) -> list[sqlite3.Row]:
@@ -1046,18 +1078,23 @@ def get_topic_results(user_id: int) -> list[sqlite3.Row]:
         ).fetchall()
 
 
-def question_counts() -> dict[tuple[str, str], int]:
-    """Сколько вопросов в банке: словарь {(предмет, тип): количество}."""
+def question_counts(language: str | None = None) -> dict[tuple[str, str], int]:
+    """Сколько вопросов в банке: словарь {(предмет, тип): количество}.
+
+    language — считать только вопросы на этом языке (как их увидит ученик), None — все.
+    """
+    where, params = _language_filter(language)
     with connect() as connection:
         rows = connection.execute(
-            "SELECT subject, qtype, COUNT(*) AS n FROM questions "
-            "WHERE deleted = 0 AND status = 'approved' GROUP BY subject, qtype"
+            "SELECT subject, qtype, COUNT(*) AS n FROM questions q "
+            f"WHERE deleted = 0 AND status = 'approved' {where}GROUP BY subject, qtype", params,
         ).fetchall()
     return {(row["subject"], row["qtype"]): row["n"] for row in rows}
 
 
 def random_questions(
-    subject: str, qtype: str | None, limit: int, user_id: int | None = None
+    subject: str, qtype: str | None, limit: int, user_id: int | None = None,
+    language: str | None = None,
 ) -> list[QuestionRef]:
     """Возвращает до limit случайных вопросов предмета.
 
@@ -1078,13 +1115,15 @@ def random_questions(
     if qtype is not None:
         type_filter = "AND q.qtype = ? "
         params.append(qtype)
+    language_filter, language_params = _language_filter(language)
+    params += language_params
     if user_id is not None:
         params.append(user_id)
     params.append(limit)
     with connect() as connection:
         rows = connection.execute(
             "SELECT q.id, q.qtype, q.options_json FROM questions q "
-            f"WHERE q.subject = ? AND q.deleted = 0 AND q.status = 'approved' {type_filter}"
+            f"WHERE q.subject = ? AND q.deleted = 0 AND q.status = 'approved' {type_filter}{language_filter}"
             f"ORDER BY {seen_order}RANDOM() LIMIT ?",
             params,
         ).fetchall()

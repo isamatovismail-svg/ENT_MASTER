@@ -42,6 +42,8 @@ def russian_strings(html: str) -> list[str]:
         text = " ".join(unescape(raw).split())
         if not re.search("[А-Яа-яЁё]", text):
             continue
+        if text in i18n.LANGUAGE_NAMES.values():
+            continue  # названия языков в переключателе — на своём языке («Русский», «Қазақ тілі»)
         translation = i18n.KK_DICT.get(text)
         if translation is not None and translation != text:
             found.append(text)   # строка из словаря осталась непереведённой
@@ -87,7 +89,8 @@ class KazakhPagesTests(DatabaseTestCase):
         for number in range(12):  # вопросы-«содержимое» без совпадений со строками интерфейса
             database.upsert_question("math", config.SINGLE, f"{number + 2} + 2 = ?", "",
                                      [str(number + 4), str(number + 5), str(number + 6), str(number + 7)],
-                                     [], ["A"], explanation=f"{number + 2} + 2 = {number + 4}.", topic="01")
+                                     [], ["A"], explanation=f"{number + 2} + 2 = {number + 4}.", topic="01",
+                                     language="kk")
         self.server = create_server("127.0.0.1", 0)
         self.base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()

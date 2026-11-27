@@ -221,6 +221,37 @@ PROFILE_PAIRS: tuple[tuple[str, str], ...] = (
     ("foreign_language", "world_history"),
 )
 
+# ── Языки обучения ───────────────────────────────────────────────────────────
+# Вопросы бывают на русском (ru) и казахском (kk); ученик получает вопросы на своём языке обучения.
+LANGUAGES = ("ru", "kk")
+# Общие предметы: одни и те же вопросы для всех (иностранный язык — на английском).
+SHARED_LANGUAGE_SUBJECTS: tuple[str, ...] = ("foreign_language",)
+# Предметы со своим языком: вопросы всегда на языке предмета, независимо от языка ученика.
+SUBJECT_OWN_LANGUAGE = {
+    "kazakh_language": "kk", "kazakh_literature": "kk",
+    "russian_language": "ru", "russian_literature": "ru",
+}
+# Профильная пара «язык обучения и литература» (egov.kz, правила ЕНТ): казахская — для казахского
+# языка обучения, русская — для русского. Остальные пары одинаковы для обоих языков.
+LANGUAGE_ONLY_PAIRS = {
+    ("kazakh_language", "kazakh_literature"): "kk",
+    ("russian_language", "russian_literature"): "ru",
+}
+
+
+def pairs_for(language: str) -> list[int]:
+    """Индексы пар PROFILE_PAIRS, доступных для языка обучения."""
+    return [index for index, pair in enumerate(PROFILE_PAIRS)
+            if LANGUAGE_ONLY_PAIRS.get(pair, language) == language]
+
+
+def question_language(subject: str, language: str) -> str:
+    """На каком языке хранится вопрос предмета для ученика с этим языком обучения."""
+    if subject in SHARED_LANGUAGE_SUBJECTS:
+        return "en"
+    return SUBJECT_OWN_LANGUAGE.get(subject, language)
+
+
 # Итоговые числа пробного ЕНТ считаются из квот, а не пишутся вручную:
 # 20 + 10 + 10 + 40 + 40 = 120 заданий, 20 + 10 + 10 + 50 + 50 = 140 баллов.
 _PROFILE_EXAMPLE = SUBJECTS[PROFILE_PAIRS[0][0]]

@@ -204,6 +204,10 @@ def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
     """
     now = time.time() if now is None else now
     subjects = mock_subjects(pair_index)
+    language = database.get_user_language(user_id)
+    if pair_index not in config.pairs_for(language):
+        # Пара «язык обучения и литература» — только для своего языка обучения.
+        raise TestBuildError(t("Эта пара профильных предметов недоступна для вашего языка обучения."))
     chosen: list[tuple[int, str, list[int]]] = []
     shortage: list[dict] = []
     max_score = 0
@@ -211,7 +215,7 @@ def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
     for code in subjects:
         subject_refs: list[database.QuestionRef] = []
         for qtype, need in config.SUBJECTS[code].quota:
-            found = database.random_questions(code, qtype, need, user_id)
+            found = database.random_questions(code, qtype, need, user_id, language)
             subject_refs.extend(found)
             max_score += len(found) * question_max_points(qtype)
             if len(found) < need:
@@ -235,7 +239,8 @@ def build_practice(user_id: int, subject_code: str, now: float | None = None) ->
         raise TestBuildError(t("Такого предмета нет."))
     now = time.time() if now is None else now
     found = database.random_questions(
-        subject_code, None, config.PRACTICE_QUESTION_COUNT, user_id
+        subject_code, None, config.PRACTICE_QUESTION_COUNT, user_id,
+        database.get_user_language(user_id),
     )
     if not found:
         raise TestBuildError(t("По этому предмету пока нет вопросов в банке."))

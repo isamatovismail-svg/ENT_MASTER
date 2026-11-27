@@ -18,6 +18,9 @@ $errors
   $csrf
   <input type="hidden" name="type" value="$qtype">
   <label class="field"><span>Предмет</span><select name="subject" required>$subject_options</select></label>
+  <fieldset class="field-group"><legend>Язык вопроса</legend><div class="check-row">$language_options</div>
+    <small class="muted">Ученики с казахским языком обучения получают только казахские вопросы, с русским — только русские.
+      У казахского и русского языка и литературы язык вопроса — язык предмета, иностранный язык — общий.</small></fieldset>
   <label class="field"><span>Тема спецификации НЦТ</span><select name="topic" required>$topic_options</select>
     <small class="muted">Выберите тему из группы выбранного предмета.</small></label>
   $context_field

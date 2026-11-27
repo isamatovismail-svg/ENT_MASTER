@@ -14,6 +14,7 @@ from app.database import Question
 from app.question_bank import validate_question
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request
+from app import i18n
 from app.i18n import t
 
 LEFT_ROWS = 6             # строк «слева» в форме задания на соответствие
@@ -35,6 +36,11 @@ class QuestionForm:
     match: list[str] = field(default_factory=lambda: [""] * LEFT_ROWS)
     explanation: str = ""
     topic: str = ""
+    language: str = "ru"  # язык вопроса: ru / kk
+
+
+# Подписи языков вопроса в форме и в списках.
+QUESTION_LANGUAGES = i18n.Translated({"ru": "Русский", "kk": "Казахский"})
 
 
 def form_from_question(question: Question, qtype: str) -> QuestionForm:
@@ -42,6 +48,7 @@ def form_from_question(question: Question, qtype: str) -> QuestionForm:
     form = QuestionForm(
         subject=question.subject, qtype=qtype, context=question.context,
         text=question.text, explanation=question.explanation, topic=question.topic,
+        language=question.language if question.language in QUESTION_LANGUAGES else "ru",
     )
     for index, option in enumerate(question.options[: len(form.options)]):
         form.options[index] = option
@@ -65,6 +72,8 @@ def form_from_request(request: Request) -> QuestionForm:
         text=request.form_value("text").strip(),
         explanation=request.form_value("explanation").strip(),
         topic=request.form_value("topic"),
+        language=request.form_value("language") if request.form_value("language") in QUESTION_LANGUAGES
+        else i18n.get_language(),
     )
     letters = config.OPTION_LETTERS
     form.options = [request.form_value(f"opt_{letter}").strip() for letter in letters]
@@ -138,6 +147,7 @@ def build_question(form: QuestionForm, question_id: int = 0) -> tuple[Question |
         id=question_id, subject=form.subject, qtype=form.qtype, text=data["text"],
         context=data["context"], options=options, left=left, correct=correct,
         explanation=form.explanation, topic=form.topic,
+        language=config.question_language(form.subject, form.language),
     ), []
 
 
@@ -217,6 +227,11 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
             for code, info in config.SUBJECTS.items()
         ]
     )
+    language_options = join(
+        fragment('<label class="check"><input type="radio" name="language" value="$code"$c> $name</label>',
+                 code=code, name=name, c=SafeHTML(" checked" if code == form.language else ""))
+        for code, name in QUESTION_LANGUAGES.items()
+    )
     context_field = SafeHTML("")
     if form.qtype == config.CONTEXT:
         context_field = fragment(
@@ -242,6 +257,7 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
         qtype=form.qtype,
         subject_options=subject_options,
         topic_options=_topic_options(form),
+        language_options=language_options,
         context_field=context_field,
         text=form.text,
         text_max=TEXT_MAX_LENGTH,
@@ -283,6 +299,13 @@ def duplicate_error() -> list[str]:
             "проверке). Измените формулировку.")]
 
 
+def language_label(question: Question) -> str:
+    """«🇰🇿 Казахский» / «Русский» / «English» — язык вопроса для списков и проверки."""
+    if question.subject in config.SHARED_LANGUAGE_SUBJECTS:
+        return "English"
+    return ("🇰🇿 " if question.language == "kk" else "") + QUESTION_LANGUAGES.get(question.language, question.language)
+
+
 def preview(question: Question) -> SafeHTML:
     """Вопрос целиком для проверки: контекст, варианты (верные отмечены), объяснение."""
     context = (fragment('<p class="q-context">$c</p>', c=question.context)
@@ -304,10 +327,11 @@ def preview(question: Question) -> SafeHTML:
     )
     return fragment(
         '<div class="question-preview">'
-        '<p class="muted small">$icon $subject · $type</p>$context'
+        '<p class="muted small">$icon $subject · $type · $language</p>$context'
         '<p class="q-text"><strong>$text</strong></p>$left<ul class="preview-options">$options</ul>'
         '<p class="small"><b>Объяснение:</b> $explanation</p></div>',
         icon=views._icon(question.subject), subject=config.SUBJECTS[question.subject].name,
         type=config.QUESTION_TYPE_NAMES[question.qtype], context=context, text=question.text,
         left=left, options=options, explanation=question.explanation,
+        language=language_label(question),
     )

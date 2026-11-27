@@ -198,7 +198,7 @@ class TopicPagesTests(DatabaseTestCase):
         self.assertIn("1 из 18", html)
         _, _, html, _ = admin.get("/admin/topics?subject=math")
         self.assertIn("Арифметическая и геометрическая прогрессии", html)
-        self.assertIn("<td>100%</td>", html)
+        self.assertIn("<td>1 · 100%</td>", html)
         self.assertIn('class="topic-empty"', html)
         self.assertEqual(self.login("student@mail.kz").get("/admin/topics")[0], 403)
 

@@ -391,7 +391,8 @@ def landing(request: Request) -> Response:
             icon1=_icon(first), name1=config.SUBJECTS[first].name,
             icon2=_icon(second), name2=config.SUBJECTS[second].name,
         )
-        for first, second in config.PROFILE_PAIRS
+        for index, (first, second) in enumerate(config.PROFILE_PAIRS)
+        if index in config.pairs_for(i18n.get_language())
     )
     logged_in = request.user is not None
     content = render(
@@ -404,7 +405,7 @@ def landing(request: Request) -> Response:
         total_questions=config.MOCK_TOTAL_QUESTIONS,
         max_score=config.MOCK_MAX_SCORE,
         duration_hours=config.MOCK_DURATION_MINUTES // 60,
-        pairs_count=len(config.PROFILE_PAIRS),
+        pairs_count=len(config.pairs_for(i18n.get_language())),
         subjects_count=len(config.SUBJECTS),
         profile_questions=profile.question_count,
         profile_score=profile.max_score,
@@ -790,6 +791,8 @@ def assignment_start(request: Request, assignment_id: int) -> Response:
     pair = schools.pair_codes(assignment["target"])
     if pair is None or pair not in config.PROFILE_PAIRS:
         return redirect("/mock")  # любая пара — ученик выбирает сам
+    if config.PROFILE_PAIRS.index(pair) not in config.pairs_for(database.get_user_language(user_id)):
+        return redirect("/mock?msg=bad_pair")
     try:
         attempt_id = ent_logic.build_mock(user_id, config.PROFILE_PAIRS.index(pair))
     except ent_logic.TestBuildError:
@@ -1055,7 +1058,9 @@ def choose_pair(request: Request) -> Response:
     """GET /mock — выбор пары профильных предметов с честным отчётом о банке и времени."""
     user_id = _user_id(request)
     ent_logic.finish_expired_attempts(user_id)
-    counts = database.question_counts()
+    language = database.get_user_language(user_id)
+    counts = database.question_counts(language)
+    allowed = config.pairs_for(language)
 
     resume_block = SafeHTML("")
     in_progress = database.get_in_progress_attempt(user_id, ent_logic.MOCK)
@@ -1076,6 +1081,8 @@ def choose_pair(request: Request) -> Response:
     any_incomplete = False
     cards = []
     for index, pair in enumerate(config.PROFILE_PAIRS):
+        if index not in allowed:
+            continue  # пара «язык обучения и литература» другого языка обучения
         infos = [ent_logic.availability(code, counts) for code in pair]
         total = ent_logic.pair_question_count(index, counts)
         minutes = ent_logic.mock_duration_minutes(total)
@@ -1147,6 +1154,8 @@ def start_mock(request: Request) -> Response:
 
     try:
         pair_index = int(request.form_value("pair", "-1"))
+        if pair_index not in config.pairs_for(database.get_user_language(user_id)):
+            return redirect("/mock?msg=bad_pair")
         attempt_id = ent_logic.build_mock(user_id, pair_index)
     except ValueError:
         return redirect("/mock?msg=bad_pair")
@@ -1354,7 +1363,7 @@ def _review_body(aq: AttemptQuestion) -> SafeHTML:
 @student_area
 def choose_practice(request: Request) -> Response:
     """GET /practice — выбор предмета для тренировки."""
-    counts = database.question_counts()
+    counts = database.question_counts(database.get_user_language(_user_id(request)))
     groups = {True: [], False: []}
     for subject in config.SUBJECTS.values():
         total = sum(counts.get((subject.code, qtype), 0) for qtype in config.QUESTION_TYPES)

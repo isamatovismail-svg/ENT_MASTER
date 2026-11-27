@@ -17,8 +17,11 @@ from app import database, generators
 from app.question_bank import validate_question
 
 
-def load_file(path: Path) -> tuple[int, list[str]]:
-    """Загружает один JSON-файл. Возвращает (сколько загружено, список ошибок)."""
+def load_file(path: Path, language: str = "ru") -> tuple[int, list[str]]:
+    """Загружает один JSON-файл. Возвращает (сколько загружено, список ошибок).
+
+    language — язык обучения, для которого написан файл (data/questions — ru, data/questions/kk — kk).
+    """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -45,6 +48,7 @@ def load_file(path: Path) -> tuple[int, list[str]]:
             correct=question["correct"],
             explanation=question["explanation"].strip(),
             topic=question.get("topic", ""),
+            language=config.question_language(subject, language),
         )
         loaded += 1
     return loaded, errors
@@ -53,11 +57,14 @@ def load_file(path: Path) -> tuple[int, list[str]]:
 def load_generated() -> int:
     """Создаёт расчётные задачи генераторами и загружает их. Возвращает их количество."""
     total = 0
-    for subject, templates in generators.SUBJECT_TEMPLATES.items():
-        for qtype in templates:
-            questions = generators.generate(subject, qtype, generators.DEFAULT_COUNTS[qtype])
-            database.upsert_questions(subject, questions)
-            total += len(questions)
+    for subject in generators.SUBJECT_TEMPLATES:
+        for language in config.LANGUAGES:
+            if language != "ru" and generators.templates_for(subject, language) is generators.SUBJECT_TEMPLATES[subject]:
+                continue  # у предмета одна версия (свой язык или общий иностранный)
+            for qtype in generators.templates_for(subject, language):
+                questions = generators.generate(subject, qtype, generators.DEFAULT_COUNTS[qtype], lang=language)
+                database.upsert_questions(subject, questions)
+                total += len(questions)
     return total
 
 
@@ -70,10 +77,11 @@ def seed(questions_dir: Path = config.QUESTIONS_DIR,
     database.init_db()
     total = 0
     all_errors: list[str] = []
-    for path in sorted(questions_dir.glob("*.json")):
-        loaded, errors = load_file(path)
-        total += loaded
-        all_errors.extend(errors)
+    for language, folder in (("ru", questions_dir), ("kk", questions_dir / "kk")):
+        for path in sorted(folder.glob("*.json")):
+            loaded, errors = load_file(path, language)
+            total += loaded
+            all_errors.extend(f"{language}/{error}" if language != "ru" else error for error in errors)
     if with_generated:
         total += load_generated()
         if not all_errors:
@@ -95,18 +103,24 @@ def retire_stale() -> int:
     return retired
 
 
+def language_table() -> str:
+    """Таблица «сколько вопросов на русском и казахском по каждому предмету» (как их видит ученик)."""
+    by_language = {lang: database.question_counts(lang) for lang in config.LANGUAGES}
+    lines = [f"{'Предмет':<28}{'ru':>8}{'kk':>8}", "-" * 44]
+    for code, subject in config.SUBJECTS.items():
+        cells = [sum(by_language[lang].get((code, qtype), 0) for qtype in config.QUESTION_TYPES)
+                 for lang in config.LANGUAGES]
+        note = "  (общие, на английском)" if code in config.SHARED_LANGUAGE_SUBJECTS else (
+            f"  (только {config.SUBJECT_OWN_LANGUAGE[code]})" if code in config.SUBJECT_OWN_LANGUAGE else "")
+        lines.append(f"{subject.title:<28}{cells[0]:>8}{cells[1]:>8}{note}")
+    return "\n".join(lines)
+
+
 def main() -> int:
     """Запускает загрузку и печатает отчёт по банку вопросов. Код возврата 1 — были ошибки."""
     total, errors = seed(with_generated="--no-generated" not in sys.argv[1:])
-    counts = database.question_counts()
-    print(f"Загружено вопросов: {total}")
-    for code, subject in config.SUBJECTS.items():
-        by_type = ", ".join(
-            f"{config.QUESTION_TYPE_NAMES[qtype].lower()}: {counts.get((code, qtype), 0)}"
-            for qtype in config.QUESTION_TYPES
-            if counts.get((code, qtype), 0)
-        )
-        print(f"  {subject.name}: {by_type or 'нет вопросов'}")
+    print(f"Загружено вопросов: {total}\n")
+    print(language_table())
     if errors:
         print("\nОшибки (эти вопросы не загружены):")
         for error in errors:

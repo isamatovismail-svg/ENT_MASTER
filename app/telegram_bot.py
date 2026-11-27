@@ -426,7 +426,7 @@ class Bot:
             rows.append([_button(t("▶️ Продолжить: {subject} ({done}/{total})", subject=subject.name,
                                    done=done, total=len(questions)),
                                  f"next:{current.id}")])
-        counts = database.question_counts()
+        counts = database.question_counts(user.language)
         buttons = [
             _button(f"{subject.icon} {subject.name}", f"subj:{subject.code}")
             for subject in config.SUBJECTS.values()
