@@ -97,6 +97,10 @@ def tg_login_submit(request: Request) -> Response:
     else:
         return _page(request, token, info, [], status=400)
 
+    target = database.get_user(user_id) if user_id else None
+    if target is not None and auth.is_blocked_demo_admin(target["login"], target["role"]):
+        return views.error_page(request, 403, views.DEMO_ADMIN_BLOCKED)
+
     # Токен тратится только здесь — один раз, даже если форму отправят дважды.
     if not auth.use_telegram_token(token):
         return views.error_page(request, 400, INVALID_LINK)

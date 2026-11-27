@@ -58,6 +58,18 @@ COOKIE_SECURE = _ENV.get("COOKIE_SECURE", "").strip() == "1"
 # Резервные копии базы (python backup.py): папка и сколько последних копий хранить.
 BACKUP_DIR = Path(_ENV.get("BACKUP_DIR", "").strip() or BASE_DIR / "backups")
 BACKUP_KEEP = int(_ENV.get("BACKUP_KEEP", "14").strip() or 14)
+# Адрес для браузера на этом компьютере. Ссылку печатаем именно с localhost, а не 127.0.0.1:
+# в Chrome для http://127.0.0.1:8000 мог остаться закэшированный редирект на https от другого
+# проекта на том же порту (Django с SECURE_SSL_REDIRECT) — тогда браузер показывает ERR_SSL_PROTOCOL_ERROR.
+LOCAL_URL = f"http://localhost:{PORT}" if HOST in ("127.0.0.1", "localhost", "0.0.0.0", "::", "::1") \
+    else f"http://{HOST}:{PORT}"
+
+# Режим показа через интернет (python run.py --share): сайт открыт по временной ссылке
+# Cloudflare Quick Tunnel. run.py сам задаёт SHARE_MODE=1 и SITE_URL сайту и боту.
+SHARE_MODE = _ENV.get("SHARE_MODE", "").strip() == "1"
+# Демо-аккаунты (demo_accounts.py) — на этом домене. В режиме показа демо-админ войти не может:
+# его пароль известен всем, кто видел демо, а через туннель сайт открыт всему интернету.
+DEMO_EMAIL_DOMAIN = "entmaster.demo"
 
 # ── Безопасность ─────────────────────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ent_session"

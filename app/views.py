@@ -80,6 +80,9 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "q_missing": ("error", "Такого вопроса нет — возможно, его уже удалили."),
 }
 
+DEMO_ADMIN_BLOCKED = ("Демо-администратор не может войти, пока сайт открыт через интернет "
+                      "(режим показа). Войдите как демо-учитель или демо-ученик.")
+
 MAIL_FAILED = "Не удалось отправить письмо с кодом. Попробуйте ещё раз через минуту."
 
 MODE_NAMES = {ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"}
@@ -398,6 +401,8 @@ def login_submit(request: Request) -> Response:
     user = auth.authenticate(login, request.form_value("password"))
     if user is None:
         return _login_form(request, ["Неверная почта/телефон или пароль."], login, next_url)
+    if auth.is_blocked_demo_admin(user.login, user.role):
+        return _login_form(request, [DEMO_ADMIN_BLOCKED], login, next_url)
     if not user.email_verified:
         # Пароль верный, но почта не подтверждена: отправляем код (если не отправляли
         # только что) и ведём на страницу ввода кода.

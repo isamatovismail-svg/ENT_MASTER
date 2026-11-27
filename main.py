@@ -4,6 +4,7 @@
 """
 
 import logging
+import os
 
 import config
 from app import database
@@ -20,7 +21,9 @@ def main() -> None:
         logger.warning("Банк вопросов пуст. Загрузите вопросы командой: python seed.py")
 
     server = create_server(config.HOST, config.PORT)
-    logger.info("ENT MASTER запущен: http://%s:%s (остановить: Ctrl+C)", config.HOST, config.PORT)
+    # Под run.py ссылку печатает run.py (одну, в конце запуска), здесь — только при запуске main.py.
+    if os.environ.get("ENT_RUN_CHILD") != "1":
+        logger.info("ENT MASTER запущен: %s (остановить: Ctrl+C)", config.LOCAL_URL)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -237,6 +237,12 @@ def create_account(name: str, login: str, password: str, phone: str | None = Non
     return database.create_user(clean_name, login, password_hash, salt, time.time(), phone=phone)
 
 
+def is_blocked_demo_admin(login: str, role: str) -> bool:
+    """True — это демо-администратор, а сайт открыт через интернет (run.py --share)."""
+    return (config.SHARE_MODE and role == database.ROLE_ADMIN
+            and login.lower().endswith("@" + config.DEMO_EMAIL_DOMAIN))
+
+
 def authenticate(login: str, password: str) -> User | None:
     """Проверяет логин и пароль. Возвращает пользователя или None.
 
@@ -252,6 +258,31 @@ def authenticate(login: str, password: str) -> User | None:
     if not verify_password(password, row["salt"], row["password_hash"]):
         return None
     return User(row["id"], row["name"], row["login"], row["role"], bool(row["email_verified"]))
+
+
+# Пароли, которые подбирают первыми. Пароль хранится только как хеш, поэтому «слабость»
+# проверяем так: не подходит ли к хешу один из этих паролей (или сам логин).
+WEAK_PASSWORDS = (
+    "12345678", "123456789", "1234567890", "87654321", "11111111", "00000000",
+    "password", "password1", "qwerty123", "qwertyui", "1q2w3e4r", "iloveyou",
+    "admin123", "admin1234", "admin2026", "Admin2026!", "administrator", "entmaster",
+)
+
+
+def weak_admin_logins(skip_demo: bool = True) -> list[str]:
+    """Логины главных администраторов, чей пароль угадывается по списку WEAK_PASSWORDS.
+
+    Демо-админы пропускаются: в режиме показа они всё равно не могут войти.
+    """
+    weak = []
+    for row in database.admin_credentials():
+        login = row["login"]
+        if skip_demo and login.lower().endswith("@" + config.DEMO_EMAIL_DOMAIN):
+            continue
+        candidates = (*WEAK_PASSWORDS, login, login.split("@")[0])
+        if any(verify_password(c, row["salt"], row["password_hash"]) for c in candidates):
+            weak.append(login)
+    return weak
 
 
 # ── Коды из писем ────────────────────────────────────────────────────────────
@@ -307,7 +338,8 @@ def send_email_code(user_id: int, email: str, purpose: str) -> int:
     code = f"{secrets.randbelow(10 ** 6):06d}"
     subject, body = _MAIL_TEXTS[purpose]
     minutes = config.EMAIL_CODE_MINUTES
-    mailer.send(email, subject.format(code=code), body.format(code=code, minutes=minutes))
+    body = body.format(code=code, minutes=minutes) + f"\n\nENT MASTER: {config.SITE_URL}"
+    mailer.send(email, subject.format(code=code), body)
     now = time.time()
     database.save_email_code(user_id, purpose, _code_hash(user_id, purpose, code),
                              now + minutes * 60, now)
@@ -451,7 +483,10 @@ def attach_user(request: Request) -> None:
     found = database.get_session_user(key, time.time())
     if found is None:
         return
-    request.user, request.csrf_token = found
+    user, csrf_token = found
+    if is_blocked_demo_admin(user.login, user.role):
+        return  # старая сессия демо-админа в режиме показа не действует
+    request.user, request.csrf_token = user, csrf_token
     request.session_key = key
 
 

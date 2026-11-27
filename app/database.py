@@ -478,6 +478,14 @@ def admin_telegram_ids() -> list[int]:
     return [row["telegram_id"] for row in rows]
 
 
+def admin_credentials() -> list[sqlite3.Row]:
+    """Логины и хеши паролей главных администраторов — для проверки на слабый пароль."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT login, salt, password_hash FROM users WHERE role = ?", (ROLE_ADMIN,)
+        ).fetchall()
+
+
 def bind_telegram(user_id: int, telegram_id: int) -> None:
     """Привязывает Telegram к пользователю (и отвязывает его от прежнего аккаунта)."""
     with connect() as connection:

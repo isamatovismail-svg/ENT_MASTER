@@ -8,6 +8,8 @@
 
 import logging
 import mimetypes
+import threading
+import time
 from email.parser import BytesParser
 from email.policy import HTTP
 from http.cookies import CookieError, SimpleCookie
@@ -32,6 +34,35 @@ SECURITY_HEADERS = (
         "form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
     ),
 )
+
+
+# Первый байт TLS-рукопожатия (ClientHello). Так начинается запрос, если браузер
+# открыл https:// на нашем http-сервере.
+TLS_HANDSHAKE_BYTE = 0x16
+TLS_WARNING_INTERVAL_SECONDS = 60
+_tls_warning_lock = threading.Lock()
+_tls_warned_at = 0.0
+
+
+def https_hint() -> str:
+    """Понятное объяснение для лога вместо «Bad request version» с мусорными байтами."""
+    return (
+        f"Браузер открыл сайт по https://, а здесь сайт работает по http. Откройте {config.LOCAL_URL} "
+        "(именно http). Если Chrome сам переходит на https:// — у него в кэше остался редирект "
+        "от другого проекта на этом порту: откройте ссылку с localhost или очистите кэш "
+        "(chrome://settings/clearBrowserData → «Изображения и другие файлы, сохранённые в кеше»)."
+    )
+
+
+def _warn_https_attempt() -> None:
+    """Пишет подсказку про https в лог, но не чаще раза в минуту (браузер шлёт много попыток)."""
+    global _tls_warned_at
+    with _tls_warning_lock:
+        now = time.monotonic()
+        if _tls_warned_at and now - _tls_warned_at < TLS_WARNING_INTERVAL_SECONDS:
+            return
+        _tls_warned_at = now
+    logger.warning(https_hint())
 
 
 def _parse_cookies(header: str) -> dict[str, str]:
@@ -93,6 +124,14 @@ class RequestHandler(BaseHTTPRequestHandler):
     """Обрабатывает каждый HTTP-запрос в отдельном потоке."""
 
     server_version = "ENTMaster/1.0"
+
+    def parse_request(self) -> bool:
+        """Отсекает попытки открыть сайт по https:// с понятным сообщением в логе."""
+        if self.raw_requestline[:1] == bytes([TLS_HANDSHAKE_BYTE]):
+            _warn_https_attempt()
+            self.close_connection = True
+            return False
+        return super().parse_request()
 
     def do_GET(self) -> None:  # noqa: N802 (имя задано BaseHTTPRequestHandler)
         """Обработка GET-запросов."""
