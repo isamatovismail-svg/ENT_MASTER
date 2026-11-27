@@ -139,7 +139,7 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
         """Браузер, вошедший в аккаунт."""
         browser = Browser(self.base_url)
         _, path, _, _ = browser.post("/login", {"login": email, "password": "password1"})
-        self.assertEqual(path, "/dashboard")
+        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)  # учитель — в свой кабинет
         return browser
 
     def post_form(self, browser: Browser, url: str, fields: dict):

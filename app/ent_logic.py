@@ -297,6 +297,9 @@ def finish_attempt(attempt: Attempt, now: float | None = None) -> None:
         for aq in database.get_attempt_questions(attempt.id)
     }
     database.complete_attempt(attempt.id, points, sum(points.values()), finished_at)
+    from app import notifications  # импорт здесь: notifications → schools → database
+
+    notifications.attempt_finished(attempt.user_id, now)
 
 
 def finish_expired_attempts(user_id: int, now: float | None = None) -> None:

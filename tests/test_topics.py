@@ -185,7 +185,7 @@ class TopicPagesTests(DatabaseTestCase):
         """Браузер, вошедший в аккаунт."""
         browser = Browser(self.base_url)
         _, path, _, _ = browser.post("/login", {"login": email, "password": "password1"})
-        self.assertEqual(path, "/dashboard")
+        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)  # учитель — в свой кабинет
         return browser
 
     def test_topics_report(self) -> None:

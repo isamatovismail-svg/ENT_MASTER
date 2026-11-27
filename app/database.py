@@ -153,6 +153,23 @@ CREATE TABLE IF NOT EXISTS questions (
     UNIQUE (subject, text)
 );
 
+-- Уведомления (колокольчик в меню). Текст собирается при показе из kind + params_json,
+-- чтобы его можно было показать на языке пользователя. dedup_key защищает от повторов
+-- («до срока меньше суток» — один раз на ученика и задание).
+CREATE TABLE IF NOT EXISTS notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    params_json TEXT NOT NULL DEFAULT '{}',
+    link        TEXT NOT NULL DEFAULT '',   -- адрес страницы сайта («/dashboard»)
+    created_at  REAL NOT NULL,
+    read_at     REAL,                       -- NULL — не прочитано
+    dedup_key   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedup ON notifications(user_id, dedup_key)
+    WHERE dedup_key IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS attempts (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1539,6 +1556,127 @@ def get_finished_attempts_between(
             (*user_ids, mode, after, until),
         ).fetchall()
     return [_attempt_from_row(row) for row in rows]
+
+
+def school_teachers(school_id: int) -> list[int]:
+    """id учителей школы (им приходят уведомления о заявках)."""
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT id FROM users WHERE school_id = ? AND role = ?", (school_id, ROLE_TEACHER)
+        ).fetchall()
+    return [row["id"] for row in rows]
+
+
+def active_assignments(now: float, until: float) -> list[sqlite3.Row]:
+    """Задания всех школ, срок которых ещё не прошёл и наступит не позже until."""
+    with connect() as connection:
+        return connection.execute(
+            f"SELECT {_ASSIGNMENT_COLUMNS} FROM assignments WHERE deadline > ? AND deadline <= ? "
+            "ORDER BY deadline, id",
+            (now, until),
+        ).fetchall()
+
+
+def school_attempts(school_id: int) -> list[Attempt]:
+    """Завершённые попытки подтверждённых учеников школы (для таблицы учителя)."""
+    columns = ", ".join("a." + c for c in _ATTEMPT_COLUMNS.split(", "))
+    with connect() as connection:
+        rows = connection.execute(
+            f"SELECT {columns} FROM attempts a JOIN users u ON u.id = a.user_id "
+            "WHERE u.school_id = ? AND u.school_status = 'approved' AND u.role != 'teacher' "
+            "AND a.status = 'finished' ORDER BY a.finished_at, a.id",
+            (school_id,),
+        ).fetchall()
+    return [_attempt_from_row(row) for row in rows]
+
+
+def school_last_started(school_id: int) -> dict[int, float]:
+    """Когда каждый ученик школы последний раз начинал тест (активность без завершения)."""
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT a.user_id, MAX(a.started_at) AS started FROM attempts a "
+            "JOIN users u ON u.id = a.user_id WHERE u.school_id = ? GROUP BY a.user_id",
+            (school_id,),
+        ).fetchall()
+    return {row["user_id"]: row["started"] for row in rows}
+
+
+def attempt_subject_points(attempt_ids: list[int]) -> list[sqlite3.Row]:
+    """Баллы попыток по предметам и типам заданий: attempt_id, subject, qtype, n, points."""
+    if not attempt_ids:
+        return []
+    result: list[sqlite3.Row] = []
+    with connect() as connection:
+        for start in range(0, len(attempt_ids), 500):  # ограничение числа «?» в SQLite
+            chunk = attempt_ids[start:start + 500]
+            marks = ", ".join("?" * len(chunk))
+            result += connection.execute(
+                "SELECT aq.attempt_id, aq.subject, q.qtype, COUNT(*) AS n, SUM(aq.points) AS points "
+                "FROM attempt_questions aq JOIN questions q ON q.id = aq.question_id "
+                f"WHERE aq.attempt_id IN ({marks}) GROUP BY aq.attempt_id, aq.subject, q.qtype",
+                chunk,
+            ).fetchall()
+    return result
+
+
+# ── Уведомления ──────────────────────────────────────────────────────────────
+
+def add_notification(user_id: int, kind: str, params_json: str, link: str, now: float,
+                     dedup_key: str | None = None) -> int | None:
+    """Добавляет уведомление. None — такое (с этим dedup_key) уже было."""
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT OR IGNORE INTO notifications (user_id, kind, params_json, link, created_at, dedup_key) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, kind, params_json, link, now, dedup_key),
+        )
+        return int(cursor.lastrowid) if cursor.rowcount == 1 else None
+
+
+def list_notifications(user_id: int, limit: int = 100) -> list[sqlite3.Row]:
+    """Уведомления пользователя, новые сверху."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT id, kind, params_json, link, created_at, read_at FROM notifications "
+            "WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+
+
+def unread_notifications(user_id: int) -> int:
+    """Сколько непрочитанных уведомлений (число на колокольчике)."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL", (user_id,)
+        ).fetchone()[0]
+
+
+def get_notification(notification_id: int, user_id: int) -> sqlite3.Row | None:
+    """Уведомление, только если оно принадлежит этому пользователю."""
+    with connect() as connection:
+        return connection.execute(
+            "SELECT id, kind, params_json, link, created_at, read_at FROM notifications "
+            "WHERE id = ? AND user_id = ?",
+            (notification_id, user_id),
+        ).fetchone()
+
+
+def mark_notifications_read(user_id: int, now: float, notification_id: int | None = None) -> int:
+    """Отмечает прочитанными все уведомления пользователя или одно."""
+    query = "UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL"
+    params: tuple = (now, user_id)
+    if notification_id is not None:
+        query += " AND id = ?"
+        params += (notification_id,)
+    with connect() as connection:
+        return connection.execute(query, params).rowcount
+
+
+def get_telegram_id(user_id: int) -> int | None:
+    """Telegram, привязанный к аккаунту (None — не привязан)."""
+    with connect() as connection:
+        row = connection.execute("SELECT telegram_id FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["telegram_id"] if row is not None else None
 
 
 # ── Рекламные баннеры ────────────────────────────────────────────────────────

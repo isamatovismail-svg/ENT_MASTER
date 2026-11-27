@@ -260,7 +260,7 @@ class TeacherPagesTests(DatabaseTestCase):
         """Браузер, вошедший в аккаунт."""
         browser = Browser(self.base_url)
         status, path, _, _ = browser.post("/login", {"login": email, "password": "password1"})
-        self.assertEqual(path, "/dashboard")
+        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)  # учитель — в свой кабинет
         return browser
 
     csrf = staticmethod(test_pages.PagesTests.csrf)
@@ -281,10 +281,11 @@ class TeacherPagesTests(DatabaseTestCase):
         student_id = database.get_user_credentials("aliya@mail.kz")["id"]
 
         teacher = self.login("teacher@mail.kz")
-        self.assertIn('href="/teacher"', teacher.get("/dashboard")[2])
+        # Учителю кабинет ученика не нужен — он попадает к себе.
+        self.assertEqual(teacher.get("/dashboard")[1], f"/teacher/{self.school}")
         status, path, html, _ = teacher.get("/teacher")
         self.assertEqual(path, f"/teacher/{self.school}")
-        self.assertIn("Заявки: 1", html)
+        self.assertIn("Заявки в школу: 1", html)
         self.assertIn("Алия Серикова", html)
         # До подтверждения результаты не видны.
         card = f"/teacher/{self.school}/students/{student_id}"
@@ -305,9 +306,9 @@ class TeacherPagesTests(DatabaseTestCase):
         ent_logic.finish_attempt(attempt)
         status, _, html, _ = teacher.get(card)
         self.assertEqual(status, 200)
-        self.assertIn("Баллы по предметам", html)
+        self.assertIn("Лента по дням", html)
+        self.assertIn("Сегодня", html)
         self.assertIn("Математика", html)
-        self.assertIn("Рост результата", html)
         self.assertIn(f"{card}/attempts/{attempt.id}", html)
         self.assertEqual(teacher.get(f"{card}/attempts/{attempt.id}")[0], 200)
 
@@ -333,13 +334,15 @@ class TeacherPagesTests(DatabaseTestCase):
         _, _, html, _ = student.get("/dashboard")
         self.assertIn("Задания учителя", html)
         self.assertIn("Тренировка × 2: Математика", html)
-        self.assertIn("сделано 0 из 2", html)
+        self.assertIn("0 из 2", html)
+        self.assertIn("Пройдите тренировку: Математика", html)
 
         # Удаление задания.
         _, _, html, _ = teacher.get(assignment_path)
         status, path, html, _ = teacher.post(f"{assignment_path}/delete",
                                              {"csrf_token": self.csrf(html)})
         self.assertIn("Задание удалено", html)
+        self.assertTrue(path.startswith(f"/teacher/{self.school}/assignments"))
         self.assertEqual(teacher.get(assignment_path)[0], 404)
 
     def test_access_is_limited_to_own_school(self) -> None:

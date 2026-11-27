@@ -2,8 +2,9 @@
   <div>
     <span class="eyebrow">Кабинет учителя</span>
     <h1>🏫 $title</h1>
-    <p class="muted">Подтверждённых учеников: $count. Результаты ученика видны только после
-      подтверждения его заявки.</p>
+    <p class="muted">Учеников: $count. Сверху — те, кому нужна помощь: давно не занимались,
+      низкий или падающий результат, есть слабые предметы. Нажмите на заголовок столбца, чтобы
+      отсортировать.</p>
   </div>
   <a class="btn btn-primary" href="/teacher/$sid/assignments/new">＋ Выдать задание</a>
 </section>
@@ -11,11 +12,11 @@
 $requests
 
 <section class="section">
-  <h2>👥 Ученики</h2>
+  <div class="card-title-row">
+    <h2>👥 Ученики</h2>
+    $periods
+  </div>
+  <p class="muted small">Последний, средний и лучший результат и слабые предметы — за период «$period_label»
+    (процент набранных баллов). В столбцах «Сегодня», «Вчера», «7 дней» — пробные ЕНТ / тренировки.</p>
   $students
-</section>
-
-<section class="section">
-  <h2>📋 Задания</h2>
-  $assignments
 </section>

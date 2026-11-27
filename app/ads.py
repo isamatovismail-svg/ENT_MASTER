@@ -118,8 +118,19 @@ def status(row, today: str | None = None) -> str:
     return "показывается"
 
 
-def banner_block(placement: str, rng: random.Random | None = None) -> SafeHTML:
-    """Баннер для места показа (случайный из подходящих) или пустая строка. Учитывает показ."""
+def shows_ads(user) -> bool:
+    """Реклама — только гостям и ученикам; учителям и администраторам — никогда."""
+    return user is None or not (user.is_teacher or user.is_admin)
+
+
+def banner_block(placement: str, user=None, rng: random.Random | None = None) -> SafeHTML:
+    """Баннер для места показа (случайный из подходящих) или пустая строка. Учитывает показ.
+
+    user — кто смотрит страницу (None — гость): учителям и администраторам баннер не показывается.
+    Страницы теста баннер не вызывают вовсе.
+    """
+    if not shows_ads(user):
+        return SafeHTML("")
     candidates = database.active_banners(placement, date.today().isoformat())
     if not candidates:
         return SafeHTML("")

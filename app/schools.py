@@ -102,6 +102,10 @@ def join_school(user_id: int, city: str, name: str) -> int | None:
     ):
         return school_id
     database.set_user_school(user_id, school_id, database.SCHOOL_PENDING)
+    from app import notifications  # импорт здесь: notifications сам использует этот модуль
+
+    user = database.get_user(user_id)
+    notifications.school_request(school_id, user["name"] if user is not None else "", user_id)
     return school_id
 
 
@@ -237,6 +241,10 @@ def create_assignment(
             errors.append("Отметьте хотя бы одного ученика или выберите «всем ученикам».")
     if errors:
         raise SchoolError(errors)
-    return database.create_assignment(
+    assignment_id = database.create_assignment(
         school_id, teacher_id, mode, target, count, time.time(), deadline, chosen
     )
+    from app import notifications
+
+    notifications.assignment_created(assignment_id, school_id)
+    return assignment_id

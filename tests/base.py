@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 import config
-from app import database, mailer
+from app import database, mailer, notifications
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
 
@@ -37,6 +37,20 @@ class FakeMailer:
         raise AssertionError(f"писем на {to} не было")
 
 
+class FakeTelegram:
+    """Отправитель уведомлений в Telegram для тестов: сообщения складываются в список."""
+
+    def __init__(self) -> None:
+        self.messages: list[dict] = []
+        self.fail = False
+
+    def call(self, method: str, **params: object) -> dict:
+        if self.fail:
+            raise OSError("Telegram недоступен")
+        self.messages.append({"method": method, **params})
+        return {}
+
+
 class DatabaseTestCase(unittest.TestCase):
     """Каждый тест работает с новой пустой базой во временной папке."""
 
@@ -50,10 +64,14 @@ class DatabaseTestCase(unittest.TestCase):
         self.mail = FakeMailer()
         FakeMailer.active = self.mail
         mailer.set_sender(self.mail)
+        # Уведомления никогда не уходят в настоящий Telegram (в .env может быть токен).
+        self.telegram = FakeTelegram()
+        notifications.set_sender(self.telegram)
 
     def tearDown(self) -> None:
         """Возвращает настройки и удаляет временную базу."""
         mailer.set_sender(None)
+        notifications.set_sender(None)
         FakeMailer.active = None
         config.PBKDF2_ITERATIONS = self._iterations
         database.configure(config.DATABASE_PATH)

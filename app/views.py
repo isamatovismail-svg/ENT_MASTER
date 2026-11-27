@@ -8,13 +8,14 @@ fragment(), которая экранирует все подставляемы�
 задаются только классами (subj-<код предмета>, p-<процент>) и элементом <progress>.
 """
 
+import time
 from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from urllib.parse import quote, urlencode
 
 import config
-from app import ads, auth, database, ent_logic, google_auth, mailer, schools
+from app import ads, auth, database, ent_logic, google_auth, mailer, notifications, schools
 from app.database import Attempt, AttemptQuestion
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, html_response, redirect
@@ -162,26 +163,51 @@ def _icon(code: str, extra: str = "") -> SafeHTML:
     )
 
 
+def _bell(request: Request) -> SafeHTML:
+    """Колокольчик со счётчиком непрочитанных уведомлений."""
+    assert request.user is not None
+    unread = database.unread_notifications(request.user.id)
+    return fragment(
+        '<a class="bell$cls" href="/notifications" aria-label="Уведомления: $count">🔔$badge</a>',
+        cls=" bell-unread" if unread else "", count=unread,
+        badge=fragment('<span class="bell-count">$n</span>', n=unread if unread < 100 else "99+")
+        if unread else SafeHTML(""),
+    )
+
+
 def _nav(request: Request) -> SafeHTML:
-    """Меню в шапке: разное для гостя и для вошедшего пользователя."""
+    """Меню в шапке: у гостя, ученика, учителя и главного администратора — своё."""
     if request.user is None:
         return SafeHTML(
             '<a href="/login">Войти</a>'
             '<a class="btn btn-primary btn-sm" href="/register">Регистрация</a>'
+        )
+    logout = fragment(
+        '<form method="post" action="/logout" class="nav-form">$csrf'
+        '<button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>',
+        csrf=_csrf_field(request),
+    )
+    if request.user.is_teacher:
+        # Учителю — только его работа: ученики, задания, свои вопросы.
+        return fragment(
+            '<a href="/teacher">👥 Ученики</a>'
+            '<a href="/teacher/assignments">📋 Задания</a>'
+            '<a href="/teacher/questions">📝 Мои вопросы</a>'
+            "$bell"
+            '<a href="/profile">👤 Профиль</a>$logout',
+            bell=_bell(request), logout=logout,
         )
     return fragment(
         '<a href="/dashboard">🏠 Кабинет</a>'
         '<a href="/mock">📝 Пробный ЕНТ</a>'
         '<a href="/practice">🎯 Тренировка</a>'
         '<a href="/history">📈 История</a>'
+        "$bell"
         '<a href="/profile">👤 Профиль</a>'
-        "$teacher$admin"
-        '<form method="post" action="/logout" class="nav-form">$csrf'
-        '<button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>',
-        teacher=SafeHTML('<a class="nav-admin" href="/teacher">🏫 Учителю</a>'
-                         if request.user.is_teacher else ""),
+        "$admin$logout",
+        bell=_bell(request),
         admin=SafeHTML('<a class="nav-admin" href="/admin">⚙️ Админка</a>' if request.user.is_admin else ""),
-        csrf=_csrf_field(request),
+        logout=logout,
     )
 
 
@@ -221,6 +247,19 @@ def login_required(view: View) -> View:
         return view(request, **kwargs)
 
     return wrapper
+
+
+def student_area(view: View) -> View:
+    """Декоратор для страниц ученика (кабинет, тесты, история): учителя отправляет в его кабинет."""
+
+    @wraps(view)
+    def wrapper(request: Request, **kwargs: object) -> Response:
+        """Учитель видит только свою работу — учеников, задания и вопросы."""
+        if request.user is not None and request.user.is_teacher:
+            return redirect("/teacher")
+        return view(request, **kwargs)
+
+    return login_required(wrapper)
 
 
 def _user_id(request: Request) -> int:
@@ -302,7 +341,7 @@ def landing(request: Request) -> Response:
         subjects_count=len(config.SUBJECTS),
         profile_questions=profile.question_count,
         profile_score=profile.max_score,
-        ad=ads.banner_block("landing"),
+        ad=ads.banner_block("landing", request.user),
     )
     return page(request, "Подготовка к ЕНТ", content)
 
@@ -584,8 +623,49 @@ ASSIGNMENT_STATUS = {
 }
 
 
+def _assignment_action(request: Request, assignment) -> str:
+    """Что сделать: «Пройдите пробный ЕНТ (Математика + Информатика)» и т. п."""
+    if assignment["mode"] == "mock":
+        pair = schools.pair_codes(assignment["target"])
+        what = " + ".join(config.SUBJECTS[c].name for c in pair) if pair else "любая пара на ваш выбор"
+        return f"Пройдите пробный ЕНТ ({what})"
+    subject = config.SUBJECTS.get(assignment["target"])
+    return f"Пройдите тренировку: {subject.name if subject else assignment['target']}"
+
+
+def _assignments_block(request: Request, user_id: int) -> SafeHTML:
+    """Активные задания учителя — наверху кабинета: что сделать, прогресс X из N, срок, кнопка."""
+    items = []
+    for assignment in database.list_student_assignments(user_id):
+        progress = schools.student_progress(assignment, user_id)
+        if progress is None or progress.status != "active":
+            continue
+        left = assignment["deadline"] - time.time()
+        urgent = left < notifications.DUE_SOON_SECONDS
+        items.append(fragment(
+            '<li class="task$cls"><div class="task-main"><strong>$action</strong>'
+            '<small class="muted">$title · срок $deadline$urgent</small>'
+            '<div class="task-progress"><progress max="$count" value="$done">$done / $count</progress>'
+            " <b>$done из $count</b></div></div>"
+            '<form method="post" action="/assignments/$aid/start">$csrf'
+            '<button type="submit" class="btn btn-primary">Начать →</button></form></li>',
+            cls=" task-urgent" if urgent else "", action=_assignment_action(request, assignment),
+            title=schools.assignment_title(assignment["mode"], assignment["target"], assignment["count"]),
+            deadline=_deadline_text(assignment["deadline"]).removeprefix("до "),
+            urgent=SafeHTML(' · <span class="badge badge-wrong">меньше суток</span>' if urgent else ""),
+            count=assignment["count"], done=progress.done, aid=assignment["id"], csrf=_csrf_field(request),
+        ))
+    if not items:
+        return SafeHTML("")
+    return fragment(
+        '<section class="card tasks-card"><h2>📋 Задания учителя: $n</h2><ul class="task-list">$items</ul>'
+        "</section>",
+        n=len(items), items=join(items),
+    )
+
+
 def _school_block(user_id: int) -> SafeHTML:
-    """Кабинет ученика: его школа и задания учителя."""
+    """Кабинет ученика: его школа и уже выполненные или просроченные задания."""
     row = database.get_user_school(user_id)
     assignments = database.list_student_assignments(user_id)
     if row is None and not assignments:
@@ -598,23 +678,20 @@ def _school_block(user_id: int) -> SafeHTML:
     items = []
     for assignment in assignments:
         progress = schools.student_progress(assignment, user_id)
-        if progress is None:
-            continue
-        link = "/mock" if assignment["mode"] == "mock" else "/practice"
+        if progress is None or progress.status == "active":
+            continue  # активные задания — в отдельном блоке наверху
         items.append(fragment(
             '<li class="assignment-item"><div><strong>$title</strong>'
             '<small class="muted">$deadline · сделано $done из $count</small></div>'
-            '<progress max="$count" value="$done">$done / $count</progress>'
-            '$status<a class="link" href="$link">Выполнить →</a></li>',
+            '<progress max="$count" value="$done">$done / $count</progress>$status</li>',
             title=schools.assignment_title(assignment["mode"], assignment["target"],
                                            assignment["count"]),
             deadline=_deadline_text(assignment["deadline"]), done=progress.done,
             count=assignment["count"], status=SafeHTML(ASSIGNMENT_STATUS[progress.status]),
-            link=link,
         ))
     tasks = (
-        fragment('<h3>📋 Задания учителя</h3><ul class="assignment-list">$items</ul>',
-                 items=join(items))
+        fragment('<h3>Прошлые задания</h3><ul class="assignment-list">$items</ul>',
+                 items=join(items[-5:]))
         if items else SafeHTML("")
     )
     return fragment(
@@ -624,11 +701,95 @@ def _school_block(user_id: int) -> SafeHTML:
     )
 
 
+@student_area
+def assignment_start(request: Request, assignment_id: int) -> Response:
+    """POST /assignments/<id>/start — сразу начать именно то, что задал учитель."""
+    user_id = _user_id(request)
+    assignment = next((a for a in database.list_student_assignments(user_id)
+                       if a["id"] == assignment_id), None)
+    if assignment is None:
+        return not_found(request)
+    ent_logic.finish_expired_attempts(user_id)
+    if assignment["mode"] == ent_logic.PRACTICE:
+        try:
+            attempt_id = ent_logic.build_practice(user_id, assignment["target"])
+        except (ValueError, ent_logic.TestBuildError):
+            return redirect("/practice?msg=no_questions")
+        return redirect(f"/practice/{attempt_id}")
+    existing = database.get_in_progress_attempt(user_id, ent_logic.MOCK)
+    if existing is not None:
+        return redirect(f"{_attempt_url(existing)}?msg=resume")
+    pair = schools.pair_codes(assignment["target"])
+    if pair is None or pair not in config.PROFILE_PAIRS:
+        return redirect("/mock")  # любая пара — ученик выбирает сам
+    try:
+        attempt_id = ent_logic.build_mock(user_id, config.PROFILE_PAIRS.index(pair))
+    except ent_logic.TestBuildError:
+        return redirect("/mock?msg=no_questions")
+    attempt = database.get_attempt(attempt_id, user_id)
+    assert attempt is not None
+    return redirect(_attempt_url(attempt))
+
+
+# ── Уведомления ──────────────────────────────────────────────────────────────
+
 @login_required
+def notifications_page(request: Request) -> Response:
+    """GET /notifications — все уведомления, непрочитанные выделены."""
+    user_id = _user_id(request)
+    notifications.check_due(user_id=user_id)
+    items = notifications.for_user(user_id)
+    unread = sum(not item.read for item in items)
+    rows = join(
+        fragment(
+            '<li class="notification$cls"><span class="notification-icon" aria-hidden="true">$icon</span>'
+            '<div><a class="link" href="/notifications/$id">$text</a>'
+            '<small class="muted">$date$status</small></div></li>',
+            cls="" if item.read else " notification-unread", icon=item.icon, id=item.id, text=item.text,
+            date=_format_datetime(item.created_at), status=" · новое" if not item.read else "",
+        )
+        for item in items
+    )
+    mark_all = fragment(
+        '<form method="post" action="/notifications/read">$csrf'
+        '<button type="submit" class="btn btn-ghost btn-sm">✓ Отметить все прочитанными</button></form>',
+        csrf=_csrf_field(request),
+    ) if unread else SafeHTML("")
+    content = fragment(
+        '<section class="page-head admin-head"><div><span class="eyebrow">Уведомления</span>'
+        "<h1>🔔 Уведомления</h1><p class=\"muted\">Непрочитанных: $unread. Если к аккаунту привязан "
+        "Telegram-бот, уведомления приходят и туда.</p></div>$mark_all</section>$list",
+        unread=unread, mark_all=mark_all,
+        list=fragment('<ul class="notification-list card">$rows</ul>', rows=rows) if items
+        else SafeHTML('<div class="card empty">Уведомлений пока нет.</div>'),
+    )
+    return page(request, "Уведомления", content)
+
+
+@login_required
+def notifications_read(request: Request) -> Response:
+    """POST /notifications/read — отметить все уведомления прочитанными."""
+    database.mark_notifications_read(_user_id(request), time.time())
+    return redirect("/notifications")
+
+
+@login_required
+def notification_open(request: Request, notification_id: int) -> Response:
+    """GET /notifications/<id> — отметить прочитанным и открыть страницу, о которой уведомление."""
+    user_id = _user_id(request)
+    row = database.get_notification(notification_id, user_id)
+    if row is None:
+        return not_found(request)
+    database.mark_notifications_read(user_id, time.time(), notification_id)
+    return redirect(_safe_next(row["link"]) if row["link"] else "/notifications")
+
+
+@student_area
 def dashboard(request: Request) -> Response:
     """GET /dashboard — личный кабинет со статистикой и последними попытками."""
     user_id = _user_id(request)
     ent_logic.finish_expired_attempts(user_id)
+    notifications.check_due(user_id=user_id)
 
     attempts = database.get_finished_attempts(user_id)
     mocks = [attempt for attempt in attempts if attempt.mode == ent_logic.MOCK]
@@ -689,6 +850,7 @@ def dashboard(request: Request) -> Response:
     content = render(
         "dashboard.html",
         name=request.user.name,
+        tasks_block=_assignments_block(request, user_id),
         continue_block=_continue_blocks(user_id),
         school_block=_school_block(user_id),
         best_card=best_card,
@@ -707,7 +869,7 @@ def dashboard(request: Request) -> Response:
         total_questions=config.MOCK_TOTAL_QUESTIONS,
         duration_hours=config.MOCK_DURATION_MINUTES // 60,
         practice_count=config.PRACTICE_QUESTION_COUNT,
-        ad=ads.banner_block("dashboard"),
+        ad=ads.banner_block("dashboard", request.user),
     )
     return page(request, "Личный кабинет", content)
 
@@ -820,7 +982,7 @@ def _avail_row(info: ent_logic.SubjectAvailability) -> SafeHTML:
     )
 
 
-@login_required
+@student_area
 def choose_pair(request: Request) -> Response:
     """GET /mock — выбор пары профильных предметов с честным отчётом о банке и времени."""
     user_id = _user_id(request)
@@ -906,7 +1068,7 @@ def choose_pair(request: Request) -> Response:
     return page(request, "Пробный ЕНТ", content)
 
 
-@login_required
+@student_area
 def start_mock(request: Request) -> Response:
     """POST /mock/start — собирает пробный ЕНТ по выбранной паре."""
     user_id = _user_id(request)
@@ -1121,7 +1283,7 @@ def _review_body(aq: AttemptQuestion) -> SafeHTML:
 
 # ── Тренировка ───────────────────────────────────────────────────────────────
 
-@login_required
+@student_area
 def choose_practice(request: Request) -> Response:
     """GET /practice — выбор предмета для тренировки."""
     counts = database.question_counts()
@@ -1163,7 +1325,7 @@ def choose_practice(request: Request) -> Response:
     return page(request, "Тренировка", content)
 
 
-@login_required
+@student_area
 def start_practice(request: Request) -> Response:
     """POST /practice/start — собирает тренировку по одному предмету."""
     subject = request.form_value("subject")
@@ -1682,11 +1844,11 @@ def result_page(request: Request, attempt_id: int) -> Response:
         '<a class="btn btn-ghost" href="/history">История попыток</a>',
         again=again,
     )
-    content = join([result_content(attempt, actions), ads.banner_block("result")])
+    content = join([result_content(attempt, actions), ads.banner_block("result", request.user)])
     return page(request, "Результат", content)
 
 
-@login_required
+@student_area
 def history(request: Request) -> Response:
     """GET /history — таблица всех завершённых попыток."""
     user_id = _user_id(request)
@@ -1724,5 +1886,5 @@ def history(request: Request) -> Response:
             '<a class="link" href="/mock">Начните пробный ЕНТ</a> или '
             '<a class="link" href="/practice">тренировку</a>.</div>'
         )
-    content = render("history.html", table=table, count=len(attempts), ad=ads.banner_block("history"))
+    content = render("history.html", table=table, count=len(attempts), ad=ads.banner_block("history", request.user))
     return page(request, "История попыток", content)

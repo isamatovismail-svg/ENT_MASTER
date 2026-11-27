@@ -16,31 +16,20 @@
 
 <section class="grid-2">
   <div class="card">
-    <h2>📊 Баллы по предметам</h2>
-    $strengths
-  </div>
-  <div class="card">
     <h2>🔧 Слабые предметы</h2>
     <p class="muted small">Где процент набранных баллов ниже всего.</p>
     $weak
   </div>
-</section>
-
-<section class="card">
-  <h2>🎯 Слабые темы</h2>
-  <p class="muted small">Темы спецификации НЦТ, где процент набранных баллов ниже всего
-    (учитываются темы, по которым решено несколько заданий).</p>
-  $weak_topics
-</section>
-
-<section class="card">
-  <h2>📈 Рост результата</h2>
-  $growth
+  <div class="card">
+    <h2>🎯 Слабые темы</h2>
+    <p class="muted small">Темы спецификации НЦТ с самым низким результатом.</p>
+    $weak_topics
+  </div>
 </section>
 
 <section class="section">
-  <h2>🕒 История попыток</h2>
-  $history
+  <h2>🗓 Лента по дням</h2>
+  $timeline
 </section>
 
 <form method="post" action="/teacher/$sid/members/$uid" class="section">

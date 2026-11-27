@@ -22,7 +22,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import config
-from app import auth, database, ent_logic
+from app import auth, database, ent_logic, notifications
 from app.database import Attempt, AttemptQuestion, User
 
 logger = logging.getLogger(__name__)
@@ -578,6 +578,8 @@ def run_polling(api: TelegramAPI, max_cycles: int | None = None,
     cycles = 0
     while max_cycles is None or cycles < max_cycles:
         cycles += 1
+        # Напоминания «до срока задания меньше суток» (сама функция не чаще раза в 10 минут).
+        notifications.check_due_throttled()
         params: dict[str, Any] = {"timeout": config.TELEGRAM_POLL_TIMEOUT,
                                   "allowed_updates": ["message", "callback_query"]}
         if offset is not None:
