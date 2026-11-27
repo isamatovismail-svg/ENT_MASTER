@@ -271,7 +271,7 @@ def authenticate(login: str, password: str) -> User | None:
 WEAK_PASSWORDS = (
     "12345678", "123456789", "1234567890", "87654321", "11111111", "00000000",
     "password", "password1", "qwerty123", "qwertyui", "1q2w3e4r", "iloveyou",
-    "admin123", "admin1234", "admin2026", "Admin2026!", "administrator", "entmaster",
+    "admin123", "admin1234", "admin2026", "administrator", "entmaster", "qwerty",
 )
 
 

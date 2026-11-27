@@ -1,749 +1,218 @@
-# ENT MASTER — платформа подготовки к ЕНТ
+# ENT MASTER — Yagona milliy testga tayyorlanish platformasi
 
-Сайт для подготовки к Единому национальному тестированию (Казахстан): пробный ЕНТ в
-официальном формате, тренировки по предметам, разбор ошибок и история попыток.
+**ENT MASTER** — Qozog‘iston bitiruvchilarini **ENT**ga (Yagona milliy test, qozoqcha — ҰБТ) tayyorlash
+uchun yaratilgan veb-sayt va Telegram-bot. Sayt rasmiy formatdagi to‘liq sinov testini (120 ta topshiriq,
+140 ball, 4 soat), 16 fan bo‘yicha mashqlarni, har bir xatoning tushunarli tahlilini, o‘qituvchi kabinetini
+va ikki tilli interfeysni (rus va qozoq tillari) taqdim etadi.
 
-Проект написан **только на Python 3 (стандартная библиотека), HTML и CSS**:
-без JavaScript, без фреймворков и без `pip install`.
+Loyiha butunlay **Python standart kutubxonasi, HTML va CSS** asosida yozilgan: hech qanday freymvork,
+tashqi paket yoki JavaScript ishlatilmagan.
 
-## Запуск
+---
 
-Нужен Python 3.11 или новее.
+## Skrinshotlar
 
-```bash
-cd "ENT MASTER"
-python seed.py          # загрузить вопросы в базу: из data/questions + сгенерированные задачи
-python backup.py        # резервная копия базы (на сервере — автоматически раз в сутки и в Telegram)
-python notify.py test   # пробное оповещение администратору в Telegram
-python run.py           # запустить сайт и Telegram-бота одной командой
+| Bosh sahifa | Sinov ENT (test jarayoni) |
+|---|---|
+| ![Bosh sahifa](docs/screenshots/01-bosh-sahifa.png) | ![Sinov ENT](docs/screenshots/02-sinov-ent.png) |
+
+| Natija | Xato tahlili |
+|---|---|
+| ![Natija](docs/screenshots/03-natija.png) | ![Xato tahlili](docs/screenshots/04-xato-tahlili.png) |
+
+| O‘qituvchi kabineti | Qozoq tilidagi versiya |
+|---|---|
+| ![O‘qituvchi kabineti](docs/screenshots/05-oqituvchi-kabineti.png) | ![Qozoq tilida](docs/screenshots/06-qozoq-tilida.png) |
+
+---
+
+## Imkoniyatlar
+
+### Mehmon (ro‘yxatdan o‘tmagan foydalanuvchi)
+- ENT tuzilishi bilan tanishadi: 3 ta majburiy fan va tanlanadigan profil fanlar juftligi.
+- Interfeys tilini tanlaydi: **РУС / ҚАЗ** (tanlov cookie’da saqlanadi).
+- Elektron pochta orqali ro‘yxatdan o‘tadi (6 xonali tasdiqlash kodi bilan) yoki Google orqali kiradi.
+
+### O‘quvchi
+- **Sinov ENT** — rasmiy formatda: 120 ta topshiriq, 140 ball, 4 soat; vaqtni server hisoblaydi.
+  Test davomida to‘g‘ri javoblar ko‘rsatilmaydi — xuddi haqiqiy imtihondagidek.
+- **Mashq** — tanlangan fan bo‘yicha 10 ta savol; har bir javobdan so‘ng to‘g‘ri yoki noto‘g‘riligi
+  va qisqa izoh darhol ko‘rinadi.
+- **Natija tahlili** — fanlar bo‘yicha ballar, har bir topshiriq: o‘quvchining javobi (qizil), to‘g‘ri
+  javob (yashil) va izoh.
+- **Shaxsiy kabinet** — eng yaxshi va o‘rtacha ball, kuchli va zaif fanlar, ENT spetsifikatsiyasining
+  zaif mavzulari, urinishlar tarixi.
+- **O‘qituvchi topshiriqlari** kabinetning eng yuqorisida: nima qilish kerak, «N tadan X» progress,
+  muddat va topshiriqni darhol boshlash tugmasi.
+- **Bildirishnomalar** (🔔): ariza qabul qilindi yoki rad etildi, yangi topshiriq, muddatga bir kundan
+  kam qoldi. Akkaunt Telegram-botga bog‘langan bo‘lsa, bildirishnoma u yerga ham keladi.
+- **O‘qitish tili** (rus yoki qozoq) — savollar faqat shu tilda beriladi.
+
+### O‘qituvchi
+- Faqat o‘z ishini ko‘radi: maktabga kelgan **arizalar** (qabul qilish / rad etish), **o‘quvchilar**,
+  **topshiriqlar** va **o‘z savollari**. Administrator bo‘limlari unga ko‘rinmaydi va yopiq.
+- **O‘quvchilar jadvali**: oxirgi faollik; bugun, kecha va 7 kun ichidagi sinov ENT va mashqlar soni;
+  oxirgi, o‘rtacha va eng yaxshi natija; o‘zgarish (o‘sish / pasayish); zaif fanlar. Istalgan ustun
+  bo‘yicha saralash, davr filtri (bugun, kecha, 7 kun, 30 kun, butun vaqt). Standart tartibda yuqorida
+  **yordamga muhtoj** o‘quvchilar turadi.
+- **O‘quvchi kartochkasi** — kunlar bo‘yicha lenta: nima qilgani, ballari, qaysi fanlardan.
+- **Topshiriqlar**: «N ta sinov ENT» (istalgan yoki aniq juftlik) yoki «N ta mashq» muddat bilan;
+  kim bajargani jadvali. Faqat topshiriq berilgandan keyin va muddatgacha tugatilgan urinishlar hisobga olinadi.
+- **Savollar taklif qilish**: o‘qituvchi savol qo‘shadi (tilini tanlaydi), u bosh administrator
+  tekshiruvidan so‘ng umumiy bankka tushadi.
+
+### Bosh administrator
+- Savollar banki: qo‘shish, tahrirlash, o‘chirish, qidiruv, ENT normasiga ko‘ra to‘liqlik.
+- O‘qituvchilar savollarini tekshirish: ma’qullash, izoh bilan rad etish yoki tuzatib ma’qullash.
+- Milliy test markazi (НЦТ) spetsifikatsiyasi mavzulari bo‘yicha qamrov hisoboti — rus va qozoq banklari alohida.
+- Foydalanuvchilar, maktablar, reklama bannerlari (JavaScript’siz, faqat o‘quvchilar va mehmonlarga,
+  hech qachon test vaqtida emas).
+
+### Telegram-bot
+- Mashqlar tugmalar orqali, natijalar, saytga bir martalik havola orqali kirish.
+- Bot bog‘langan akkaunt tilida (yoki Telegram ilovasi tilida) gapiradi.
+
+---
+
+## Kod qanday tuzilgan
+
+```mermaid
+flowchart LR
+    B([Brauzer]) -->|HTTP| S[app/server.py<br/>ThreadingHTTPServer]
+    S --> A[app/auth.py<br/>sessiya, CSRF]
+    S --> R[app/router.py<br/>marshrutlar jadvali]
+    R --> V[app/views.py<br/>teacher_views, admin_views ...]
+    V --> T[app/templates.py + templates/*.html<br/>HTML, avtomatik ekranlash]
+    V --> I[app/i18n.py<br/>rus / qozoq lug‘ati]
+    V --> L[app/ent_logic.py<br/>test yig‘ish va baholash]
+    L --> D[(app/database.py<br/>SQLite)]
+    V --> D
+    TG([Telegram]) <-->|long polling| BOT[bot.py + app/telegram_bot.py]
+    BOT --> L
+    G[app/generators/*<br/>savollar generatorlari] -->|seed.py| D
+    J[data/questions/*.json<br/>data/questions/kk/*.json] -->|seed.py| D
 ```
 
-`run.py` запускает сайт (`main.py`) и бота (`bot.py`) двумя процессами и выводит логи обоих
-в один терминал с метками `[САЙТ]` и `[БОТ]`. После старта появится одна строка
-«Сайт на этом компьютере: http://localhost:8000» — открывайте именно её (http, не https).
-`Ctrl+C` аккуратно останавливает оба процесса. Если порт 8000 уже занят (сайт запущен в другом
-терминале), `run.py` скажет об этом и не запустится.
-
-**Chrome пишет ERR_SSL_PROTOCOL_ERROR на 127.0.0.1:8000, а в логе сайта — предупреждение про https.**
-Это не ошибка сайта: другой проект на этом же порту (например, Django с `SECURE_SSL_REDIRECT`)
-когда-то ответил браузеру «навсегда переходи на https://127.0.0.1:8000», и Chrome это запомнил.
-Откройте `http://localhost:8000` или очистите кэш Chrome
-(`chrome://settings/clearBrowserData` → «Изображения и другие файлы, сохранённые в кеше»).
-Если в `.env` нет `TELEGRAM_BOT_TOKEN`, запускается только сайт — с предупреждением, что бот
-не запущен (см. раздел «Telegram-бот»).
-
-По отдельности: `python main.py` — только сайт, `python bot.py` — только бот.
-
-### Показать сайт через интернет (бесплатно, без аккаунта)
-
-Чтобы учитель открыл сайт со своего компьютера или телефона, нужен `cloudflared`
-(Cloudflare Quick Tunnel). Установить один раз — официальный пакет Cloudflare:
-
-```bash
-curl -LO https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-sudo dpkg -i cloudflared-linux-amd64.deb
-```
-
-**Включить показ:**
-
-```bash
-python3 run.py --share      # или: run --share
-```
-
-Запустятся сайт, бот и туннель; в терминале крупно появится ссылка вида
-`https://слова-через-дефис.trycloudflare.com` — её и отправьте учителю. Эта же ссылка
-используется в письмах и в ссылках из Telegram-бота. Снаружи сайт открыт по HTTPS
-(шифрует Cloudflare), на компьютере он по-прежнему работает по http — вход, cookie, формы
-и защита CSRF работают как обычно.
-
-**Выключить показ:** `Ctrl+C` в этом терминале — останавливаются сразу сайт, бот и туннель,
-ссылка перестаёт работать. Каждый запуск даёт новую ссылку. Если ссылка только что появилась,
-а браузер пишет «сайт не найден», подождите полминуты: новому адресу нужно время, чтобы его
-узнали DNS-серверы.
-
-Пока сайт открыт через интернет:
-- демо-администратор (аккаунт на `@entmaster.demo` с ролью админа) войти не может — его пароль
-  знают все, кто видел демо; демо-учитель и демо-ученик работают;
-- если у главного администратора слабый пароль (`12345678`, `admin123`, совпадает с логином
-  и т. п.), в терминале появится предупреждение — смените пароль или выключите показ.
-
-**PyCharm:** в проекте есть общая конфигурация запуска «Run» (`.idea/runConfigurations/Run.xml`)
-для `run.py` — выберите её вверху справа и нажмите зелёную кнопку ▶
-(перед первым запуском один раз выполните `seed.py`).
-
-**Команда `run` в терминале** (по желанию): добавьте в `~/.bashrc`
-
-```bash
-alias run='cd ~/PycharmProjects/"ENT MASTER" && python3 run.py'
-```
-
-и откройте новый терминал — `run` из любой папки запустит сайт и бота.
-
-Тесты:
-
-```bash
-python -m unittest            # все тесты
-python -m unittest -v         # подробный вывод
-python -m unittest tests.test_scoring.ScoreTests.test_matching   # один тест
-```
-
-## Что умеет сайт
-
-Дизайн — яркий и адаптивный: у каждого предмета свой цвет и эмодзи-иконка, плавные анимации
-появления, светлая и тёмная тема (автоматически по настройке системы, `prefers-color-scheme`),
-удобная вёрстка на телефоне.
-
-- **Главная** — первый экран, блок «Как устроен ЕНТ» (3 обязательных + профильная пара, 120 заданий,
-  140 баллов, 4 часа), объяснение, что такое профильная пара, и список всех 11 пар.
-- **Регистрация по почте с кодом** — имя, фамилия, почта, телефон (по желанию), пароль
-  от 8 символов с повтором. Аккаунт создаётся неподтверждённым, на почту приходит 6-значный
-  код (действует 15 минут, не больше 5 попыток ввода, в базе хранится только SHA-256 от кода).
-  После верного кода аккаунт активен и пользователь сразу входит. «Отправить код ещё раз» —
-  не чаще раза в минуту. Пока почта не подтверждена, войти нельзя: вход с верным паролем
-  ведёт на ввод кода. Если регистрацию на эту почту начали, но не подтвердили, её можно
-  пройти заново (имя, телефон и пароль заменятся).
-  Телефон не подтверждается, но с ним можно входить вместо почты. Его можно ввести в любом
-  привычном виде: `8 705 967 84 20`, `+7 (705) 967-84-20`, `87059678420`, `77059678420`,
-  `7059678420` — он сохраняется как `+77059678420`. Так же номер понимают вход, поиск
-  в админке и `manage_admin.py`. Если после кода страны не 10 цифр — понятная ошибка.
-- **Восстановление пароля** — «Забыли пароль?» на странице входа → код на почту → новый пароль.
-  Ответ одинаковый, есть ли аккаунт с такой почтой или нет. После смены пароля все старые
-  сессии завершаются.
-- **Вход через Google** (OAuth 2.0, Authorization Code Flow, только `urllib`) — см. раздел
-  «Почта и Google». Почта от Google считается подтверждённой: если аккаунт с ней есть, вход
-  в него, иначе создаётся новый (имя и фамилия — из Google). Без ключей в `.env` кнопка
-  неактивна с подписью «скоро».
-- **Аккаунты, созданные до подтверждения почты** (в том числе со старым входом по телефону),
-  считаются подтверждёнными и работают как раньше.
-- **Вход и выход.** Закрытые страницы без входа перенаправляют на страницу входа.
-- **Личный кабинет** — карточки «Лучший балл / Последний балл / Всего попыток / Средний балл»,
-  полоска прогресса к 140 баллам, сильные и слабые предметы (по проценту набранных баллов
-  во всех попытках), большие кнопки «Пробный ЕНТ» и «Тренировка», последние 5 попыток.
-- **Пробный ЕНТ** — выбор пары профильных предметов, тест по разделам (по предметам).
-  Каждый раздел — HTML-форма; вкладки предметов и кнопки «Назад/Далее/Сохранить/Завершить» —
-  это кнопки той же формы, поэтому **при любом переходе ответы раздела сначала сохраняются в базу**.
-  Оставшееся время считает сервер по времени начала; когда оно выходит, тест завершается
-  автоматически при следующем запросе. Завершение — через страницу подтверждения.
-  Во время теста правильные ответы **не подсвечиваются** — как на настоящем ЕНТ.
-- **Тренировка** — 10 случайных заданий одного предмета, **по одному на странице**: ученик отвечает →
-  видит свой ответ красным (если ошибся), правильный зелёным и объяснение → «Следующий вопрос».
-  В конце — итог. Повторная отправка уже проверенного вопроса ничего не меняет.
-- **Результат** — баллы по каждому предмету, итог и полный разбор по предметам: красным/зелёным
-  и с объяснением к каждому заданию. Переключатель «Только ошибки» (на CSS, без JavaScript).
-- **Случайный порядок.** Задания внутри предмета и варианты ответа перемешиваются в каждой попытке.
-  Порядок вариантов запоминается для каждого задания попытки, поэтому ответ ученика и правильный
-  ответ всегда сопоставляются корректно.
-- **История попыток** — таблица всех завершённых тестов.
-
-## Два языка: русский и казахский
-
-Весь интерфейс есть на русском и казахском (литературный казахский, кириллица, термины как на
-testcenter.kz: ҰБТ, ҰТО, сынақ ҰБТ, бейіндік пән). Переключатель **РУС / ҚАЗ** — в шапке каждой
-страницы: гостю язык запоминается в cookie, вошедшему — в профиле (`users.language`). При регистрации
-выбирается **язык обучения**, в профиле его можно сменить. На этом языке — страницы, меню, кнопки,
-ошибки форм, письма с кодами, уведомления (и их копии в Telegram), Telegram-бот (язык привязанного
-аккаунта, иначе — язык приложения Telegram), названия предметов, разделов и тем НЦТ.
-
-Как устроено (`app/i18n.py`, без сторонних библиотек): русский текст — ключ словаря `KK_DICT`,
-казахский — значение. В коде Python строки берутся через `t("Текст {n}", n=5)`; текст HTML-шаблонов
-и фрагментов переводится автоматически по тому же словарю (данные пользователя подставляются
-после перевода и не переводятся). `tests/test_i18n.py` проверяет, что у каждой строки интерфейса
-(`app/i18n_keys.py` собирает их из шаблонов и кода) есть перевод с теми же метками, и обходит
-страницы гостя, ученика, учителя и администратора в режиме `kk`: русских строк интерфейса там нет.
-
-## Вопросы на двух языках
-
-У каждого вопроса есть язык (`questions.language`: `ru` / `kk`). Ученик получает вопросы только на
-своём языке обучения — в пробном ЕНТ, тренировке, заданиях учителя и в боте. Исключения:
-казахский/русский язык и литература — вопросы на языке самого предмета, иностранный язык — общие
-вопросы на английском (подсказки к заданию — на языке ученика).
-
-Профильная пара «язык обучения и литература» зависит от языка обучения (правила ЕНТ, egov.kz):
-«Қазақ тілі + Қазақ әдебиеті» — для казахского, «Русский язык + Русская литература» — для русского;
-остальные 9 пар общие (`config.pairs_for`).
-
-Откуда казахские вопросы: перевод JSON-файлов — `data/questions/kk/*.json` (тот же порядок вопросов,
-что в русском файле), и казахские генераторы — `app/generators/kk_computed.py` (математика, физика,
-химия, информатика, математическая грамотность) и `app/generators/kk_facts.py` (история Казахстана,
-всемирная история, география, биология, право). `tests/test_kk_questions.py` автоматически сверяет
-перевод с оригиналом: тот же тип, тема и правильный ответ, столько же вариантов и строк, варианты не
-повторяются, числа и формулы не изменились. `seed.py` загружает обе версии и печатает таблицу:
-
-```
-Предмет                           ru      kk
---------------------------------------------
-История Казахстана               213     234
-Математическая грамотность       615     613
-Грамотность чтения                51      51
-Математика                       974     937
-Физика                           975     859
-Информатика                      975     878
-География                        942     315
-Биология                         945     242
-Химия                            975     366
-Всемирная история                425     327
-Основы права                     429     239
-Казахский язык                   391     391  (только kk)
-Казахская литература             433     433  (только kk)
-Русский язык                     888     888  (только ru)
-Русская литература               501     501  (только ru)
-Иностранный язык                 736     736  (общие, на английском)
-```
-
-Учитель при добавлении вопроса выбирает его язык; администратор видит язык в очереди проверки,
-а отчёт покрытия тем НЦТ (`/admin/topics`) показан отдельно для русского и казахского банка.
-`tests/test_languages.py` проверяет, что для каждой пары и каждого языка собирается полный тест на
-120 заданий.
-
-## Школы и кабинет учителя
-
-**Роли:** `admin` — главный администратор (полный доступ), `teacher` — учитель (администратор
-своей школы), `user` — ученик. Учителя назначает главный администратор командой
-`python manage_admin.py <логин> --teacher <город> <школа>` (школа создаётся, если её нет).
-
-**Школы.** Школа — город + номер или название. Дубликатов нет: «Школа №12», «СОШ 12» и «12»
-в «г. Алматы» и «Алматы» — одна и та же школа (сравнивается нормализованный ключ
-`schools.key`). Ученик указывает школу при регистрации (по желанию) или в профиле
-(`/profile`); если такой школы нет — она создаётся. Заявка получает статус «ждёт
-подтверждения»; учитель подтверждает или отклоняет её. Пока заявка не подтверждена, учитель
-не видит результатов ученика. Ученик может выйти из школы или сменить её — тогда снова
-нужно подтверждение.
-
-**Кабинет учителя** — `/teacher`. У учителя своё меню: 👥 Ученики, 📋 Задания, 📝 Мои вопросы,
-🔔 уведомления и профиль — пробные ЕНТ, тренировки, история и админка ему не показываются
-(страницы ученика переводят его в кабинет, админка отвечает 403). Учитель видит только свою
-школу, главный администратор — любую (список всех школ). Доступ проверяется в каждом запросе:
-школа из адреса сверяется со школой учителя, ученик и задание ищутся только внутри этой школы.
-
-- **Ученики** (главная кабинета) — сверху заявки в школу (принять / отклонить), ниже таблица
-  всех учеников: последняя активность; сколько пробных ЕНТ / тренировок сегодня, вчера и за 7 дней;
-  последний, средний и лучший результат (процент набранных баллов, у пробного ЕНТ — и балл);
-  изменение (▲ растёт / ▼ падает: среднее последних 3 попыток против 3 предыдущих); слабые
-  предметы (ниже 60 %). Фильтр периода: сегодня, вчера, 7 дней, 30 дней, всё время. Таблица
-  сортируется по любому столбцу (клик по заголовку); по умолчанию сверху те, кому **нужна помощь**:
-  не занимались неделю, низкий или падающий результат, есть слабые предметы.
-- **Карточка ученика** — сводка, слабые предметы и темы НЦТ, **лента по дням**: что делал
-  (пробный ЕНТ или тренировка), во сколько, баллы и баллы по каждому предмету, ссылка на разбор.
-  Ученика можно исключить из школы.
-- **Задания** — «N пробных ЕНТ» (любая пара или конкретная) или «N тренировок по предмету»,
-  со сроком (до конца выбранного дня), всем ученикам школы или выбранным. Засчитываются
-  только попытки, **завершённые после выдачи задания и до срока**. Таблица задания: кто
-  выполнил, кто нет, баллы засчитанных попыток.
-
-**Ученик** видит активные задания в самом верху личного кабинета: что сделать («Пройдите пробный
-ЕНТ (Математика + Информатика)»), прогресс «X из N», срок (меньше суток — красным) и кнопку
-«Начать», которая сразу запускает именно заданную пару или предмет.
-
-**Уведомления** — 🔔 в меню со счётчиком непрочитанных, страница `/notifications`, «прочитано»
-(по одному при открытии или все сразу). Учителю: новая заявка в школу, ученик выполнил задание.
-Ученику: заявку приняли / отклонили, новое задание, до срока меньше суток, а задание не
-выполнено (один раз; проверяется в кабинете ученика и ботом раз в 10 минут). Если к аккаунту
-привязан Telegram-бот, уведомление дублируется туда; ошибка Telegram только пишется в лог
-и не мешает действию на сайте.
-
-**Реклама** показывается только гостям и ученикам — никогда учителям, администраторам и во время теста.
-
-## Вопросы от учителей
-
-Учитель предлагает вопросы в общий банк: «📝 Мои вопросы» в кабинете учителя
-(`/teacher/questions`). Форма и проверка те же, что в админке (`app/question_form.py`
-+ `question_bank.validate_question`).
-
-1. Новый вопрос получает статус **«на проверке»** и в тесты не попадает.
-2. Главный администратор видит очередь в админке → **«🔎 Проверка»** (`/admin/review`,
-   число вопросов — в меню): вопрос целиком с отмеченным верным ответом, автор и школа.
-   Действия: **одобрить** (вопрос сразу доступен ученикам всех школ), **отклонить
-   с комментарием** (комментарий обязателен) или **исправить и одобрить**.
-3. Учитель видит статус каждого вопроса и комментарий администратора. Вопрос на проверке
-   или отклонённый можно исправить (он снова уходит на проверку) или удалить; одобренный —
-   нельзя, он уже в общем банке.
-4. В тесты и во все выборки банка (`random_questions`, счётчики, списки админки) попадают
-   только одобренные вопросы (`questions.status = 'approved'`). Вопросы из JSON и генераторов,
-   а также созданные администратором, одобрены сразу. `seed.py` не трогает вопросы учителей.
-
-## Темы ЕНТ по спецификации НЦТ
-
-Каталог разделов и тем — `app/topics.py`, по официальным спецификациям НЦТ «для использования
-с 2026 года» (testcenter.kz → «Подготовка к тестированию» → «Спецификация тестов ЕНТ»)
-для всех 16 предметов: номера и порядок тем — как в документах, длинные формулировки сокращены.
-
-- **Доли заданий по темам НЦТ не публикует**: в спецификациях есть только перечень разделов
-  и тем (исключение — грамотность чтения: 2 + 3 + 5 заданий по трём текстам). Поэтому
-  в отчёте показывается доля темы в нашем банке, а не в тесте.
-- Для казахского языка и казахской литературы на сайте НЦТ опубликованы только спецификации
-  «оқыту қазақ тілінде емес» — каталог составлен по ним.
-- **Каждый вопрос банка помечен темой** (`questions.topic`): вопросы JSON — полем `"topic"`,
-  расчётные шаблоны — декоратором `@topic("NN")`, шаблоны по таблицам — темой строки таблицы
-  (`Event`/`Fact`/`Category`, `set_topics`), литература — темой произведения. Произведения
-  русской и казахской литературы взяты строго из списков спецификации; вопросы о произведениях
-  вне программы («Отцы и дети», «Мастер и Маргарита» и др.) заменены.
-- **Недостающие темы добавлены**: новые шаблоны и вопросы закрыли все темы математики,
-  физики, химии, информатики, биологии, географии, права, литератур, иностранного и казахского
-  языков, математической грамотности. Без вопросов остались только темы-форматы, для которых нужны
-  авторские тексты и источники: «История в документах / в лицах / Исторические карты»
-  (история Казахстана, частично всемирная история) и «Работа с текстом» (русский язык, темы 26–30).
-- **Отчёт покрытия** — админка → «🧭 Темы НЦТ» (`/admin/topics`): сколько вопросов на каждую тему,
-  пустые темы выделены.
-- **Слабые темы** — в карточке ученика у учителя и в личном кабинете ученика: темы, где процент
-  набранных баллов ниже 60 % (учитываются темы, по которым решено от 3 заданий).
-- В формах вопроса (админка и учитель) тему нужно выбрать — из списка, сгруппированного по предметам.
-- `python seed.py` после полной загрузки без ошибок убирает из банка старые сгенерированные
-  вопросы без темы (их генераторы больше не выдают): они помечаются удалёнными, разбор старых
-  попыток сохраняется. Вопросы из админки и от учителей не трогаются.
-
-## Реклама и платная часть
-
-**Сайт бесплатный.** Реклама — **свои баннеры без JavaScript** (AdSense и подобные сервисы
-требуют JavaScript, а CSP сайта запрещает скрипты):
-
-- Админка → **«📢 Реклама»** (`/admin/banners`): загрузить картинку (PNG, JPEG, GIF или WebP
-  до 1 МБ; SVG не принимается — в нём можно спрятать скрипт; тип проверяется по содержимому
-  файла), указать ссылку (только `http(s)://`), места показа и даты «с … по …», включить или
-  выключить. Видны статус (показывается / запланирован / закончился / выключен), показы,
-  клики и CTR.
-- **Места показа:** главная, личный кабинет, страница результата, история. **Во время теста
-  рекламы нет.** Если на месте несколько подходящих баннеров, показывается случайный.
-- Картинка хранится в базе (попадает в резервные копии) и отдаётся с этого же сайта
-  (`/ad/<id>/image`), переход идёт через `/ad/<id>` — так считаются клики. Ссылка открывается
-  в новой вкладке с `rel="sponsored noopener"`, под баннером подпись «Реклама».
-
-**Платная часть** — не дороже 500 тенге; **что именно будет платным, по плану решается позже**,
-поэтому в коде её пока нет. Когда решите, понадобятся: признак оплаты у пользователя, страница
-оплаты и приём платежей (Kaspi, банковский эквайринг — для них нужен ИП или ТОО) и, например,
-отключение рекламы для оплативших.
-
-## Выкладка на сервер (Oracle Cloud Always Free)
-
-Сайт и бот работают на бесплатной виртуальной машине Oracle Cloud. Снаружи — **Caddy**
-(HTTPS-сертификат Let's Encrypt он получает и продлевает сам), он передаёт запросы сайту
-на `127.0.0.1:8000`. Сайт, бот и ежедневная резервная копия — службы **systemd**
-(запускаются при старте сервера и перезапускаются при сбое). Все файлы — в папке `deploy/`.
-
-### 1. Виртуальная машина
-
-1. Зарегистрируйтесь на cloud.oracle.com (карта нужна только для проверки). Бесплатные ресурсы
-   есть только в домашнем регионе (Home Region) — его выбирают при регистрации.
-2. **Compute → Instances → Create instance**:
-   - Image: **Canonical Ubuntu 24.04** (в нём Python 3.12; в 22.04 Python 3.10 — не подойдёт);
-   - Shape: **Ampere VM.Standard.A1.Flex** (например, 1 OCPU и 6 ГБ памяти — с запасом)
-     или **VM.Standard.E2.1.Micro** — обе с меткой «Always Free»;
-   - SSH keys: загрузите свой открытый ключ (`~/.ssh/id_ed25519.pub`) или скачайте созданный;
-   - сеть по умолчанию, **Assign a public IPv4 address** — да.
-   Ошибка «Out of capacity» у A1 бывает часто: попробуйте другой Availability Domain или позже.
-3. **Откройте порты 80 и 443** в облачной сети: Networking → Virtual Cloud Networks → ваша сеть →
-   Security Lists → Default Security List → **Add Ingress Rules**: Source CIDR `0.0.0.0/0`,
-   IP Protocol TCP, Destination Port Range `80`, затем так же `443`. (Встроенный файрвол самой
-   Ubuntu откроет `setup.sh`.)
-4. Чтобы IP не менялся при пересоздании машины, сделайте его зарезервированным:
-   Networking → IP Management → Reserved Public IPs.
-5. Учтите: по правилам Oracle простаивающие Always Free машины могут быть остановлены.
-   Перевод аккаунта на Pay As You Go (бесплатные ресурсы остаются бесплатными) снимает это
-   ограничение — следите только, чтобы не создавать платных ресурсов.
-
-### 2. Домен
-
-Купите домен (например, в зоне `.kz` у казахстанского регистратора) и создайте **A-запись**
-на публичный IP машины. Проверка: `ping ваш-домен` показывает этот IP. Без домена HTTPS-сертификат
-не выдаётся.
-
-### 3. Установка
-
-```bash
-# на своём компьютере: скопировать проект (без базы, .env и копий)
-rsync -av --exclude ent_master.sqlite3 --exclude .env --exclude backups --exclude __pycache__ \
-      ./ ubuntu@IP:/tmp/ent-master/
-# на сервере
-ssh ubuntu@IP
-sudo mv /tmp/ent-master /opt/ent-master
-sudo bash /opt/ent-master/deploy/setup.sh ваш-домен.kz
-```
-
-Вместо rsync можно передать адрес git-репозитория: `sudo bash setup.sh ваш-домен.kz https://…`
-(для закрытого репозитория — с deploy-ключом). Чтобы перенести уже существующих пользователей,
-скопируйте и `ent_master.sqlite3` в `/opt/ent-master/` до запуска `setup.sh`.
-
-`setup.sh` ставит python3, git и caddy, открывает порты 80/443 в iptables, создаёт системного
-пользователя `ent`, файл `.env` (`SITE_URL=https://домен`, `COOKIE_SECURE=1`, папка копий),
-загружает банк вопросов, включает службы и настраивает Caddy. Повторный запуск безопасен.
-
-После установки:
-
-1. `sudo nano /opt/ent-master/.env` — впишите ключи SMTP, бота и Google, затем
-   `sudo systemctl restart ent-master-site` (и `sudo systemctl enable --now ent-master-bot`,
-   если добавили токен бота).
-2. В Google Cloud Console добавьте redirect URI `https://домен/auth/google/callback`.
-3. Зарегистрируйтесь на сайте и назначьте себя администратором:
-   `sudo -u ent python3 /opt/ent-master/manage_admin.py ваша@почта`.
-
-Полезные команды: `systemctl status ent-master-site`, `journalctl -u ent-master-site -f`
-(журнал сайта), `journalctl -u ent-master-bot -f`, `systemctl list-timers ent-master-backup`.
-
-### 4. Резервные копии
-
-`python backup.py` делает **согласованную** копию базы встроенным механизмом sqlite3 (даже пока
-сайт и бот пишут в базу), проверяет её (`PRAGMA integrity_check`), сжимает gzip и хранит
-последние `BACKUP_KEEP` копий (по умолчанию 14). На сервере это делает таймер
-`ent-master-backup.timer` каждый день в 03:30, копии — в `/var/backups/ent-master/`.
-Картинки баннеров хранятся в базе и попадают в копии.
-
-**Каждая ежедневная копия приходит вам файлом в Telegram** (`backup.py --telegram`), так что
-копии хранятся не только на сервере. Если копия не создалась или не отправилась, придёт
-оповещение о сбое (см. ниже). Telegram принимает файлы до 50 МБ; если копия станет больше,
-бот пришлёт предупреждение — тогда забирайте её вручную:
-
-```bash
-ssh ubuntu@IP 'sudo sh -c "cat \$(ls -1 /var/backups/ent-master/*.gz | tail -n 1)"' > ent_master-backup.sqlite3.gz
-```
-
-Важно: в копии все данные сайта (почты и телефоны учеников, хеши паролей, результаты).
-Пусть получателем будет только ваш личный чат с ботом; не пересылайте копии в группы.
-
-Восстановление:
-
-```bash
-sudo systemctl stop ent-master-site ent-master-bot
-sudo sh -c 'gunzip -c /var/backups/ent-master/ent_master-ГГГГММДД-ЧЧММСС.sqlite3.gz > /opt/ent-master/ent_master.sqlite3'
-sudo chown ent:ent /opt/ent-master/ent_master.sqlite3
-sudo systemctl start ent-master-site ent-master-bot
-```
-
-### 5. Оповещения о сбоях в Telegram
-
-Бот пишет главному администратору, когда что-то сломалось. Сообщения отправляются напрямую
-через Bot API по токену из `.env`, поэтому дойдут, даже если упал сам бот.
-
-| Событие | Как отслеживается | Сообщение |
+| Fayl | Vazifasi |
+|---|---|
+| `main.py` | Bazani tayyorlaydi va saytni ishga tushiradi. |
+| `run.py` | Sayt va botni bitta buyruq bilan ishga tushiradi; `--share` — internet orqali ko‘rsatish (Cloudflare Quick Tunnel). |
+| `config.py` | ENT formatining yagona manbai: fanlar, topshiriq turlari bo‘yicha kvotalar, ballar, vaqt, juftliklar, tillar. |
+| `seed.py` | JSON-savollarni tekshiradi va bazaga yuklaydi, generatorlar savollarini qo‘shadi, rus/qozoq jadvalini chiqaradi. |
+| `app/server.py` | HTTP-server: so‘rovni tahlil qiladi, statik fayllar, xavfsizlik sarlavhalari, xatolarni chiroyli sahifaga aylantiradi. |
+| `app/router.py` | URL → ishlovchi funksiya jadvali (`<int:id>` parametrlari bilan). |
+| `app/views.py` | O‘quvchi sahifalari: kabinet, sinov ENT, mashq, natija, tarix, profil, bildirishnomalar. |
+| `app/teacher_views.py` | O‘qituvchi kabineti: arizalar, o‘quvchilar jadvali, kartochka, topshiriqlar, savollar. |
+| `app/admin_views.py` | Administrator paneli. |
+| `app/ent_logic.py` | Testni yig‘ish (kvotalar, aralashtirish, o‘quvchi tili), baholash, server taymeri. |
+| `app/database.py` | Barcha SQL so‘rovlar (faqat parametrlangan), jadvallar va eski bazani yangilash (migratsiya). |
+| `app/auth.py` | Parollar (PBKDF2), sessiyalar, CSRF, pochta kodlari, telefonni normallashtirish. |
+| `app/i18n.py` | Ikki tilli interfeys: rus matni — kalit, qozoqcha — qiymat; shablonlarni avtomatik tarjima qilish. |
+| `app/templates.py` | `string.Template` asosidagi shablonlar; har bir qiymat HTML-ekranlanadi. |
+| `app/notifications.py` | Bildirishnomalar (🔔) va ularning Telegram’dagi nusxasi. |
+| `app/student_stats.py` | O‘qituvchi uchun o‘quvchilar statistikasi: davrlar, o‘zgarish, zaif fanlar, kunlik lenta. |
+| `app/generators/` | Hisob-kitob savollari shablonlari va faktlar jadvallaridan savollar (rus va qozoq tillarida). |
+| `app/telegram_bot.py` | Telegram-bot: faqat standart kutubxona (`urllib`). |
+| `templates/`, `static/style.css` | HTML-shablonlar va yagona CSS (yorug‘ va qorong‘i mavzu). |
+| `data/questions/` | Savollar JSON’da; `kk/` papkasida — ularning qozoqcha tarjimasi. |
+| `deploy/` | Serverga joylash: systemd xizmatlari, Caddy (HTTPS), zaxira nusxalar, nosozlik xabarlari. |
+| `tests/` | Avtomatik testlar. |
+
+---
+
+## Ballar qanday hisoblanadi va test qanday yig‘iladi
+
+ENT formati `config.py` da kvotalar orqali tasvirlangan — umumiy sonlar qo‘lda yozilmaydi, kvotalardan hisoblanadi:
+
+| Bo‘lim | Topshiriqlar | Ball |
 |---|---|---|
-| Сайт или бот упал (ошибка, нехватка памяти, убит) | `ExecStopPost=` в службе: systemd передаёт причину остановки | ⚠️ «упал сайт / Telegram-бот», причина, команда для журнала; systemd перезапускает службу сам |
-| Служба падает снова и снова (5 раз за 10 минут) | `OnFailure=` → `ent-master-alert@` | ❌ «не работает», команда перезапуска |
-| Процесс сайта жив, но не отвечает | таймер `ent-master-health.timer` каждые 5 минут открывает главную страницу | 🔴 после двух неудач подряд «сайт не отвечает», потом ✅ «снова отвечает» |
-| Резервная копия не создалась или не отправилась | `OnFailure=` у `ent-master-backup` | ❌ «резервная копия базы не работает» |
+| Qozog‘iston tarixi (majburiy) | 20 ta bitta javobli | 20 |
+| Matematik savodxonlik (majburiy) | 10 ta bitta javobli | 10 |
+| O‘qish savodxonligi (majburiy) | 10 ta matn asosidagi | 10 |
+| 1-profil fan | 25 bitta javobli + 5 kontekstli + 5 moslashtirish + 5 ko‘p javobli | 50 |
+| 2-profil fan | xuddi shunday | 50 |
+| **Jami** | **120** | **140** |
 
-Обычные остановки и перезапуски (`systemctl restart`, `update.sh`) сообщений не вызывают.
-Одинаковые оповещения приходят не чаще раза в 10 минут, пропущенные повторы упоминаются
-в следующем сообщении («Ещё 3 таких же события»).
+- Bitta javobli va kontekstli topshiriq — **1 ball**.
+- Moslashtirish va ko‘p javobli topshiriq — xatosiz bo‘lsa **2 ball**, bitta xato bo‘lsa **1 ball**, aks holda 0.
+- Har bir fan bo‘yicha savollar bankdan tasodifiy tanlanadi: avval o‘quvchi hali ko‘rmagan savollar.
+  Savollar va javob variantlari aralashtiriladi (variantlar tartibi har bir urinish uchun saqlanadi).
+- O‘quvchi faqat o‘z **o‘qitish tilidagi** savollarni oladi. «Til va adabiyot» profil juftligi o‘qitish
+  tiliga bog‘liq: qozoq tilida — «Qozoq tili + Qozoq adabiyoti», rus tilida — «Rus tili + Rus adabiyoti».
+- Vaqt: to‘liq test uchun 240 daqiqa; muddat serverda saqlanadi, vaqt tugaganda test avtomatik yakunlanadi.
+- Bankda savol yetishmasa, test mavjud savollardan, vaqtni mutanosib qisqartirgan holda yig‘iladi va bu ochiq ko‘rsatiladi.
 
-**Кому приходят:** если в `.env` задан `ADMIN_TELEGRAM_CHAT_ID` (ваш chat id; несколько — через
-запятую) — туда. Иначе — всем главным администраторам, привязавшим Telegram к аккаунту:
-откройте бота, нажмите «Войти на сайт» и выберите «Привязать к моему аккаунту». Проверка:
+---
 
-```bash
-sudo -u ent python3 /opt/ent-master/notify.py test
-```
+## Xavfsizlik
 
-### 6. Обновление
+- **Parollar** faqat xesh ko‘rinishida saqlanadi: PBKDF2-SHA256, har bir foydalanuvchi uchun alohida «tuz».
+- **Sessiya** cookie’sida tasodifiy token; bazada faqat uning SHA-256 xeshi. Cookie — `HttpOnly`, `SameSite=Lax`
+  (HTTPS serverda — `Secure`).
+- **CSRF**: tizimga kirgan foydalanuvchining har bir POST-formasi sessiya tokeni bilan tekshiriladi.
+- **CSP** (Content-Security-Policy) har qanday skriptni va tashqi resurslarni taqiqlaydi; saytda JavaScript yo‘q.
+- **SQL in’ektsiyalardan himoya**: barcha so‘rovlar faqat parametrlangan.
+- **XSS’dan himoya**: shablonlarga qo‘yiladigan har bir qiymat HTML-ekranlanadi.
+- Kirish huquqlari har bir so‘rovda tekshiriladi: o‘qituvchi faqat o‘z maktabini, o‘quvchi faqat o‘z urinishlarini ko‘radi.
+- Elektron pochta kodlari va Telegram orqali kirish havolalari bir martalik, muddatli; bazada faqat xeshi saqlanadi.
+- Maxfiy kalitlar (Telegram tokeni, SMTP, Google) faqat `.env` faylida — u git’ga tushmaydi.
 
-Скопируйте новые файлы (rsync, как при установке, но прямо в `/opt/ent-master/`, или `git pull`
-делает сам скрипт) и выполните `sudo bash /opt/ent-master/deploy/update.sh`: резервная копия →
-код → тесты → банк вопросов → перезапуск служб. Если тесты не прошли, скрипт остановится
-до перезапуска — сайт продолжит работать на старом коде.
+---
 
-## Почта и Google
+## Texnologiyalar
 
-Все ключи — только в `.env` (образец — `.env.example`), в git они не попадают.
+- **Python 3.11+**, faqat standart kutubxona: `http.server`, `sqlite3`, `hashlib`, `hmac`, `secrets`,
+  `string.Template`, `urllib`, `smtplib`, `email`, `contextvars`, `unittest` va boshqalar.
+- **SQLite** — ma’lumotlar bazasi.
+- **HTML + CSS** — interfeys (moslashuvchan dizayn, yorug‘ va qorong‘i mavzu), **JavaScript’siz**.
+- Freymvorklar ham, `pip install` ham kerak emas.
 
-**Письма с кодами** отправляются через `smtplib.SMTP_SSL`. Для Gmail:
+---
 
-```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=ваш.адрес@gmail.com
-SMTP_PASSWORD=пароль приложения
-MAIL_FROM=ENT MASTER <ваш.адрес@gmail.com>
-```
-
-`SMTP_PASSWORD` — это «пароль приложения» (аккаунт Google → Безопасность → двухэтапная
-аутентификация → Пароли приложений), обычный пароль от почты не подойдёт.
-**Если SMTP не настроен** (режим разработки), письмо с кодом печатается в консоль сервера —
-код можно взять оттуда.
-
-**Вход через Google.** В Google Cloud Console создайте OAuth-клиент типа «Web application»,
-добавьте Authorized redirect URI `http://localhost:8000/auth/google/callback` и впишите в `.env`:
-
-```
-GOOGLE_CLIENT_ID=…apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=…
-GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
-```
-
-Как это работает: `/auth/google` перенаправляет на Google со случайным `state` (он же
-сохраняется в cookie `HttpOnly`, защита от подделки ответа) → Google возвращает на
-`/auth/google/callback?code=…&state=…` → сервер сверяет `state`, меняет `code` на токены
-POST-запросом на `https://oauth2.googleapis.com/token` и берёт почту и имя из `id_token`,
-проверив `aud` (наш client_id), `iss` (Google), `exp` и `email_verified`. Подпись `id_token`
-не проверяется — он получен напрямую от Google по HTTPS, как допускает OpenID Connect.
-Если на эту почту была начата, но не подтверждена регистрация, её пароль сбрасывается на
-случайный: его мог задать чужой человек, вписавший вашу почту.
-
-В тестах письма никуда не уходят (`FakeMailer` в `tests/base.py`), а запрос к Google
-подменяется (`google_auth.post_form`).
-
-## Telegram-бот
-
-Бот написан на чистом Python: `urllib` + `json`, long polling Bot API (`getUpdates`),
-без библиотек. Он работает с **той же базой**, что и сайт.
-
-**Запуск:**
-
-1. Создайте бота у [@BotFather](https://t.me/BotFather) (команда `/newbot`) и скопируйте токен.
-2. Скопируйте `.env.example` в `.env` и впишите токен:
-   ```
-   TELEGRAM_BOT_TOKEN=123456789:ABC...
-   ```
-   Файл `.env` в `.gitignore` — токен не попадёт в git. Переменная окружения с тем же
-   именем важнее файла.
-3. Запустите `python run.py` — он поднимет и сайт, и бота. (Или по отдельности:
-   `python main.py` и в другом терминале `python bot.py`.)
-
-**Что умеет:**
-
-- `/start` — приветствие и кнопки «Войти на сайт», «Тренировка», «Мои результаты».
-  Команды `/train`, `/results`, `/login` делают то же самое.
-- **Вход на сайт.** Бот присылает одноразовую ссылку `/tg/login?token=…` (действует 10 минут).
-  На сайте: если Telegram уже привязан — кнопка «Войти»; если нет — «Создать аккаунт и войти»
-  в один клик или привязка к существующему аккаунту по логину и паролю (или к аккаунту, в который
-  уже выполнен вход). Ссылка тратится только при нажатии кнопки, поэтому превью ссылок и повторное
-  открытие её не сжигают. В базе хранится только SHA-256 от токена.
-- **Тренировка** — выбор предмета → вопрос с inline-кнопками (для «нескольких ответов» —
-  отметить варианты и «Готово», для соответствия — букву для каждой строки по очереди) →
-  ✅/❌, правильный ответ и объяснение → «Следующий вопрос» → итог. Это те же тренировки, что
-  на сайте: их видно в кабинете и истории, начатую в боте можно продолжить на сайте и наоборот.
-- **Мои результаты** — лучший пробный ЕНТ, средний результат тренировок и последние 5 попыток.
-
-Тренироваться в боте можно после привязки аккаунта — так результаты всегда сохраняются.
-Ссылки в сообщениях ведут на `SITE_URL` из `.env` (по умолчанию `http://localhost:8000`).
-Telegram не принимает адреса `localhost` в кнопках, поэтому для локального сайта ссылка
-приходит текстом, а для публичного адреса — ещё и кнопкой «Открыть сайт».
-
-## Админ-панель
-
-Админка — `/admin` (ссылка «⚙️ Админка» появляется в меню у администратора). Назначить
-администратора — командой в терминале (пользователь должен быть уже зарегистрирован):
+## Ishga tushirish (3 ta buyruq)
 
 ```bash
-python manage_admin.py aru@mail.kz                          # сделать администратором
-python manage_admin.py aru@mail.kz --teacher Алматы 12      # сделать учителем школы
-python manage_admin.py aru@mail.kz --revoke                 # снять роль (учитель уходит из школы)
+git clone https://github.com/isamatovismail-svg/ENT_MASTER.git && cd ENT_MASTER
+python3 seed.py        # savollarni bazaga yuklash (rus va qozoq tillarida)
+python3 run.py         # sayt (va .env da token bo‘lsa — Telegram-bot)
 ```
 
-- **Обзор** — пользователи, завершённые попытки, средний балл пробного ЕНТ и средний результат,
-  число вопросов по каждому предмету и типу с пометкой «⚠ меньше нормы», если заданий меньше,
-  чем нужно для полного ЕНТ.
-- **Вопросы** — список с фильтром по предмету и поиском (без учёта регистра); добавление,
-  изменение и удаление вопросов любого типа через HTML-формы, с объяснением. Тип выбирается
-  ссылкой над формой — у каждого типа своя форма. Новые и изменённые вопросы сразу участвуют
-  в случайной выборке тестов.
-- **Удаление.** Если вопрос уже встречался в попытках учеников, он не стирается, а помечается
-  удалённым: в новые тесты не попадает, но разбор старых попыток продолжает работать.
-- **Пользователи** — список со сводкой попыток и поиском по имени, почте или телефону
-  (номер в любом виде), страница пользователя с результатами по предметам
-  и разбор любой его попытки.
-- Все страницы админки доступны только роли `admin` (гостя перенаправляет на вход, ученику — 403),
-  все формы защищены csrf-токеном.
+So‘ng brauzerda **http://localhost:8000** manzilini oching.
 
-**Админка и `seed.py` пишут в одну базу.** Вопросы, добавленные в админке, хранятся только
-в базе (в JSON-файлы они не попадают). `python seed.py` обновляет вопросы с тем же текстом,
-что и в JSON (и восстанавливает удалённые), **кроме вопросов, созданных или изменённых
-в админке**: такие вопросы (в том числе сгенерированные) помечаются `edited_by_admin = 1`,
-и `seed.py` их больше не перезаписывает — ручная правка важнее файла.
+Telegram-bot, pochta (SMTP) va Google orqali kirish ixtiyoriy: `.env.example` faylini `.env` ga nusxalab,
+kalitlarni yozing.
 
-## Структура ЕНТ
+### Saytni internet orqali ko‘rsatish (bepul, akkauntsiz)
 
-Настраивается в одном месте — `config.py`.
-
-| Предмет | Заданий | Баллов |
-|---|---|---|
-| История Казахстана | 20 × 1 балл | 20 |
-| Математическая грамотность | 10 × 1 балл | 10 |
-| Грамотность чтения | 10 × 1 балл | 10 |
-| Профильный предмет 1 | 40 | 50 |
-| Профильный предмет 2 | 40 | 50 |
-| **Итого** | **120** | **140** |
-
-Профильный предмет: 25 заданий с одним ответом (1 балл), 5 по контексту (1 балл),
-5 на соответствие и 5 с несколькими ответами (2 балла без ошибок, 1 балл при одной ошибке).
-Время — 240 минут. Пар профильных предметов — 11.
-
-В банке сейчас по 15 заданий на каждый из 16 предметов (241 задание). Этого меньше, чем нужно
-для полного пробного ЕНТ, поэтому тест собирается из имеющихся заданий, а на странице выбора
-пары и в самом тесте честно показано, сколько заданий есть и сколько нужно.
-
-**Время неполного теста** считается пропорционально:
-`240 минут × (заданий в тесте / 120)`, с округлением вверх до минуты. Например, сейчас в тесте
-66 заданий → 132 минуты (2 ч 12 мин). Время для каждой пары показано на странице выбора пары.
-
-## Как устроен проект
-
-```
-ENT MASTER/
-  run.py               общий запуск: сайт + бот в одном терминале ([САЙТ]/[БОТ])
-  main.py              точка входа: создаёт базу и запускает сервер на :8000
-  config.py            все настройки и структура ЕНТ (предметы, пары, баллы, время)
-  seed.py              проверка и загрузка вопросов из JSON в базу
-  manage_admin.py      роли: администратор, учитель школы (--teacher <город> <школа>), --revoke
-  bot.py               запуск Telegram-бота (токен — в .env, образец .env.example)
-  app/
-    server.py          ThreadingHTTPServer + обработчик запросов, раздача CSS, заголовки безопасности
-    router.py          таблица маршрутов (URL + метод → функция)
-    views.py           обработчики страниц
-    admin_views.py     админ-панель: статистика, вопросы, пользователи
-    telegram_bot.py    Telegram-бот: клиент Bot API, обработчики, long polling
-    telegram_views.py  вход на сайт по одноразовой ссылке из бота (/tg/login)
-    question_bank.py   проверка вопроса (общая для seed.py и форм админки)
-    database.py        sqlite3: таблицы и все SQL-запросы (только параметризованные)
-    auth.py            регистрация, вход, выход, pbkdf2-хеширование паролей, сессии, коды из писем
-    account_views.py   подтверждение почты, восстановление пароля, вход через Google
-    schools.py         школы (поиск без дубликатов, заявки) и задания учителя (что засчитывается)
-    teacher_views.py   кабинет учителя: ученики, заявки, карточка ученика, задания, мои вопросы
-    question_form.py   форма вопроса (общая для админки и учителя) и просмотр вопроса для проверки
-    topics.py          разделы и темы ЕНТ по спецификациям НЦТ (номер темы хранится у вопроса)
-    ads.py             рекламные баннеры: проверка формы и картинки, выбор баннера для показа
-    alerts.py          оповещения и отправка копий в Telegram (получатели, защита от повторов)
-  backup.py            резервная копия базы (sqlite3 backup + gzip, хранит последние N копий; --telegram)
-  notify.py            оповещения администратору в Telegram (сбои служб, проверка сайта, тест)
-  deploy/              сервер: службы systemd, таймер копий, Caddyfile, setup.sh и update.sh
-    mailer.py          отправка писем: SMTP (smtplib) или вывод в консоль
-    google_auth.py     OAuth 2.0 Google: адрес входа, обмен code, проверка id_token
-    ent_logic.py       сборка теста и подсчёт баллов
-    templates.py       шаблоны через string.Template, экранирование через html.escape
-    web.py             классы Request/Response
-  templates/           HTML-шаблоны страниц
-  static/style.css     весь дизайн
-  data/questions/      банк вопросов: один JSON-файл на предмет (с объяснениями)
-  tests/               unittest: авторизация, баллы, сборка теста, страницы, админка, бот
+```bash
+python3 run.py --share
 ```
 
-Путь запроса: `server.py` разбирает запрос и cookie → `auth.attach_user` находит пользователя
-по сессии → `router.dispatch` выбирает функцию из `views.py` → функция берёт данные из
-`database.py`/`ent_logic.py` и собирает страницу из шаблонов.
+Sayt, bot va **Cloudflare Quick Tunnel** ishga tushadi; terminalda `https://….trycloudflare.com` ko‘rinishidagi
+vaqtinchalik ommaviy havola katta qilib chiqadi — uni o‘qituvchiga yuboring. Ko‘rsatishni o‘chirish uchun
+terminalda **Ctrl+C** bosing: sayt, bot va tunnel birga to‘xtaydi. Buning uchun bir marta Cloudflare’ning
+rasmiy `cloudflared` paketini o‘rnatish kerak.
 
-### Безопасность
+Doimiy serverga joylash (Ubuntu, systemd, Caddy orqali HTTPS, zaxira nusxalar) — `deploy/` papkasida.
 
-- Пароли — `hashlib.pbkdf2_hmac` (SHA-256, 200 000 итераций) с солью 16 байт, сравнение
-  через `hmac.compare_digest`.
-- Сессия — случайный токен `secrets` в cookie `HttpOnly; SameSite=Lax`; в базе хранится
-  только SHA-256 от токена.
-- Все POST-формы вошедшего пользователя защищены csrf-токеном.
-- Коды из писем: в базе только SHA-256, 15 минут, не больше 5 попыток, новый код — раз в минуту.
-- Вход через Google защищён `state` в cookie `HttpOnly`; у `id_token` проверяются `aud`, `iss`, `exp`.
-- Все SQL-запросы параметризованные; все данные в HTML экранируются.
-- Заголовок `Content-Security-Policy` запрещает любые скрипты и внешние ресурсы.
-- Пользователь видит только свои попытки (чужие — только администратор в админке); при ошибке сервера показывается аккуратная
-  страница без трейсбека (подробности пишутся в лог).
+---
 
-### Модули стандартной библиотеки
+## Testlar
 
-`http.server`, `http.cookies`, `urllib.parse`, `urllib.request`, `smtplib`, `ssl`, `email`,
-`base64`, `os`, `sqlite3`, `hashlib`, `hmac`, `secrets`,
-`string`, `html`, `json`, `re`, `dataclasses`, `pathlib`, `logging`, `mimetypes`,
-`datetime`, `time`, `math`, `random`, `fractions`, `functools`, `contextlib`; в тестах — `unittest`, `tempfile`,
-`threading`, `urllib.request`, `http.cookiejar`.
-
-## Генератор задач
-
-Большая часть вопросов не пишется вручную, а создаётся кодом (`app/generators/`).
-
-- **Расчётные предметы** (математика, математическая грамотность, физика, химия, информатика):
-  программа подставляет в шаблон случайные числа и сама считает правильный ответ, поэтому ошибок
-  в ответах не бывает. Неправильные варианты — типичные ошибки учеников (забыли знак, перепутали
-  формулу, посчитали размер скидки вместо цены).
-- **Предметы на знание фактов** (история Казахстана, всемирная история, география, биология, право):
-  факты хранятся в таблицах (`kz_history_gen.py`, `world_history_gen.py`, `geography_gen.py`,
-  `biology_gen.py`, `law_gen.py`): события с датами, личности, понятия, группы для заданий
-  «выберите все…». Код собирает из них разные вопросы — «в каком году…», «какое событие произошло
-  в … году», «кто…», «чем известен…», соответствия, задания по описанию. Неправильные варианты
-  берутся из той же группы таблицы. Чтобы исправить факт, достаточно поправить одну строку
-  и снова запустить `python seed.py`. Общие шаблоны — в `facts.py`. В биологии и географии есть
-  и расчётные задачи (генетика, ДНК, масштаб, часовые пояса).
-
-- **Языки и литература**: таблицы «автор → произведения», «герой → произведение», литературные
-  термины, части речи, ударения, орфография, фразеологизмы, септіктер, неправильные глаголы,
-  времена английского языка (`russian_language_gen.py`, `russian_literature_gen.py`,
-  `kazakh_language_gen.py`, `kazakh_literature_gen.py`, `foreign_language_gen.py`). Вопросы по
-  казахскому языку и литературе — на казахском, по иностранному языку — на английском
-  (служебные фразы шаблонов есть на трёх языках, `PHRASES` в `facts.py`).
-- **Грамотность чтения**: свои тексты с вопросами в `data/questions/reading_literacy_texts.json`.
-
-`python seed.py` загружает в базу более 10 000 вопросов. По каждому профильному предмету — сотни
-заданий всех четырёх типов, и **полный пробный ЕНТ (120 заданий) собирается для всех 11 пар**.
-
-**Сначала новые вопросы.** При сборке пробного ЕНТ и тренировки сайт в первую очередь берёт
-вопросы, которые ученик ещё не видел, затем — те, что встречались реже. Повторы начинаются,
-только когда новые вопросы закончились.
-
-Как добавить шаблон: напишите в модуле предмета функцию `шаблон(rng) -> dict`, которая
-собирает вопрос через `single`, `multiple` или `matching` из `app/generators/common.py`,
-и добавьте её в словарь `TEMPLATES` этого модуля. Новый предмет подключается
-в `SUBJECT_TEMPLATES`. Тесты `tests/test_generators.py` проверят каждый шаблон.
-
-## Как добавить свои вопросы
-
-1. Откройте файл нужного предмета в `data/questions/` (например, `math.json`)
-   или создайте новый файл с полем `"subject"` — кодом предмета из `config.py`
-   (`kz_history`, `math_literacy`, `reading_literacy`, `math`, `physics`, `informatics`,
-   `geography`, `biology`, `chemistry`, `world_history`, `law`, `kazakh_language`,
-   `kazakh_literature`, `russian_language`, `russian_literature`, `foreign_language`).
-2. Добавьте вопрос в список `"questions"`. Варианты ответа нумеруются буквами по порядку:
-   первый — `A`, второй — `B` и т.д. В `"correct"` указываются буквы правильных ответов.
-   Обязательно заполните `"explanation"` — 2–4 предложения, почему ответ правильный.
-   Укажите `"topic"` — номер темы спецификации НЦТ из `app/topics.py` (например, `"05"`;
-   список тем предмета — в админке → «🧭 Темы НЦТ»). Тема чужого предмета — ошибка.
-   Не ссылайтесь в объяснении на буквы вариантов («ответ B»): на сайте варианты перемешиваются,
-   поэтому называйте сам ответ («ответ 48»).
-3. Запустите `python seed.py`. Скрипт проверит каждый вопрос и сообщит об ошибках
-   (такие вопросы не загрузятся). Повторный запуск безопасен: вопрос с тем же текстом
-   обновится, дубликатов не будет.
-
-Пример — по одному заданию каждого из четырёх типов:
-
-```json
-{
-  "subject": "math",
-  "questions": [
-    {
-      "type": "single",
-      "topic": "05",
-      "text": "Решите уравнение 2x + 6 = 14.",
-      "options": ["3", "4", "5", "10"],
-      "correct": ["B"],
-      "explanation": "Переносим 6 вправо: 2x = 8, отсюда x = 4."
-    },
-    {
-      "type": "context",
-      "context": "Товар стоил 5000 тг. Цену повысили на 20%, а затем снизили на 20%.",
-      "text": "Какой стала цена после повышения и снижения?",
-      "options": ["5000 тг", "5200 тг", "4800 тг", "4000 тг"],
-      "correct": ["C"],
-      "explanation": "После повышения цена стала 6000 тг, а снижение на 20% считается уже от 6000: 6000 · 0,8 = 4800 тг."
-    },
-    {
-      "type": "matching",
-      "text": "Установите соответствие между функцией и её производной.",
-      "left": ["f(x) = x³", "f(x) = sin x"],
-      "options": ["3x²", "cos x", "−cos x", "x²/3"],
-      "correct": ["A", "B"],
-      "explanation": "(x³)′ = 3x², а производная синуса — косинус: (sin x)′ = cos x."
-    },
-    {
-      "type": "multiple",
-      "text": "Выберите все простые числа.",
-      "options": ["2", "9", "11", "15", "17", "21"],
-      "correct": ["A", "C", "E"],
-      "explanation": "Простые числа делятся только на 1 и на себя: 2, 11 и 17. Остальные составные: 9 = 3·3, 15 = 3·5, 21 = 3·7."
-    }
-  ]
-}
+```bash
+python3 -m unittest            # barcha testlar (190 ga yaqin)
+python3 -m unittest -v tests.test_languages
 ```
 
-Правила для каждого типа:
+Testlar har birida alohida vaqtinchalik bazadan foydalanadi, haqiqiy serverni ishga tushirib sahifalarni
+«brauzer» kabi tekshiradi, Telegram va pochtaga hech narsa yubormaydi. Ular quyidagilarni tekshiradi:
+baholash qoidalari, testni yig‘ish, har bir juftlik va har bir til uchun to‘liq 120 ta topshiriqli test,
+kirish huquqlari, CSRF, o‘qituvchi kabineti, bildirishnomalar, qozoqcha sahifalarda ruscha matn
+qolmaganligi, qozoqcha tarjimada javoblar, raqamlar va formulalar o‘zgarmaganligi.
 
-Во всех типах обязательно поле `explanation` — короткое объяснение правильного ответа.
+---
 
-| Тип | Что заполнить | `correct` |
-|---|---|---|
-| `single` — один ответ | `text`, `options` (2–8 вариантов) | ровно одна буква |
-| `context` — по тексту | `context` (текст/данные), `text`, `options` | ровно одна буква |
-| `matching` — соответствие | `text`, `left` (строки слева), `options` (варианты справа) | по букве на каждую строку `left`, по порядку |
-| `multiple` — несколько ответов | `text`, `options` | одна или несколько разных букв |
+## Кратко на русском
 
-Перед добавлением обязательно перепроверьте правильные ответы — особенно расчётные задачи.
+**ENT MASTER** — сайт и Telegram-бот для подготовки к ЕНТ: пробный тест в официальном формате,
+тренировки, разбор ошибок, кабинет учителя, русский и казахский языки — только Python, HTML и CSS.

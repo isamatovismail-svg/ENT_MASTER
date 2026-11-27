@@ -8,15 +8,26 @@ __pycache__/
 *.sqlite3
 *.sqlite3-journal
 *.sqlite3.gz
+*.db
 backups/
 
-# Настройки IDE (общая конфигурация запуска PyCharm «Run» — в git)
-.idea/*
-!.idea/runConfigurations/
+# Настройки IDE
+.idea/
 .vscode/
 
-# Секреты: токен Telegram-бота
+# Секреты: токен Telegram-бота, SMTP, Google
 .env
 
 # Состояние оповещений о сбоях (notify.py)
 .alert_state.json
+
+# Служебные файлы разработки (остаются только локально)
+PLAN.md
+CLAUDE.md
+demo_accounts.py
+*.log
+*.tmp
+.DS_Store
+
+# Локальные заметки (прежний подробный README на русском и т. п.)
+docs-local/
