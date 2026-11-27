@@ -4,6 +4,16 @@
   <p class="muted">$login</p>
 </section>
 
+<section class="card">
+  <h2>🌐 Язык обучения</h2>
+  <p class="muted">Язык интерфейса, вопросов тестов, писем и уведомлений.</p>
+  <form method="post" action="/profile/language" class="inline-form">
+    $csrf
+    <div class="check-row">$language_options</div>
+    <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
+  </form>
+</section>
+
 <section class="card school-card">
   <h2>🏫 Школа</h2>
   $errors

@@ -17,6 +17,7 @@ from app import ads, auth, database, ent_logic, question_form, schools, topics, 
 from app.database import Question
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, redirect
+from app.i18n import t
 
 View = Callable[..., Response]
 
@@ -31,7 +32,7 @@ def admin_required(view: View) -> View:
         """Проверяет роль после проверки входа и csrf."""
         assert request.user is not None
         if not request.user.is_admin:
-            return views.error_page(request, 403, "Эта страница доступна только администраторам.")
+            return views.error_page(request, 403, t("Эта страница доступна только администраторам."))
         return view(request, **kwargs)
 
     return views.login_required(wrapper)
@@ -41,11 +42,11 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
                 status: int = 200) -> Response:
     """Страница админки: подменю разделов + содержимое."""
     pending = database.count_pending_questions()
-    links = (("/admin", "📊 Обзор", "home"), ("/admin/questions", "📚 Вопросы", "questions"),
-             ("/admin/review", f"🔎 Проверка ({pending})" if pending else "🔎 Проверка", "review"),
-             ("/admin/topics", "🧭 Темы НЦТ", "topics"),
-             ("/admin/banners", "📢 Реклама", "banners"),
-             ("/admin/users", "👥 Пользователи", "users"), ("/teacher", "🏫 Школы", "schools"))
+    links = (("/admin", t("📊 Обзор"), "home"), ("/admin/questions", t("📚 Вопросы"), "questions"),
+             ("/admin/review", t("🔎 Проверка ({n})", n=pending) if pending else t("🔎 Проверка"), "review"),
+             ("/admin/topics", t("🧭 Темы НЦТ"), "topics"),
+             ("/admin/banners", t("📢 Реклама"), "banners"),
+             ("/admin/users", t("👥 Пользователи"), "users"), ("/teacher", t("🏫 Школы"), "schools"))
     menu = join(
         fragment('<a href="$href" class="admin-tab$active">$label</a>', href=href, label=label,
                  active=SafeHTML(" admin-tab-active" if key == current else ""))
@@ -56,7 +57,7 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
         '<span class="admin-badge">⚙️ Админка</span>$menu</nav>$content',
         menu=menu, content=content,
     )
-    return views.page(request, f"Админка — {title}", body, status)
+    return views.page(request, t("Админка — {title}", title=title), body, status)
 
 
 # ── Обзор ────────────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ def _bank_rows(counts: dict[tuple[str, str], int]) -> tuple[SafeHTML, int]:
                 '<small class="status-note">не хватает $n</small>', n=missing
             )
         else:
-            status = SafeHTML('<span class="badge badge-ok">✅ норма ЕНТ</span>')
+            status = fragment('<span class="badge badge-ok">✅ норма ЕНТ</span>')
         rows.append(fragment(
             '<tr><td><a class="subject-link" href="/admin/questions?$query">$icon $name</a></td>'
             "$cells<td><strong>$total</strong> / $norm</td><td>$status</td></tr>",
@@ -113,15 +114,15 @@ def dashboard(request: Request) -> Response:
     avg_mock = round(stats["avg_mock_score"]) if stats["avg_mock_score"] is not None else "—"
     avg_percent = round(stats["avg_percent"]) if stats["avg_percent"] is not None else "—"
     cards = join((
-        views._stat_card("👥", "total", "Пользователи", stats["users"], "",
-                         f"администраторов: {stats['admins']}"),
-        views._stat_card("📝", "last", "Завершённых попыток", stats["attempts"], "",
-                         f"пробных: {stats['mocks']} · тренировок: {stats['practices']}"),
-        views._stat_card("⭐", "best", "Средний балл", avg_mock, f"из {config.MOCK_MAX_SCORE}",
-                         "по всем пробным ЕНТ"),
-        views._stat_card("🎯", "avg", "Средний результат", avg_percent,
+        views._stat_card("👥", "total", t("Пользователи"), stats["users"], "",
+                         t("администраторов: {n}", n=stats["admins"])),
+        views._stat_card("📝", "last", t("Завершённых попыток"), stats["attempts"], "",
+                         t("пробных: {mocks} · тренировок: {practices}", mocks=stats["mocks"], practices=stats["practices"])),
+        views._stat_card("⭐", "best", t("Средний балл"), avg_mock, t("из {n}", n=config.MOCK_MAX_SCORE),
+                         t("по всем пробным ЕНТ")),
+        views._stat_card("🎯", "avg", t("Средний результат"), avg_percent,
                          "%" if stats["avg_percent"] is not None else "",
-                         "доля баллов во всех попытках"),
+                         t("доля баллов во всех попытках")),
     ))
     content = render(
         "admin_dashboard.html",
@@ -134,7 +135,7 @@ def dashboard(request: Request) -> Response:
             for qtype in config.QUESTION_TYPES
         ),
     )
-    return _admin_page(request, "Обзор", "home", content)
+    return _admin_page(request, t("Обзор"), "home", content)
 
 
 # ── Список вопросов ──────────────────────────────────────────────────────────
@@ -193,7 +194,7 @@ def questions(request: Request) -> Response:
         for question in shown
     )
     if not shown:
-        table = SafeHTML('<div class="card empty">Ничего не найдено. Измените фильтр или поиск.</div>')
+        table = fragment('<div class="card empty">Ничего не найдено. Измените фильтр или поиск.</div>')
     else:
         table = fragment(
             '<div class="table-wrap"><table class="table admin-table"><thead><tr>'
@@ -213,8 +214,8 @@ def questions(request: Request) -> Response:
     if pages > 1:
         pager = fragment(
             '<nav class="pager" aria-label="Страницы">$prev<span>Страница $n из $total</span>$next</nav>',
-            prev=page_link(page_number - 1, "← Назад") if page_number > 1 else SafeHTML(""),
-            next=page_link(page_number + 1, "Далее →") if page_number < pages else SafeHTML(""),
+            prev=page_link(page_number - 1, t("← Назад")) if page_number > 1 else SafeHTML(""),
+            next=page_link(page_number + 1, t("Далее →")) if page_number < pages else SafeHTML(""),
             n=page_number, total=pages,
         )
 
@@ -235,7 +236,7 @@ def questions(request: Request) -> Response:
         pager=pager,
         new_query=urlencode({"subject": subject}) if subject else "",
     )
-    return _admin_page(request, "Вопросы", "questions", content)
+    return _admin_page(request, t("Вопросы"), "questions", content)
 
 
 def _form_page(request: Request, form: question_form.QuestionForm, action: str, base_url: str, title: str,
@@ -244,7 +245,7 @@ def _form_page(request: Request, form: question_form.QuestionForm, action: str, 
     """Отрисовывает страницу формы вопроса в админке."""
     content = question_form.form_content(
         request, form, action, base_url, title, errors, note,
-        back_url=back_url, back_label="← К списку вопросов", submit_label=submit,
+        back_url=back_url, back_label=t("← К списку вопросов"), submit_label=t(submit),
     )
     return _admin_page(request, title, "questions", content, status)
 
@@ -268,13 +269,13 @@ def question_new(request: Request) -> Response:
             else:
                 return _back_to_list(question.subject, "q_created")
         return _form_page(request, form, "/admin/questions/new", "/admin/questions/new",
-                          "Новый вопрос", errors, 400)
+                          t("Новый вопрос"), errors, 400)
 
     form = question_form.QuestionForm(qtype=question_form.requested_type(request, config.SINGLE))
     subject = request.query_value("subject")
     form.subject = subject if subject in config.SUBJECTS else ""
     return _form_page(request, form, "/admin/questions/new", "/admin/questions/new",
-                      "Новый вопрос", [])
+                      t("Новый вопрос"), [])
 
 
 @admin_required
@@ -284,13 +285,13 @@ def question_edit(request: Request, question_id: int) -> Response:
     if existing is None:
         return redirect("/admin/questions?msg=q_missing")
     url = f"/admin/questions/{question_id}/edit"
-    title = f"Вопрос #{question_id}"
+    title = t("Вопрос #{n}", n=question_id)
     note = None
     if existing.used:
         note = views._notice(
             "info",
-            f"Этот вопрос уже встречался в попытках учеников ({existing.used}). "
-            "Изменения будут видны и в разборе старых попыток, а баллы в них не пересчитываются.",
+            t("Этот вопрос уже встречался в попытках учеников ({n}). Изменения будут видны и в разборе "
+              "старых попыток, а баллы в них не пересчитываются.", n=existing.used),
         )
 
     if request.method == "POST":
@@ -323,10 +324,10 @@ def question_delete(request: Request, question_id: int) -> Response:
         return _back_to_list(question.subject, message)
 
     used_note = (
-        f"Вопрос встречался в попытках учеников ({question.used}) — он исчезнет из банка и "
-        "новых тестов, но разбор старых попыток сохранится."
+        t("Вопрос встречался в попытках учеников ({n}) — он исчезнет из банка и новых тестов, "
+          "но разбор старых попыток сохранится.", n=question.used)
         if question.used else
-        "Вопрос ещё не встречался в попытках — он будет удалён полностью."
+        t("Вопрос ещё не встречался в попытках — он будет удалён полностью.")
     )
     content = render(
         "admin_question_delete.html",
@@ -339,7 +340,7 @@ def question_delete(request: Request, question_id: int) -> Response:
         csrf=views._csrf_field(request),
         cancel=f"/admin/questions?{urlencode({'subject': question.subject})}",
     )
-    return _admin_page(request, "Удалить вопрос", "questions", content)
+    return _admin_page(request, t("Удалить вопрос"), "questions", content)
 
 
 # ── Покрытие тем спецификации НЦТ ────────────────────────────────────────────
@@ -384,7 +385,7 @@ def topics_report(request: Request) -> Response:
             n = counts.get((subject, item.code), 0)
             rows.append(fragment(
                 '<tr class="$cls"><td>$code</td><td>$name</td><td>$n</td><td>$share</td></tr>',
-                cls="topic-empty" if not n else "", code=item.code, name=item.name, n=n or "нет",
+                cls="topic-empty" if not n else "", code=item.code, name=item.name, n=n or t("нет"),
                 share=f"{round(n * 100 / total, 1):g}%".replace(".", ",") if n else "—",
             ))
         details = fragment(
@@ -405,7 +406,7 @@ def topics_report(request: Request) -> Response:
         "учителей).</p></section>$summary$details",
         year=topics.SPEC_YEAR, source=topics.SPEC_SOURCE, summary=summary, details=details,
     )
-    return _admin_page(request, "Темы НЦТ", "topics", content)
+    return _admin_page(request, t("Темы НЦТ"), "topics", content)
 
 
 # ── Рекламные баннеры ────────────────────────────────────────────────────────
@@ -430,7 +431,7 @@ def banners(request: Request) -> Response:
                 id=row["id"], title=row["title"], link=row["link_url"],
                 places=", ".join(ads.PLACEMENTS.get(p, p) for p in row["placements"].split(",")),
                 start=row["starts_on"], end=row["ends_on"],
-                badge=BANNER_STATUS_BADGE[ads.status(row)], status=ads.status(row),
+                badge=BANNER_STATUS_BADGE[ads.status(row)], status=t(ads.status(row)),
                 shows=row["impressions"], clicks=row["clicks"],
                 ctr=f"{row['clicks'] * 100 / row['impressions']:.1f}%".replace(".", ",")
                 if row["impressions"] else "—",
@@ -444,7 +445,7 @@ def banners(request: Request) -> Response:
             items=items,
         )
     else:
-        table = SafeHTML('<div class="card empty">Баннеров пока нет.</div>')
+        table = fragment('<div class="card empty">Баннеров пока нет.</div>')
     content = fragment(
         '<section class="page-head admin-head"><div><span class="eyebrow">Монетизация</span>'
         "<h1>📢 Рекламные баннеры</h1>"
@@ -453,7 +454,7 @@ def banners(request: Request) -> Response:
         '<a class="btn btn-primary" href="/admin/banners/new">＋ Добавить баннер</a></section>$table',
         table=table,
     )
-    return _admin_page(request, "Реклама", "banners", content)
+    return _admin_page(request, t("Реклама"), "banners", content)
 
 
 def _banner_form(request: Request, url: str, title: str, values: dict, errors: list[str],
@@ -496,7 +497,7 @@ def banner_new(request: Request) -> Response:
     url = "/admin/banners/new"
     if request.method == "GET":
         today = date.today()
-        return _banner_form(request, url, "Новый баннер", {
+        return _banner_form(request, url, t("Новый баннер"), {
             "placements": ["landing", "dashboard"], "active": True, "starts_on": today.isoformat(),
             "ends_on": (today + timedelta(days=30)).isoformat()}, [])
     values = _banner_values(request)
@@ -505,7 +506,7 @@ def banner_new(request: Request) -> Response:
         form = ads.validate(values["title"], values["link_url"], values["placements"], values["starts_on"],
                             values["ends_on"], values["active"], upload.data if upload else None, True)
     except ads.BannerError as error:
-        return _banner_form(request, url, "Новый баннер", values, error.errors, status=400)
+        return _banner_form(request, url, t("Новый баннер"), values, error.errors, status=400)
     assert form.image is not None
     database.create_banner(form.title, form.link_url, form.image, form.image_type, form.placements,
                            form.starts_on, form.ends_on, form.active, time.time())
@@ -519,7 +520,7 @@ def banner_edit(request: Request, banner_id: int) -> Response:
     if row is None:
         return views.not_found(request)
     url = f"/admin/banners/{banner_id}/edit"
-    title = f"Баннер #{banner_id}"
+    title = t("Баннер #{n}", n=banner_id)
     if request.method == "GET":
         return _banner_form(request, url, title, {
             "title": row["title"], "link_url": row["link_url"], "placements": row["placements"].split(","),
@@ -573,15 +574,15 @@ def review_queue(request: Request) -> Response:
                 '<button type="submit" name="action" value="reject" class="btn btn-ghost btn-sm">'
                 "❌ Отклонить</button></form></article>",
                 id=question.id, preview=question_form.preview(question), csrf=csrf,
-                author=row["author_name"] or "автор удалён",
+                author=row["author_name"] or t("автор удалён"),
                 school=(schools.school_title(row["school_city"], row["school_name"])
-                        if row["school_city"] else "без школы"),
+                        if row["school_city"] else t("без школы")),
                 date=views._format_datetime(question.submitted_at),
             )
             for question, row in items
         )
     else:
-        cards = SafeHTML('<div class="card empty">Очередь пуста — все вопросы проверены. 🎉</div>')
+        cards = fragment('<div class="card empty">Очередь пуста — все вопросы проверены. 🎉</div>')
     content = fragment(
         '<section class="page-head"><span class="eyebrow">Проверка</span>'
         "<h1>🔎 Вопросы учителей на проверке: $count</h1>"
@@ -589,7 +590,7 @@ def review_queue(request: Request) -> Response:
         "Отклонённый возвращается учителю с вашим комментарием.</p></section>$cards",
         count=len(items), cards=cards,
     )
-    return _admin_page(request, "Проверка вопросов", "review", content)
+    return _admin_page(request, t("Проверка вопросов"), "review", content)
 
 
 @admin_required
@@ -604,7 +605,7 @@ def review_action(request: Request, question_id: int) -> Response:
             return redirect("/admin/review?msg=review_comment_needed")
         status, message = database.Q_REJECTED, "review_rejected"
     else:
-        return views.error_page(request, 400, "Неизвестное действие.")
+        return views.error_page(request, 400, t("Неизвестное действие."))
     if not database.review_question(question_id, status, comment, time.time()):
         return redirect("/admin/review?msg=review_missing")
     return redirect(f"/admin/review?msg={message}")
@@ -617,7 +618,7 @@ def review_edit(request: Request, question_id: int) -> Response:
     if existing is None:
         return redirect("/admin/review?msg=review_missing")
     url = f"/admin/review/{question_id}/edit"
-    title = f"Исправить и одобрить вопрос #{question_id}"
+    title = t("Исправить и одобрить вопрос #{n}", n=question_id)
     if request.method == "POST":
         form = question_form.form_from_request(request)
         question, errors = question_form.build_question(form, question_id)
@@ -641,10 +642,10 @@ def _review_form(request: Request, form, url: str, title: str, errors: list[str]
     """Форма «Исправить и одобрить» в разделе проверки."""
     content = question_form.form_content(
         request, form, url, url, title, errors,
-        views._notice("info", "После сохранения вопрос будет одобрен и попадёт в общий банк. "
-                              "Учитель увидит пометку «одобрено с исправлениями»."),
-        back_url="/admin/review", back_label="← К очереди проверки",
-        submit_label="✅ Сохранить и одобрить",
+        views._notice("info", t("После сохранения вопрос будет одобрен и попадёт в общий банк. "
+                              "Учитель увидит пометку «одобрено с исправлениями».")),
+        back_url="/admin/review", back_label=t("← К очереди проверки"),
+        submit_label=t("✅ Сохранить и одобрить"),
     )
     return _admin_page(request, title, "review", content, status)
 
@@ -654,10 +655,10 @@ def _review_form(request: Request, form, url: str, title: str, errors: list[str]
 def _role_badge(role: str) -> SafeHTML:
     """Плашка роли пользователя."""
     if role == database.ROLE_ADMIN:
-        return SafeHTML('<span class="badge badge-partial">⚙️ админ</span>')
+        return fragment('<span class="badge badge-partial">⚙️ админ</span>')
     if role == database.ROLE_TEACHER:
-        return SafeHTML('<span class="badge badge-ok">🏫 учитель</span>')
-    return SafeHTML('<span class="badge">ученик</span>')
+        return fragment('<span class="badge badge-ok">🏫 учитель</span>')
+    return fragment('<span class="badge">ученик</span>')
 
 
 @admin_required
@@ -687,7 +688,7 @@ def users(request: Request) -> Response:
             name=row["name"], login=row["login"], role=_role_badge(row["role"]),
             phone=fragment('<br><small class="muted">$phone</small>', phone=row["phone"])
             if row["phone"] else SafeHTML(""),
-            unverified=SafeHTML(' <span class="badge badge-warn">почта не подтверждена</span>')
+            unverified=fragment(' <span class="badge badge-warn">почта не подтверждена</span>')
             if not row["email_verified"] else SafeHTML(""),
             created=views._format_datetime(row["created_at"]),
             attempts=row["attempts"], mocks=row["mocks"] or 0,
@@ -698,7 +699,7 @@ def users(request: Request) -> Response:
         for row in rows
     )
     content = render("admin_users.html", rows=table_rows, count=len(rows), search=search)
-    return _admin_page(request, "Пользователи", "users", content)
+    return _admin_page(request, t("Пользователи"), "users", content)
 
 
 @admin_required
@@ -738,7 +739,7 @@ def user_detail(request: Request, user_id: int) -> Response:
             rows=rows,
         )
     else:
-        table = SafeHTML('<div class="card empty">Завершённых попыток пока нет.</div>')
+        table = fragment('<div class="card empty">Завершённых попыток пока нет.</div>')
 
     mocks = [attempt for attempt in attempts if attempt.mode == ent_logic.MOCK]
     strengths = ent_logic.subject_strengths(user_id)
@@ -753,10 +754,10 @@ def user_detail(request: Request, user_id: int) -> Response:
         best=max((a.score for a in mocks), default="—"),
         average=round(sum(a.score for a in mocks) / len(mocks)) if mocks else "—",
         max_score=config.MOCK_MAX_SCORE,
-        strengths=views._strength_rows(strengths, "Пока нет решённых заданий."),
+        strengths=views._strength_rows(strengths, t("Пока нет решённых заданий.")),
         table=table,
     )
-    return _admin_page(request, f"Пользователь {user['name']}", "users", content)
+    return _admin_page(request, t("Пользователь {name}", name=user["name"]), "users", content)
 
 
 @admin_required
@@ -770,4 +771,4 @@ def user_attempt(request: Request, user_id: int, attempt_id: int) -> Response:
         '<a class="btn btn-primary" href="/admin/users/$uid">← К пользователю $name</a>',
         uid=user_id, name=user["name"],
     )
-    return _admin_page(request, "Разбор попытки", "users", views.result_content(attempt, actions))
+    return _admin_page(request, t("Разбор попытки"), "users", views.result_content(attempt, actions))

@@ -22,8 +22,9 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import config
-from app import auth, database, ent_logic, notifications
+from app import auth, database, ent_logic, i18n, notifications
 from app.database import Attempt, AttemptQuestion, User
+from app.i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +94,8 @@ class TelegramAPI:
                 except (ValueError, OSError):
                     raise TelegramError(f"HTTP {error.code}", error.code) from None
         if not isinstance(payload, dict) or not payload.get("ok"):
-            description = payload.get("description", "неизвестная ошибка") if isinstance(
-                payload, dict) else "неожиданный ответ"
+            description = payload.get("description", t("неизвестная ошибка")) if isinstance(
+                payload, dict) else t("неожиданный ответ")
             raise TelegramError(description, payload.get("error_code", 0) if isinstance(
                 payload, dict) else 0)
         return payload.get("result")
@@ -124,10 +125,12 @@ def _is_public_url(url: str) -> bool:
     return bool(host) and host not in ("localhost", "0.0.0.0", "::1") and not host.startswith("127.")
 
 
-MENU_KEYBOARD = _keyboard(
-    [_button("🔐 Войти на сайт", "login")],
-    [_button("🎯 Тренировка", "train"), _button("📊 Мои результаты", "results")],
-)
+def _menu_keyboard() -> dict:
+    """Главное меню бота (подписи — на языке собеседника)."""
+    return _keyboard(
+        [_button(t("🔐 Войти на сайт"), "login")],
+        [_button(t("🎯 Тренировка"), "train"), _button(t("📊 Мои результаты"), "results")],
+    )
 
 
 # ── Тексты ───────────────────────────────────────────────────────────────────
@@ -143,7 +146,7 @@ def _option(aq: AttemptQuestion, letter: str) -> str:
 def _answer_text(aq: AttemptQuestion, answer: list[str] | None) -> str:
     """Ответ в читаемом виде; для соответствия — по строкам."""
     if not answer:
-        return "нет ответа"
+        return t("нет ответа")
     if aq.qtype == config.MATCHING:
         lines = []
         for index, left in enumerate(aq.left):
@@ -162,17 +165,19 @@ def question_text(aq: AttemptQuestion, total: int, progress: str = "") -> str:
     """Текст сообщения с вопросом."""
     subject = config.SUBJECTS[aq.subject]
     lines = [
-        f"{subject.icon} {subject.name} · вопрос {aq.position} из {total}",
-        f"{config.QUESTION_TYPE_NAMES[aq.qtype]} · {ent_logic.question_max_points(aq.qtype)} б.",
+        t("{icon} {subject} · вопрос {n} из {total}", icon=subject.icon, subject=subject.name,
+          n=aq.position, total=total),
+        t("{qtype} · {points} б.", qtype=config.QUESTION_TYPE_NAMES[aq.qtype],
+          points=ent_logic.question_max_points(aq.qtype)),
         "",
     ]
     if aq.context:
         lines += [aq.context, ""]
     lines += [aq.text, ""]
     if aq.qtype == config.MATCHING:
-        lines.append("Строки:")
+        lines.append(t("Строки:"))
         lines += [f"{index + 1}) {left}" for index, left in enumerate(aq.left)]
-        lines += ["", "Варианты:"]
+        lines += ["", t("Варианты:")]
     lines += [f"{letter}) {option}" for letter, option in zip(LETTERS, aq.options)]
     lines.append("")
     if aq.qtype == config.MATCHING:
@@ -180,11 +185,11 @@ def question_text(aq: AttemptQuestion, total: int, progress: str = "") -> str:
         for index in range(done):
             lines.append(f"✔ {index + 1}) {aq.left[index]} → {progress[index]}")
         if done < len(aq.left):
-            lines.append(f"👉 Выберите букву для строки {done + 1}: {aq.left[done]}")
+            lines.append(t("👉 Выберите букву для строки {n}: {row}", n=done + 1, row=aq.left[done]))
     elif aq.qtype == config.MULTIPLE:
-        lines.append("👉 Отметьте все верные варианты и нажмите «Готово».")
+        lines.append(t("👉 Отметьте все верные варианты и нажмите «Готово»."))
     else:
-        lines.append("👉 Выберите один вариант.")
+        lines.append(t("👉 Выберите один вариант."))
     return _fit("\n".join(lines))
 
 
@@ -192,14 +197,14 @@ def question_keyboard(attempt_id: int, aq: AttemptQuestion, state: str = "") -> 
     """Кнопки ответа. state — уже отмеченные буквы (несколько ответов) или ответы по строкам."""
     letters = LETTERS[: len(aq.options)]
     ids = f"{attempt_id}:{aq.id}"
-    skip = [_button("⏭ Пропустить", f"a:{ids}:{SKIP}")]
+    skip = [_button(t("⏭ Пропустить"), f"a:{ids}:{SKIP}")]
     if aq.qtype == config.MULTIPLE:
         buttons = []
         for letter in letters:
             chosen = letter in state
             toggled = "".join(sorted(set(state) ^ {letter}))
             buttons.append(_button(f"✅ {letter}" if chosen else letter, f"t:{ids}:{toggled}"))
-        done = _button("Готово ✔", f"a:{ids}:{state or SKIP}")
+        done = _button(t("Готово ✔"), f"a:{ids}:{state or SKIP}")
         return _keyboard(*_chunks(buttons, 4), [done], skip)
     if aq.qtype == config.MATCHING:
         buttons = [_button(letter, f"m:{ids}:{state}{letter}") for letter in letters]
@@ -239,11 +244,22 @@ class Bot:
     # ── входящие ─────────────────────────────────────────────────────────────
 
     def handle_update(self, update: dict) -> None:
-        """Обрабатывает одно обновление getUpdates."""
-        if "message" in update:
-            self._on_message(update["message"])
-        elif "callback_query" in update:
-            self._on_callback(update["callback_query"])
+        """Обрабатывает одно обновление getUpdates — на языке собеседника."""
+        event = update.get("message") or update.get("callback_query") or {}
+        with i18n.use(self.language(event.get("from") or {})):
+            if "message" in update:
+                self._on_message(update["message"])
+            elif "callback_query" in update:
+                self._on_callback(update["callback_query"])
+
+    @staticmethod
+    def language(sender: dict) -> str:
+        """Язык привязанного аккаунта сайта, иначе — язык приложения Telegram (kk или ru)."""
+        if "id" in sender:
+            user = database.get_user_by_telegram(int(sender["id"]))
+            if user is not None:
+                return i18n.normalize(user.language)
+        return i18n.KK if str(sender.get("language_code", "")).startswith("kk") else i18n.RU
 
     def _on_message(self, message: dict) -> None:
         """Текстовые команды. Бот отвечает только в личных сообщениях."""
@@ -298,7 +314,7 @@ class Bot:
 
         user = self._user(chat_id, sender)
         if user is None:
-            return "Сначала войдите на сайт"
+            return t("Сначала войдите на сайт")
         if action == "subj":
             return self.start_practice(chat_id, user, rest)
 
@@ -306,30 +322,30 @@ class Bot:
         try:
             attempt_id = int(parts[0])
         except ValueError:
-            return "Кнопка устарела"
+            return t("Кнопка устарела")
         attempt = database.get_attempt(attempt_id, user.id)
         if attempt is None or attempt.mode != ent_logic.PRACTICE:
-            return "Эта тренировка не найдена"
+            return t("Эта тренировка не найдена")
         if action == "next":
             return self.send_next(chat_id, attempt)
         if action == "fin":
             return self.finish(chat_id, attempt)
 
         if len(parts) != 3 or attempt.is_finished:
-            return "Тренировка уже завершена" if attempt.is_finished else "Кнопка устарела"
+            return t("Тренировка уже завершена") if attempt.is_finished else t("Кнопка устарела")
         try:
             aq_id = int(parts[1])
         except ValueError:
-            return "Кнопка устарела"
+            return t("Кнопка устарела")
         aq = next((item for item in database.get_attempt_questions(attempt.id) if item.id == aq_id),
                   None)
         if aq is None:
-            return "Кнопка устарела"
+            return t("Кнопка устарела")
         if aq.checked:
-            return "Вы уже ответили на этот вопрос"
+            return t("Вы уже ответили на этот вопрос")
         state = parts[2]
         if any(letter not in LETTERS[: len(aq.options)] for letter in state.replace(SKIP, "")):
-            return "Кнопка устарела"
+            return t("Кнопка устарела")
         total = len(database.get_attempt_questions(attempt.id))
 
         if action == "t" and aq.qtype == config.MULTIPLE:
@@ -345,7 +361,7 @@ class Bot:
             return self.answer(chat_id, message_id, attempt, aq, state[: len(aq.left)])
         if action == "a":
             return self.answer(chat_id, message_id, attempt, aq, state)
-        return "Кнопка устарела"
+        return t("Кнопка устарела")
 
     # ── экраны ───────────────────────────────────────────────────────────────
 
@@ -358,40 +374,40 @@ class Bot:
         """Подсказка: без привязки результаты некуда сохранять."""
         self.send(
             chat_id,
-            "Чтобы тренироваться и сохранять результаты, войдите на сайт через бота — "
-            "это одна ссылка. Тренировки в боте и на сайте будут в одном аккаунте.",
-            _keyboard([_button("🔐 Войти на сайт", "login")]),
+            t("Чтобы тренироваться и сохранять результаты, войдите на сайт через бота — "
+            "это одна ссылка. Тренировки в боте и на сайте будут в одном аккаунте."),
+            _keyboard([_button(t("🔐 Войти на сайт"), "login")]),
         )
 
     def send_menu(self, chat_id: int, sender: dict) -> None:
         """Приветствие и главное меню."""
         user = self._user(chat_id, sender)
-        name = sender.get("first_name") or "друг"
+        name = sender.get("first_name") or t("друг")
         status = (
-            f"✅ Аккаунт привязан: {user.name}. Результаты сохраняются на сайте."
+            t("✅ Аккаунт привязан: {name}. Результаты сохраняются на сайте.", name=user.name)
             if user is not None else
-            "Чтобы результаты сохранялись, нажмите «Войти на сайт»."
+            t("Чтобы результаты сохранялись, нажмите «Войти на сайт».")
         )
         self.send(
             chat_id,
-            f"👋 Привет, {name}! Я бот ENT MASTER — помогаю готовиться к ЕНТ.\n\n"
-            "🎯 Тренировка — 10 вопросов по предмету: отвечаете кнопками и сразу видите "
-            "правильный ответ с объяснением.\n"
-            "📊 Мои результаты — последние попытки и лучший балл.\n\n" + status,
-            MENU_KEYBOARD,
+            t("👋 Привет, {name}! Я бот ENT MASTER — помогаю готовиться к ЕНТ.\n\n"
+              "🎯 Тренировка — 10 вопросов по предмету: отвечаете кнопками и сразу видите "
+              "правильный ответ с объяснением.\n"
+              "📊 Мои результаты — последние попытки и лучший балл.", name=name) + "\n\n" + status,
+            _menu_keyboard(),
         )
 
     def send_login(self, chat_id: int, sender: dict) -> None:
         """Одноразовая ссылка входа на сайт."""
         name = " ".join(filter(None, (sender.get("first_name"), sender.get("last_name"))))
         url = auth.telegram_login_url(int(sender["id"]), name)
-        keyboard = _keyboard([{"text": "🌐 Открыть сайт", "url": url}]) if _is_public_url(url) else None
+        keyboard = _keyboard([{"text": t("🌐 Открыть сайт"), "url": url}]) if _is_public_url(url) else None
         self.send(
             chat_id,
-            f"🔐 Ссылка для входа на сайт (одноразовая, действует "
-            f"{config.TELEGRAM_LOGIN_TOKEN_MINUTES} минут):\n\n{url}\n\n"
-            "Если аккаунта ещё нет — сайт создаст его в один клик. "
-            "Если есть — привяжите его по логину и паролю. Никому не пересылайте эту ссылку.",
+            t("🔐 Ссылка для входа на сайт (одноразовая, действует {minutes} минут):",
+              minutes=config.TELEGRAM_LOGIN_TOKEN_MINUTES) + f"\n\n{url}\n\n"
+            + t("Если аккаунта ещё нет — сайт создаст его в один клик. "
+                "Если есть — привяжите его по логину и паролю. Никому не пересылайте эту ссылку."),
             keyboard,
         )
 
@@ -407,7 +423,8 @@ class Bot:
             questions = database.get_attempt_questions(current.id)
             done = sum(1 for aq in questions if aq.checked)
             subject = config.SUBJECTS[current.subjects[0]]
-            rows.append([_button(f"▶️ Продолжить: {subject.name} ({done}/{len(questions)})",
+            rows.append([_button(t("▶️ Продолжить: {subject} ({done}/{total})", subject=subject.name,
+                                   done=done, total=len(questions)),
                                  f"next:{current.id}")])
         counts = database.question_counts()
         buttons = [
@@ -418,8 +435,8 @@ class Bot:
         rows += _chunks(buttons, 2)
         self.send(
             chat_id,
-            f"🎯 Выберите предмет — {config.PRACTICE_QUESTION_COUNT} случайных вопросов. "
-            "После каждого ответа покажу правильный ответ и объяснение.",
+            t("🎯 Выберите предмет — {n} случайных вопросов. "
+              "После каждого ответа покажу правильный ответ и объяснение.", n=config.PRACTICE_QUESTION_COUNT),
             _keyboard(*rows),
         )
 
@@ -455,7 +472,7 @@ class Bot:
         else:
             form = {f"q{aq.id}": list(state)}
         if not ent_logic.check_practice_answer(attempt, aq, form):
-            return "Вы уже ответили на этот вопрос"
+            return t("Вы уже ответили на этот вопрос")
         self._edit("editMessageReplyMarkup", chat_id=chat_id, message_id=message_id,
                    reply_markup={"inline_keyboard": []})
 
@@ -464,29 +481,29 @@ class Bot:
         state_name = ent_logic.question_state(checked)
         max_points = ent_logic.question_max_points(checked.qtype)
         if not checked.answer:
-            verdict = f"⏭ Пропущено · 0 из {max_points} б."
+            verdict = t("⏭ Пропущено · 0 из {max} б.", max=max_points)
         elif state_name == "ok":
-            verdict = f"✅ Верно! +{checked.points} из {max_points} б."
+            verdict = t("✅ Верно! +{points} из {max} б.", points=checked.points, max=max_points)
         elif state_name == "partial":
-            verdict = f"🟡 Почти: одна ошибка · {checked.points} из {max_points} б."
+            verdict = t("🟡 Почти: одна ошибка · {points} из {max} б.", points=checked.points, max=max_points)
         else:
-            verdict = f"❌ Неверно · 0 из {max_points} б."
+            verdict = t("❌ Неверно · 0 из {max} б.", max=max_points)
         lines = [verdict, ""]
         if state_name == "ok":
-            lines.append(f"Ответ: {_answer_text(checked, checked.correct)}")
+            lines.append(t("Ответ: {a}", a=_answer_text(checked, checked.correct)))
         else:
             if checked.answer:
-                lines.append(f"Ваш ответ: {_answer_text(checked, checked.answer)}")
-            lines.append(f"Правильный ответ: {_answer_text(checked, checked.correct)}")
+                lines.append(t("Ваш ответ: {a}", a=_answer_text(checked, checked.answer)))
+            lines.append(t("Правильный ответ: {a}", a=_answer_text(checked, checked.correct)))
         if checked.explanation:
-            lines += ["", f"💡 Почему так: {checked.explanation}"]
+            lines += ["", t("💡 Почему так: {e}", e=checked.explanation)]
 
         remaining = sum(1 for item in questions if not item.checked)
         if remaining:
-            keyboard = _keyboard([_button("Следующий вопрос ➡️", f"next:{attempt.id}")],
-                                 [_button("🏁 Закончить", f"fin:{attempt.id}")])
+            keyboard = _keyboard([_button(t("Следующий вопрос ➡️"), f"next:{attempt.id}")],
+                                 [_button(t("🏁 Закончить"), f"fin:{attempt.id}")])
         else:
-            keyboard = _keyboard([_button("🏁 Посмотреть итог", f"fin:{attempt.id}")])
+            keyboard = _keyboard([_button(t("🏁 Посмотреть итог"), f"fin:{attempt.id}")])
         self.send(chat_id, "\n".join(lines), keyboard)
         return ""
 
@@ -504,12 +521,13 @@ class Bot:
         )
         self.send(
             chat_id,
-            f"🏁 Тренировка завершена: {subject.icon} {subject.name}\n\n"
-            f"Результат: {finished.score} из {finished.max_score} баллов ({percent}%)\n{marks}\n\n"
-            f"Полный разбор на сайте: {config.SITE_URL}/result/{finished.id}",
-            _keyboard([_button("🔁 Ещё 10 вопросов", f"subj:{subject.code}")],
-                      [_button("🎯 Другой предмет", "train"),
-                       _button("📊 Мои результаты", "results")]),
+            t("🏁 Тренировка завершена: {icon} {subject}", icon=subject.icon, subject=subject.name) + "\n\n"
+            + t("Результат: {score} из {max} баллов ({percent}%)", score=finished.score,
+                max=finished.max_score, percent=percent) + f"\n{marks}\n\n"
+            + t("Полный разбор на сайте: {url}", url=f"{config.SITE_URL}/result/{finished.id}"),
+            _keyboard([_button(t("🔁 Ещё 10 вопросов"), f"subj:{subject.code}")],
+                      [_button(t("🎯 Другой предмет"), "train"),
+                       _button(t("📊 Мои результаты"), "results")]),
         )
         return ""
 
@@ -523,10 +541,10 @@ class Bot:
         mocks = [attempt for attempt in attempts if attempt.mode == ent_logic.MOCK]
         practices = [attempt for attempt in attempts if attempt.mode == ent_logic.PRACTICE]
         best = max((attempt.score for attempt in mocks), default=None)
-        lines = [f"📊 Результаты: {user.name}", ""]
+        lines = [t("📊 Результаты: {name}", name=user.name), ""]
         lines.append(
-            f"🏆 Лучший пробный ЕНТ: {best} из {config.MOCK_MAX_SCORE}" if best is not None
-            else "🏆 Пробный ЕНТ ещё не проходили — он доступен на сайте."
+            t("🏆 Лучший пробный ЕНТ: {best} из {max}", best=best, max=config.MOCK_MAX_SCORE) if best is not None
+            else t("🏆 Пробный ЕНТ ещё не проходили — он доступен на сайте.")
         )
         if practices:
             average = round(sum(
@@ -535,34 +553,43 @@ class Bot:
             best_practice = max(
                 (round(a.score * 100 / a.max_score) for a in practices if a.max_score), default=0
             )
-            lines.append(f"🎯 Тренировок: {len(practices)} · средний результат {average}% · "
-                         f"лучший {best_practice}%")
+            lines.append(t("🎯 Тренировок: {n} · средний результат {avg}% · лучший {best}%",
+                           n=len(practices), avg=average, best=best_practice))
         if attempts:
-            lines += ["", "Последние попытки:"]
+            lines += ["", t("Последние попытки:")]
             for attempt in attempts[:5]:
                 when = time.strftime("%d.%m %H:%M", time.localtime(attempt.finished_at or 0))
                 if attempt.mode == ent_logic.MOCK:
-                    what = "Пробный ЕНТ"
+                    what = t("Пробный ЕНТ")
                 else:
                     subject = config.SUBJECTS[attempt.subjects[0]]
                     what = f"{subject.icon} {subject.name}"
                 percent = round(attempt.score * 100 / attempt.max_score) if attempt.max_score else 0
                 lines.append(f"• {when} · {what} — {attempt.score}/{attempt.max_score} ({percent}%)")
         else:
-            lines += ["", "Пока нет завершённых попыток. Начните с тренировки!"]
-        lines += ["", f"Подробно: {config.SITE_URL}/history"]
+            lines += ["", t("Пока нет завершённых попыток. Начните с тренировки!")]
+        lines += ["", t("Подробно: {url}", url=f"{config.SITE_URL}/history")]
         self.send(chat_id, "\n".join(lines),
-                  _keyboard([_button("🎯 Тренировка", "train"), _button("🏠 Меню", "menu")]))
+                  _keyboard([_button(t("🎯 Тренировка"), "train"), _button(t("🏠 Меню"), "menu")]))
 
 
 # ── Long polling ─────────────────────────────────────────────────────────────
 
-BOT_COMMANDS = [
-    {"command": "start", "description": "Главное меню"},
-    {"command": "train", "description": "Тренировка по предмету"},
-    {"command": "results", "description": "Мои результаты"},
-    {"command": "login", "description": "Ссылка для входа на сайт"},
-]
+_BOT_COMMANDS = (
+    ("start", "Главное меню"),
+    ("train", "Тренировка по предмету"),
+    ("results", "Мои результаты"),
+    ("login", "Ссылка для входа на сайт"),
+)
+
+
+def bot_commands(lang: str) -> list[dict]:
+    """Список команд для setMyCommands на языке lang."""
+    with i18n.use(lang):
+        return [{"command": command, "description": t(text)} for command, text in _BOT_COMMANDS]
+
+
+BOT_COMMANDS = bot_commands(i18n.RU)
 
 
 def run_polling(api: TelegramAPI, max_cycles: int | None = None,

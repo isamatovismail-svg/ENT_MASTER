@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import config
 from app import database, topics
 from app.database import Attempt, AttemptQuestion
+from app.i18n import t
 
 MOCK = "mock"
 PRACTICE = "practice"
@@ -159,7 +160,7 @@ def availability(subject_code: str, counts: dict[tuple[str, str], int]) -> Subje
 def mock_subjects(pair_index: int) -> list[str]:
     """Пять предметов пробного ЕНТ: три обязательных и выбранная пара профильных."""
     if not 0 <= pair_index < len(config.PROFILE_PAIRS):
-        raise TestBuildError("Такой пары профильных предметов нет.")
+        raise TestBuildError(t("Такой пары профильных предметов нет."))
     return list(config.COMPULSORY_CODES) + list(config.PROFILE_PAIRS[pair_index])
 
 
@@ -220,7 +221,7 @@ def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
         chosen.extend(_with_option_order(subject_refs, code))
 
     if not chosen:
-        raise TestBuildError("В банке пока нет вопросов. Запустите python seed.py.")
+        raise TestBuildError(t("В банке пока нет вопросов. Запустите python seed.py."))
 
     deadline = now + mock_duration_minutes(len(chosen)) * 60
     return database.create_attempt(
@@ -231,13 +232,13 @@ def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
 def build_practice(user_id: int, subject_code: str, now: float | None = None) -> int:
     """Собирает тренировку: случайные задания одного предмета (любых типов)."""
     if subject_code not in config.SUBJECTS:
-        raise TestBuildError("Такого предмета нет.")
+        raise TestBuildError(t("Такого предмета нет."))
     now = time.time() if now is None else now
     found = database.random_questions(
         subject_code, None, config.PRACTICE_QUESTION_COUNT, user_id
     )
     if not found:
-        raise TestBuildError("По этому предмету пока нет вопросов в банке.")
+        raise TestBuildError(t("По этому предмету пока нет вопросов в банке."))
 
     max_score = sum(question_max_points(ref.qtype) for ref in found)
     return database.create_attempt(

@@ -15,14 +15,16 @@ from urllib.parse import urlsplit
 import config
 from app import database
 from app.templates import SafeHTML, fragment
+from app import i18n
+from app.i18n import t
 
 # Места показа: код → название в админке.
-PLACEMENTS = {
+PLACEMENTS = i18n.Translated({
     "landing": "Главная страница",
     "dashboard": "Личный кабинет",
     "result": "Страница результата теста",
     "history": "История попыток",
-}
+})
 
 TITLE_MAX_LENGTH = 120
 LINK_MAX_LENGTH = 500
@@ -76,31 +78,31 @@ def validate(title: str, link_url: str, placements: list[str], starts_on: str, e
     title = " ".join(title.split())
     link_url = link_url.strip()
     if not title:
-        errors.append("Введите название баннера (оно же подпись к картинке).")
+        errors.append(t("Введите название баннера (оно же подпись к картинке)."))
     elif len(title) > TITLE_MAX_LENGTH:
-        errors.append(f"Название — не длиннее {TITLE_MAX_LENGTH} символов.")
+        errors.append(t("Название — не длиннее {n} символов.", n=TITLE_MAX_LENGTH))
     parts = urlsplit(link_url)
     if parts.scheme not in ("http", "https") or not parts.netloc or len(link_url) > LINK_MAX_LENGTH:
-        errors.append("Ссылка должна начинаться с https:// или http:// и вести на сайт рекламодателя.")
+        errors.append(t("Ссылка должна начинаться с https:// или http:// и вести на сайт рекламодателя."))
     chosen = [p for p in PLACEMENTS if p in placements]
     if not chosen:
-        errors.append("Отметьте хотя бы одно место показа.")
+        errors.append(t("Отметьте хотя бы одно место показа."))
     try:
         start, end = date.fromisoformat(starts_on), date.fromisoformat(ends_on)
     except ValueError:
-        errors.append("Укажите даты начала и окончания показа.")
+        errors.append(t("Укажите даты начала и окончания показа."))
     else:
         if end < start:
-            errors.append("Дата окончания не может быть раньше даты начала.")
+            errors.append(t("Дата окончания не может быть раньше даты начала."))
     mime = ""
     if image:
         if len(image) > config.BANNER_MAX_BYTES:
-            errors.append(f"Картинка больше {config.BANNER_MAX_BYTES // 1_000_000} МБ — уменьшите её.")
+            errors.append(t("Картинка больше {n} МБ — уменьшите её.", n=config.BANNER_MAX_BYTES // 1_000_000))
         mime = image_type(image) or ""
         if not mime:
-            errors.append("Картинка должна быть в формате PNG, JPEG, GIF или WebP.")
+            errors.append(t("Картинка должна быть в формате PNG, JPEG, GIF или WebP."))
     elif image_required:
-        errors.append("Загрузите картинку баннера.")
+        errors.append(t("Загрузите картинку баннера."))
     if errors:
         raise BannerError(errors)
     return BannerForm(title, link_url, ",".join(chosen), starts_on, ends_on, active, image or None, mime)

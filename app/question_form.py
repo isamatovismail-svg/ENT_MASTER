@@ -14,6 +14,7 @@ from app.database import Question
 from app.question_bank import validate_question
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request
+from app.i18n import t
 
 LEFT_ROWS = 6             # строк «слева» в форме задания на соответствие
 TEXT_MAX_LENGTH = 4000    # ограничение длины текстовых полей формы
@@ -88,20 +89,20 @@ def build_question(form: QuestionForm, question_id: int = 0) -> tuple[Question |
     """Проверяет форму и собирает из неё вопрос. Возвращает (вопрос или None, ошибки)."""
     errors: list[str] = []
     if form.subject not in config.SUBJECTS:
-        errors.append("Выберите предмет.")
+        errors.append(t("Выберите предмет."))
     elif topics.get_topic(form.subject, form.topic) is None:
-        errors.append("Выберите тему спецификации НЦТ из тем выбранного предмета.")
-    for name, value, limit in (("Текст вопроса", form.text, TEXT_MAX_LENGTH),
-                               ("Контекст", form.context, TEXT_MAX_LENGTH),
-                               ("Объяснение", form.explanation, TEXT_MAX_LENGTH)):
+        errors.append(t("Выберите тему спецификации НЦТ из тем выбранного предмета."))
+    for name, value, limit in ((t("Текст вопроса"), form.text, TEXT_MAX_LENGTH),
+                               (t("Контекст"), form.context, TEXT_MAX_LENGTH),
+                               (t("Объяснение"), form.explanation, TEXT_MAX_LENGTH)):
         if len(value) > limit:
-            errors.append(f"{name}: не длиннее {limit} символов.")
+            errors.append(t("{name}: не длиннее {limit} символов.", name=t(name), limit=limit))
     if any(len(option) > OPTION_MAX_LENGTH for option in form.options + form.left):
-        errors.append(f"Варианты и строки — не длиннее {OPTION_MAX_LENGTH} символов.")
+        errors.append(t("Варианты и строки — не длиннее {n} символов.", n=OPTION_MAX_LENGTH))
 
     options = _trim(form.options)
     if "" in options:
-        errors.append("Варианты ответа заполняйте подряд: A, B, C… без пропусков.")
+        errors.append(t("Варианты ответа заполняйте подряд: A, B, C… без пропусков."))
     letters = config.OPTION_LETTERS[: len(options)]
 
     left: list[str] = []
@@ -112,13 +113,13 @@ def build_question(form: QuestionForm, question_id: int = 0) -> tuple[Question |
         left = [row[0] for row in rows]
         correct = [row[1] for row in rows]
         if any(not item for item in left):
-            errors.append("Строки соответствия заполняйте подряд, без пропусков.")
+            errors.append(t("Строки соответствия заполняйте подряд, без пропусков."))
         if any(not letter for letter in correct):
-            errors.append("Для каждой строки соответствия выберите правильную букву.")
+            errors.append(t("Для каждой строки соответствия выберите правильную букву."))
     else:
         correct = sorted(letter for letter in form.correct if letter in letters)
         if not correct:
-            errors.append("Отметьте правильный ответ.")
+            errors.append(t("Отметьте правильный ответ."))
 
     data = {
         "type": form.qtype,
@@ -171,7 +172,7 @@ def _option_rows(form: QuestionForm) -> SafeHTML:
             '<input type="text" name="opt_$letter" value="$value" maxlength="$max" '
             'aria-label="Вариант $letter" placeholder="$placeholder">$mark</div>',
             letter=letter, value=form.options[index], max=OPTION_MAX_LENGTH, mark=mark,
-            placeholder="обязательно" if index < 2 else "необязательно",
+            placeholder=t("обязательно") if index < 2 else t("необязательно"),
         ))
     return join(rows)
 
@@ -195,7 +196,7 @@ def _matching_rows(form: QuestionForm) -> SafeHTML:
             'aria-label="Строка $n" placeholder="$placeholder">'
             '<select name="match_$i" aria-label="Правильная буква для строки $n">$choices</select></div>',
             n=index + 1, i=index, value=form.left[index], max=OPTION_MAX_LENGTH, choices=choices,
-            placeholder="обязательно" if index < 2 else "необязательно",
+            placeholder=t("обязательно") if index < 2 else t("необязательно"),
         ))
     return fragment(
         '<fieldset class="admin-fieldset"><legend>Строки слева — что сопоставляем</legend>'
@@ -224,11 +225,11 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
             max=TEXT_MAX_LENGTH, value=form.context,
         )
     hints = {
-        config.SINGLE: "Заполните от 2 до 8 вариантов и отметьте один верный.",
-        config.CONTEXT: "Заполните контекст, от 2 до 8 вариантов и отметьте один верный.",
-        config.MULTIPLE: "Заполните от 2 до 8 вариантов и отметьте все верные.",
-        config.MATCHING: "Справа — варианты (A, B, C…), слева — строки. Вариантов может быть больше, "
-                         "чем строк.",
+        config.SINGLE: t("Заполните от 2 до 8 вариантов и отметьте один верный."),
+        config.CONTEXT: t("Заполните контекст, от 2 до 8 вариантов и отметьте один верный."),
+        config.MULTIPLE: t("Заполните от 2 до 8 вариантов и отметьте все верные."),
+        config.MATCHING: t("Справа — варианты (A, B, C…), слева — строки. Вариантов может быть больше, "
+                         "чем строк."),
     }
     return render(
         "question_form.html",
@@ -245,7 +246,7 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
         text=form.text,
         text_max=TEXT_MAX_LENGTH,
         matching_rows=_matching_rows(form),
-        options_legend="Варианты справа" if form.qtype == config.MATCHING else "Варианты ответа",
+        options_legend=t("Варианты справа") if form.qtype == config.MATCHING else t("Варианты ответа"),
         option_hint=hints[form.qtype],
         option_rows=_option_rows(form),
         explanation=form.explanation,
@@ -278,8 +279,8 @@ def requested_type(request: Request, default: str) -> str:
 
 def duplicate_error() -> list[str]:
     """Сообщение о дубликате текста (UNIQUE subject + text)."""
-    return ["У этого предмета уже есть вопрос с таким текстом (возможно, удалённый или на "
-            "проверке). Измените формулировку."]
+    return [t("У этого предмета уже есть вопрос с таким текстом (возможно, удалённый или на "
+            "проверке). Измените формулировку.")]
 
 
 def preview(question: Question) -> SafeHTML:

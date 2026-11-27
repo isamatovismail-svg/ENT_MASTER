@@ -15,13 +15,14 @@ import config
 from app import auth, database, google_auth, mailer, views
 from app.templates import render
 from app.web import Request, Response, redirect
+from app.i18n import t
 
 logger = logging.getLogger(__name__)
 
 
 def _wait_error(seconds: int) -> str:
     """Сообщение «код можно запросить через N секунд»."""
-    return f"Новый код можно запросить через {seconds} с. Пока используйте код из последнего письма."
+    return t("Новый код можно запросить через {seconds} с. Пока используйте код из последнего письма.", seconds=seconds)
 
 
 def _login_now(request: Request, user_id: int, location: str) -> Response:
@@ -41,7 +42,7 @@ def _verify_form(request: Request, email: str, errors: list[str], status: int = 
         email=email,
         minutes=config.EMAIL_CODE_MINUTES,
     )
-    return views.page(request, "Подтверждение почты", content, status)
+    return views.page(request, t("Подтверждение почты"), content, status)
 
 
 def verify_page(request: Request) -> Response:
@@ -87,7 +88,7 @@ def verify_resend(request: Request) -> Response:
 def _forgot_form(request: Request, email: str, errors: list[str], status: int = 200) -> Response:
     """Страница «Забыли пароль?»: ввод почты."""
     content = render("forgot.html", errors=views._errors_block(errors), email=email)
-    return views.page(request, "Восстановление пароля", content, status)
+    return views.page(request, t("Восстановление пароля"), content, status)
 
 
 def forgot_page(request: Request) -> Response:
@@ -103,7 +104,7 @@ def forgot_submit(request: Request) -> Response:
     """
     email = auth.normalize_email(request.form_value("email"))
     if not auth.EMAIL_RE.match(email):
-        return _forgot_form(request, email, ["Введите почту, указанную при регистрации."], 400)
+        return _forgot_form(request, email, [t("Введите почту, указанную при регистрации.")], 400)
     user = auth.find_email_user(email)
     if user is not None:
         try:
@@ -124,7 +125,7 @@ def _reset_form(request: Request, email: str, errors: list[str], status: int = 2
         minutes=config.EMAIL_CODE_MINUTES,
         min_length=config.PASSWORD_MIN_LENGTH,
     )
-    return views.page(request, "Новый пароль", content, status)
+    return views.page(request, t("Новый пароль"), content, status)
 
 
 def reset_page(request: Request) -> Response:

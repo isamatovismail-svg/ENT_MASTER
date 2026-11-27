@@ -13,6 +13,7 @@ from html import escape as _html_escape
 from string import Template
 
 import config
+from app import i18n
 
 
 class SafeHTML(str):
@@ -32,10 +33,15 @@ def to_html(value: object) -> str:
 
 
 @lru_cache(maxsize=None)
-def _load(name: str) -> Template:
+def _source(name: str) -> str:
     """Читает шаблон из папки templates/ (один раз, затем берёт из кэша)."""
-    path = config.TEMPLATES_DIR / name
-    return Template(path.read_text(encoding="utf-8"))
+    return (config.TEMPLATES_DIR / name).read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=None)
+def _load(name: str, lang: str) -> Template:
+    """Шаблон, переведённый на язык lang (текст интерфейса — по словарю app/i18n.py)."""
+    return Template(i18n.translate_markup(_source(name), lang))
 
 
 def render(template_name: str, /, **context: object) -> SafeHTML:
@@ -45,13 +51,16 @@ def render(template_name: str, /, **context: object) -> SafeHTML:
     свободно использовать метку $name.
     """
     values = {key: to_html(value) for key, value in context.items()}
-    return SafeHTML(_load(template_name).substitute(values))
+    return SafeHTML(_load(template_name, i18n.get_language()).substitute(values))
 
 
 def fragment(template: str, /, **context: object) -> SafeHTML:
-    """Заполняет небольшой HTML-фрагмент, заданный строкой, с тем же экранированием."""
+    """Заполняет небольшой HTML-фрагмент, заданный строкой, с тем же экранированием.
+
+    Текст самого фрагмента переводится на язык запроса, подставленные значения — нет.
+    """
     values = {key: to_html(value) for key, value in context.items()}
-    return SafeHTML(Template(template).substitute(values))
+    return SafeHTML(Template(i18n.translate_markup(template, i18n.get_language())).substitute(values))
 
 
 def join(parts: Iterable[object]) -> SafeHTML:

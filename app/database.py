@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS users (
     -- Школа: у ученика — куда он подал заявку (school_status), у учителя — его школа.
     school_id     INTEGER,
     school_status TEXT,                          -- pending / approved / rejected (или NULL)
-    last_login_at REAL                           -- время последнего входа
+    last_login_at REAL,                          -- время последнего входа
+    language      TEXT NOT NULL DEFAULT 'ru'     -- язык интерфейса и вопросов: ru / kk
 );
 
 -- Школы: город + номер или название. key — нормализованная пара «город|школа»,
@@ -218,6 +219,7 @@ _ADDED_COLUMNS = (
     ("users", "school_id", "INTEGER"),
     ("users", "school_status", "TEXT"),
     ("users", "last_login_at", "REAL"),
+    ("users", "language", "TEXT NOT NULL DEFAULT 'ru'"),
     ("questions", "explanation", "TEXT NOT NULL DEFAULT ''"),
     ("questions", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("questions", "edited_by_admin", "INTEGER NOT NULL DEFAULT 0"),
@@ -243,6 +245,7 @@ class User:
     login: str
     role: str = ROLE_USER
     email_verified: bool = True
+    language: str = "ru"          # язык обучения: интерфейс и вопросы (ru / kk)
 
     @property
     def is_admin(self) -> bool:
@@ -480,9 +483,9 @@ def get_user_by_telegram(telegram_id: int) -> User | None:
     """Пользователь сайта, к которому привязан этот аккаунт Telegram."""
     with connect() as connection:
         row = connection.execute(
-            "SELECT id, name, login, role FROM users WHERE telegram_id = ?", (telegram_id,)
+            "SELECT id, name, login, role, language FROM users WHERE telegram_id = ?", (telegram_id,)
         ).fetchone()
-    return User(row["id"], row["name"], row["login"], row["role"]) if row else None
+    return User(row["id"], row["name"], row["login"], row["role"], language=row["language"]) if row else None
 
 
 def admin_telegram_ids() -> list[int]:
@@ -493,6 +496,19 @@ def admin_telegram_ids() -> list[int]:
             (ROLE_ADMIN,),
         ).fetchall()
     return [row["telegram_id"] for row in rows]
+
+
+def get_user_language(user_id: int) -> str:
+    """Язык пользователя (ru / kk); для неизвестного — ru."""
+    with connect() as connection:
+        row = connection.execute("SELECT language FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["language"] if row is not None and row["language"] else "ru"
+
+
+def set_user_language(user_id: int, language: str) -> None:
+    """Меняет язык интерфейса и вопросов пользователя."""
+    with connect() as connection:
+        connection.execute("UPDATE users SET language = ? WHERE id = ?", (language, user_id))
 
 
 def admin_credentials() -> list[sqlite3.Row]:
@@ -611,7 +627,7 @@ def get_user_credentials(login: str) -> sqlite3.Row | None:
     """
     with connect() as connection:
         return connection.execute(
-            "SELECT id, name, login, role, email_verified, password_hash, salt FROM users "
+            "SELECT id, name, login, role, email_verified, password_hash, salt, language FROM users "
             "WHERE login = ? OR phone = ? ORDER BY login = ? DESC LIMIT 1",
             (login, login, login),
         ).fetchone()
@@ -637,14 +653,15 @@ def get_session_user(token_hash: str, now: float) -> tuple[User, str] | None:
     """Находит пользователя по хешу токена сессии. Возвращает (пользователь, csrf-токен)."""
     with connect() as connection:
         row = connection.execute(
-            "SELECT u.id, u.name, u.login, u.role, s.csrf_token "
+            "SELECT u.id, u.name, u.login, u.role, u.language, s.csrf_token "
             "FROM sessions s JOIN users u ON u.id = s.user_id "
             "WHERE s.token_hash = ? AND s.expires_at > ?",
             (token_hash, now),
         ).fetchone()
     if row is None:
         return None
-    return User(row["id"], row["name"], row["login"], row["role"]), row["csrf_token"]
+    return (User(row["id"], row["name"], row["login"], row["role"], language=row["language"]),
+            row["csrf_token"])
 
 
 def delete_session(token_hash: str) -> None:

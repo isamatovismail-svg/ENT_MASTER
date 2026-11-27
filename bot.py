@@ -9,7 +9,7 @@ import sys
 
 import config
 from app import database
-from app.telegram_bot import BOT_COMMANDS, TelegramAPI, TelegramError, run_polling
+from app.telegram_bot import BOT_COMMANDS, TelegramAPI, TelegramError, bot_commands, run_polling
 
 
 def main() -> int:
@@ -32,6 +32,7 @@ def main() -> int:
     try:
         me = api.call("getMe")
         api.call("setMyCommands", commands=BOT_COMMANDS)
+        api.call("setMyCommands", commands=bot_commands("kk"), language_code="kk")
     except TelegramError as error:
         print(f"Telegram не принял токен из .env: {error}")
         return 1

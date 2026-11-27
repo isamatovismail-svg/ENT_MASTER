@@ -15,10 +15,11 @@ from functools import wraps
 from urllib.parse import quote, urlencode
 
 import config
-from app import ads, auth, database, ent_logic, google_auth, mailer, notifications, schools
+from app import ads, auth, database, ent_logic, google_auth, i18n, mailer, notifications, schools
 from app.database import Attempt, AttemptQuestion
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, html_response, redirect
+from app.i18n import t
 
 # Сообщения, которые можно показать через параметр ?msg=код.
 # В URL передаётся только код, поэтому подставить свой текст через ссылку нельзя.
@@ -57,6 +58,7 @@ MESSAGES: dict[str, tuple[str, str]] = {
     "tq_deleted": ("info", "Вопрос удалён."),
     "tq_locked": ("error", "Одобренный вопрос изменить или удалить нельзя — он уже в общем банке."),
     "logged_out": ("info", "Вы вышли из аккаунта."),
+    "language_saved": ("success", "Язык сохранён: интерфейс и вопросы теперь на выбранном языке."),
     "login_required": ("info", "Войдите, чтобы открыть эту страницу."),
     "saved": ("success", "Ответы сохранены."),
     "resume": ("info", "У вас уже есть незавершённый пробный ЕНТ — продолжайте его."),
@@ -86,7 +88,7 @@ DEMO_ADMIN_BLOCKED = ("Демо-администратор не может во�
 
 MAIL_FAILED = "Не удалось отправить письмо с кодом. Попробуйте ещё раз через минуту."
 
-MODE_NAMES = {ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"}
+MODE_NAMES = i18n.Translated({ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"})
 
 # Порог «сильного» предмета в кабинете: от 70% баллов.
 STRONG_PERCENT = 70
@@ -108,10 +110,10 @@ def _format_duration(seconds: int) -> str:
     minutes_total = seconds // 60
     hours, minutes = divmod(minutes_total, 60)
     if hours:
-        return f"{hours} ч {minutes:02d} мин"
+        return t("{hours} ч {minutes} мин", hours=hours, minutes=f"{minutes:02d}")
     if minutes_total:
-        return f"{minutes} мин"
-    return "меньше минуты"
+        return t("{minutes} мин", minutes=minutes)
+    return t("меньше минуты")
 
 
 def _percent(score: int, max_score: int) -> int:
@@ -178,10 +180,8 @@ def _bell(request: Request) -> SafeHTML:
 def _nav(request: Request) -> SafeHTML:
     """Меню в шапке: у гостя, ученика, учителя и главного администратора — своё."""
     if request.user is None:
-        return SafeHTML(
-            '<a href="/login">Войти</a>'
-            '<a class="btn btn-primary btn-sm" href="/register">Регистрация</a>'
-        )
+        return fragment('<a href="/login">Войти</a>'
+            '<a class="btn btn-primary btn-sm" href="/register">Регистрация</a>')
     logout = fragment(
         '<form method="post" action="/logout" class="nav-form">$csrf'
         '<button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>',
@@ -206,8 +206,55 @@ def _nav(request: Request) -> SafeHTML:
         '<a href="/profile">👤 Профиль</a>'
         "$admin$logout",
         bell=_bell(request),
-        admin=SafeHTML('<a class="nav-admin" href="/admin">⚙️ Админка</a>' if request.user.is_admin else ""),
+        admin=(fragment('<a class="nav-admin" href="/admin">⚙️ Админка</a>') if request.user.is_admin else SafeHTML("")),
         logout=logout,
+    )
+
+
+def request_language(request: Request, accept_language: str = "") -> str:
+    """Язык страницы: у вошедшего — из профиля, у гостя — из cookie, иначе по браузеру (kk/ru)."""
+    if request.user is not None:
+        return i18n.normalize(request.user.language)
+    chosen = request.cookies.get(i18n.COOKIE_NAME, "")
+    if chosen in i18n.LANGUAGES:
+        return chosen
+    return i18n.KK if accept_language.lower().startswith("kk") else i18n.DEFAULT
+
+
+def _language_cookie(lang: str) -> str:
+    """Set-Cookie с выбранным языком (для гостя; год, только этот сайт)."""
+    return (f"{i18n.COOKIE_NAME}={lang}; Path=/; Max-Age={i18n.COOKIE_MAX_AGE}; SameSite=Lax"
+            + ("; Secure" if config.COOKIE_SECURE else ""))
+
+
+def _current_url(request: Request) -> str:
+    """Адрес текущей страницы (для возврата после смены языка)."""
+    query = {key: value for key, value in request.query.items() if key != "msg"}
+    return request.path + ("?" + urlencode(query, doseq=True) if query else "")
+
+
+def _language_switch(request: Request) -> SafeHTML:
+    """Переключатель РУС / ҚАЗ в шапке."""
+    current = i18n.get_language()
+    back = quote(_current_url(request), safe="")
+    return fragment(
+        '<nav class="lang-switch" aria-label="Тіл / Язык">$links</nav>',
+        links=join(
+            fragment('<a class="lang$cls" href="/lang/$code?next=$back" hreflang="$code" lang="$code">$label</a>',
+                     cls=" lang-active" if code == current else "", code=code, back=SafeHTML(back),
+                     label=i18n.SWITCH_LABELS[code])
+            for code in i18n.LANGUAGES
+        ),
+    )
+
+
+def language_options(selected: str) -> SafeHTML:
+    """Радиокнопки «Язык обучения» (регистрация и профиль)."""
+    return join(
+        fragment('<label class="check"><input type="radio" name="language" value="$code"$checked> $name</label>',
+                 code=code, checked=SafeHTML(" checked" if code == selected else ""),
+                 name=i18n.LANGUAGE_NAMES[code])
+        for code in i18n.LANGUAGES
     )
 
 
@@ -224,9 +271,10 @@ def page(
         if request is not None:
             message = MESSAGES.get(request.query_value("msg"))
             if message:
-                notice = _notice(*message)
-    nav = _nav(request) if request is not None else _nav(Request("GET", "/"))
-    body = render("base.html", title=title, nav=nav, notice=notice, content=content)
+                notice = _notice(message[0], t(message[1]))
+    request = request if request is not None else Request("GET", "/")
+    body = render("base.html", title=title, nav=_nav(request), notice=notice, content=content,
+                  html_lang=i18n.get_language(), lang_switch=_language_switch(request))
     return html_response(body, status)
 
 
@@ -243,7 +291,7 @@ def login_required(view: View) -> View:
             query = urlencode({"next": request.path, "msg": "login_required"})
             return redirect(f"/login?{query}")
         if request.method == "POST" and not auth.check_csrf(request):
-            return error_page(request, 403, MESSAGES["csrf"][1])
+            return error_page(request, 403, t(MESSAGES["csrf"][1]))
         return view(request, **kwargs)
 
     return wrapper
@@ -268,27 +316,46 @@ def _user_id(request: Request) -> int:
     return request.user.id
 
 
+def switch_language(request: Request, code: str) -> Response:
+    """GET /lang/<код> — сменить язык: гостю — cookie, вошедшему — ещё и в профиле."""
+    if code not in i18n.LANGUAGES:
+        return not_found(request)
+    if request.user is not None:
+        database.set_user_language(request.user.id, code)
+    return redirect(_safe_next(request.query_value("next") or "/"), cookies=[_language_cookie(code)])
+
+
+@login_required
+def profile_language(request: Request) -> Response:
+    """POST /profile/language — язык обучения из профиля."""
+    code = request.form_value("language")
+    if code not in i18n.LANGUAGES:
+        return error_page(request, 400, t("Выберите язык из списка."))
+    database.set_user_language(_user_id(request), code)
+    return redirect("/profile?msg=language_saved", cookies=[_language_cookie(code)])
+
+
 # ── Ошибки ───────────────────────────────────────────────────────────────────
 
 def error_page(request: Request | None, status: int, message: str) -> Response:
     """Страница ошибки с понятным текстом."""
     content = render("error.html", code=status, message=message)
-    return page(request, f"Ошибка {status}", content, status, notice=SafeHTML(""))
+    return page(request, t("Ошибка {status}", status=status), content, status, notice=SafeHTML(""))
 
 
 def not_found(request: Request | None = None) -> Response:
     """Страница 404."""
-    return page(request, "Страница не найдена", render("404.html"), 404, notice=SafeHTML(""))
+    return page(request, t("Страница не найдена"), render("404.html"), 404, notice=SafeHTML(""))
 
 
 def method_not_allowed(request: Request) -> Response:
     """Ответ 405: страница существует, но не поддерживает этот метод."""
-    return error_page(request, 405, "Этот адрес не поддерживает такой запрос.")
+    return error_page(request, 405, t("Этот адрес не поддерживает такой запрос."))
 
 
 def server_error() -> Response:
     """Страница 500 без технических подробностей (они записаны в лог сервера)."""
-    return error_page(None, 500, "Что-то пошло не так. Попробуйте обновить страницу чуть позже.")
+    return error_page(None, 500, t("Что-то пошло не так. Попробуйте обновить страницу чуть позже."))
 
 
 # ── Главная, регистрация, вход, выход ───────────────────────────────────────
@@ -330,7 +397,7 @@ def landing(request: Request) -> Response:
     content = render(
         "landing.html",
         cta_href="/dashboard" if logged_in else "/register",
-        cta_label="Перейти в кабинет" if logged_in else "Попробовать бесплатно",
+        cta_label=t("Перейти в кабинет") if logged_in else t("Попробовать бесплатно"),
         compulsory_cards=compulsory_cards,
         profile_cards=profile_cards,
         pair_chips=pair_chips,
@@ -343,21 +410,17 @@ def landing(request: Request) -> Response:
         profile_score=profile.max_score,
         ad=ads.banner_block("landing", request.user),
     )
-    return page(request, "Подготовка к ЕНТ", content)
+    return page(request, t("Подготовка к ЕНТ"), content)
 
 
 def google_button() -> SafeHTML:
     """Кнопка «Войти через Google»: ссылка, если ключи заданы в .env, иначе неактивна."""
     if google_auth.enabled():
-        return SafeHTML(
-            '<a class="btn btn-google btn-block" href="/auth/google">'
-            '<span class="google-mark">G</span> Войти через Google</a>'
-        )
-    return SafeHTML(
-        '<button type="button" class="btn btn-google btn-block" disabled>'
+        return fragment('<a class="btn btn-google btn-block" href="/auth/google">'
+            '<span class="google-mark">G</span> Войти через Google</a>')
+    return fragment('<button type="button" class="btn btn-google btn-block" disabled>'
         '<span class="google-mark">G</span> Войти через Google <span class="soon">скоро</span>'
-        "</button>"
-    )
+        "</button>")
 
 
 def _register_form(request: Request, errors: list[str]) -> Response:
@@ -373,8 +436,9 @@ def _register_form(request: Request, errors: list[str]) -> Response:
         school_name=request.form_value("school_name"),
         min_length=config.PASSWORD_MIN_LENGTH,
         google=google_button(),
+        language_options=language_options(i18n.normalize(request.form_value("language") or i18n.get_language())),
     )
-    return page(request, "Регистрация", content, 400 if errors else 200)
+    return page(request, t("Регистрация"), content, 400 if errors else 200)
 
 
 def verify_url(email: str, msg: str = "") -> str:
@@ -401,6 +465,7 @@ def register_submit(request: Request) -> Response:
             request.form_value("password"), request.form_value("password2"),
             school_city=request.form_value("school_city"),
             school_name=request.form_value("school_name"),
+            language=request.form_value("language") or i18n.get_language(),
         )
     except auth.ValidationError as error:
         return _register_form(request, error.errors)
@@ -408,7 +473,7 @@ def register_submit(request: Request) -> Response:
     try:
         auth.send_email_code(user_id, email, auth.VERIFY)
     except mailer.MailError:
-        return _register_form(request, [MAIL_FAILED])
+        return _register_form(request, [t(MAIL_FAILED)])
     # Если код уже отправляли меньше минуты назад, действует прежний код.
     return redirect(verify_url(email, "code_sent"))
 
@@ -419,7 +484,7 @@ def _login_form(request: Request, errors: list[str], login: str, next_url: str) 
         "login.html", errors=_errors_block(errors), login=login, next=next_url,
         google=google_button(),
     )
-    return page(request, "Вход", content, 400 if errors else 200)
+    return page(request, t("Вход"), content, 400 if errors else 200)
 
 
 def login_page(request: Request) -> Response:
@@ -436,19 +501,19 @@ def login_submit(request: Request) -> Response:
     login = request.form_value("login")
     next_url = _safe_next(request.form_value("next"))
     if not login.strip() or not request.form_value("password"):
-        return _login_form(request, ["Введите почту (или телефон) и пароль."], login, next_url)
+        return _login_form(request, [t("Введите почту (или телефон) и пароль.")], login, next_url)
     user = auth.authenticate(login, request.form_value("password"))
     if user is None:
-        return _login_form(request, ["Неверная почта/телефон или пароль."], login, next_url)
+        return _login_form(request, [t("Неверная почта/телефон или пароль.")], login, next_url)
     if auth.is_blocked_demo_admin(user.login, user.role):
-        return _login_form(request, [DEMO_ADMIN_BLOCKED], login, next_url)
+        return _login_form(request, [t(DEMO_ADMIN_BLOCKED)], login, next_url)
     if not user.email_verified:
         # Пароль верный, но почта не подтверждена: отправляем код (если не отправляли
         # только что) и ведём на страницу ввода кода.
         try:
             auth.send_email_code(user.id, user.login, auth.VERIFY)
         except mailer.MailError:
-            return _login_form(request, [MAIL_FAILED], login, next_url)
+            return _login_form(request, [t(MAIL_FAILED)], login, next_url)
         return redirect(verify_url(user.login, "verify_needed"))
     # При входе всегда создаётся новая сессия, старая (если была) удаляется.
     if request.session_key:
@@ -461,7 +526,7 @@ def logout(request: Request) -> Response:
     if request.user is None:
         return redirect("/")
     if not auth.check_csrf(request):
-        return error_page(request, 403, MESSAGES["csrf"][1])
+        return error_page(request, 403, t(MESSAGES["csrf"][1]))
     return redirect("/?msg=logged_out", cookies=[auth.end_session(request)])
 
 
@@ -472,8 +537,8 @@ def _attempt_title(attempt: Attempt) -> str:
     if attempt.mode == ent_logic.MOCK:
         profile_codes = attempt.subjects[len(config.COMPULSORY_CODES):]
         profile = [config.SUBJECTS[code].name for code in profile_codes]
-        return "Пробный ЕНТ: " + " + ".join(profile)
-    return "Тренировка: " + config.SUBJECTS[attempt.subjects[0]].name
+        return t("Пробный ЕНТ: ") + " + ".join(profile)
+    return t("Тренировка: ") + config.SUBJECTS[attempt.subjects[0]].name
 
 
 def _attempt_icon(attempt: Attempt) -> SafeHTML:
@@ -598,22 +663,27 @@ def _continue_blocks(user_id: int) -> SafeHTML:
 def school_status_text(row) -> SafeHTML:
     """Школа пользователя и статус заявки — для кабинета и профиля."""
     if row is None:
-        return SafeHTML('<p class="muted">Вы не состоите в школе.</p>')
+        return fragment('<p class="muted">Вы не состоите в школе.</p>')
     title = schools.school_title(row["city"], row["name"])
     if row["role"] == database.ROLE_TEACHER:
-        badge = '<span class="badge badge-partial">учитель</span>'
+        badge = fragment('<span class="badge badge-partial">учитель</span>')
     else:
         badge = {
-            database.SCHOOL_APPROVED: '<span class="badge badge-ok">подтверждено</span>',
-            database.SCHOOL_PENDING: '<span class="badge badge-warn">ждёт подтверждения учителя</span>',
-            database.SCHOOL_REJECTED: '<span class="badge badge-wrong">заявка отклонена</span>',
+            database.SCHOOL_APPROVED: fragment('<span class="badge badge-ok">подтверждено</span>'),
+            database.SCHOOL_PENDING: fragment('<span class="badge badge-warn">ждёт подтверждения учителя</span>'),
+            database.SCHOOL_REJECTED: fragment('<span class="badge badge-wrong">заявка отклонена</span>'),
         }.get(row["school_status"], "")
-    return fragment("<p><strong>🏫 $title</strong> $badge</p>", title=title, badge=SafeHTML(badge))
+    return fragment("<p><strong>🏫 $title</strong> $badge</p>", title=title, badge=badge or SafeHTML(""))
 
 
 def _deadline_text(deadline: float) -> str:
     """Срок задания: «до 30.11.2026»."""
-    return "до " + datetime.fromtimestamp(deadline).strftime("%d.%m.%Y")
+    return t("до {date}", date=_date_only(deadline))
+
+
+def _date_only(timestamp: float) -> str:
+    """Дата «30.11.2026»."""
+    return datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y")
 
 
 ASSIGNMENT_STATUS = {
@@ -627,10 +697,10 @@ def _assignment_action(request: Request, assignment) -> str:
     """Что сделать: «Пройдите пробный ЕНТ (Математика + Информатика)» и т. п."""
     if assignment["mode"] == "mock":
         pair = schools.pair_codes(assignment["target"])
-        what = " + ".join(config.SUBJECTS[c].name for c in pair) if pair else "любая пара на ваш выбор"
-        return f"Пройдите пробный ЕНТ ({what})"
+        what = " + ".join(config.SUBJECTS[c].name for c in pair) if pair else t("любая пара на ваш выбор")
+        return t("Пройдите пробный ЕНТ ({what})", what=what)
     subject = config.SUBJECTS.get(assignment["target"])
-    return f"Пройдите тренировку: {subject.name if subject else assignment['target']}"
+    return t("Пройдите тренировку: {subject}", subject=subject.name if subject else assignment["target"])
 
 
 def _assignments_block(request: Request, user_id: int) -> SafeHTML:
@@ -651,8 +721,8 @@ def _assignments_block(request: Request, user_id: int) -> SafeHTML:
             '<button type="submit" class="btn btn-primary">Начать →</button></form></li>',
             cls=" task-urgent" if urgent else "", action=_assignment_action(request, assignment),
             title=schools.assignment_title(assignment["mode"], assignment["target"], assignment["count"]),
-            deadline=_deadline_text(assignment["deadline"]).removeprefix("до "),
-            urgent=SafeHTML(' · <span class="badge badge-wrong">меньше суток</span>' if urgent else ""),
+            deadline=_date_only(assignment["deadline"]),
+            urgent=(fragment(' · <span class="badge badge-wrong">меньше суток</span>') if urgent else SafeHTML("")),
             count=assignment["count"], done=progress.done, aid=assignment["id"], csrf=_csrf_field(request),
         ))
     if not items:
@@ -669,12 +739,10 @@ def _school_block(user_id: int) -> SafeHTML:
     row = database.get_user_school(user_id)
     assignments = database.list_student_assignments(user_id)
     if row is None and not assignments:
-        return SafeHTML(
-            '<section class="card school-card"><div class="card-title-row"><h2>🏫 Школа</h2>'
+        return fragment('<section class="card school-card"><div class="card-title-row"><h2>🏫 Школа</h2>'
             '<a class="link" href="/profile">Указать школу →</a></div>'
             '<p class="muted">Укажите школу — учитель сможет давать задания и видеть ваш прогресс.'
-            "</p></section>"
-        )
+            "</p></section>")
     items = []
     for assignment in assignments:
         progress = schools.student_progress(assignment, user_id)
@@ -687,7 +755,7 @@ def _school_block(user_id: int) -> SafeHTML:
             title=schools.assignment_title(assignment["mode"], assignment["target"],
                                            assignment["count"]),
             deadline=_deadline_text(assignment["deadline"]), done=progress.done,
-            count=assignment["count"], status=SafeHTML(ASSIGNMENT_STATUS[progress.status]),
+            count=assignment["count"], status=fragment(ASSIGNMENT_STATUS[progress.status]),
         ))
     tasks = (
         fragment('<h3>Прошлые задания</h3><ul class="assignment-list">$items</ul>',
@@ -746,7 +814,7 @@ def notifications_page(request: Request) -> Response:
             '<div><a class="link" href="/notifications/$id">$text</a>'
             '<small class="muted">$date$status</small></div></li>',
             cls="" if item.read else " notification-unread", icon=item.icon, id=item.id, text=item.text,
-            date=_format_datetime(item.created_at), status=" · новое" if not item.read else "",
+            date=_format_datetime(item.created_at), status=t(" · новое") if not item.read else "",
         )
         for item in items
     )
@@ -761,9 +829,9 @@ def notifications_page(request: Request) -> Response:
         "Telegram-бот, уведомления приходят и туда.</p></div>$mark_all</section>$list",
         unread=unread, mark_all=mark_all,
         list=fragment('<ul class="notification-list card">$rows</ul>', rows=rows) if items
-        else SafeHTML('<div class="card empty">Уведомлений пока нет.</div>'),
+        else fragment('<div class="card empty">Уведомлений пока нет.</div>'),
     )
-    return page(request, "Уведомления", content)
+    return page(request, t("Уведомления"), content)
 
 
 @login_required
@@ -798,42 +866,42 @@ def dashboard(request: Request) -> Response:
     last = attempts[0] if attempts else None
 
     best_card = _stat_card(
-        "🏆", "best", "Лучший балл",
-        best.score if best else "—", f"из {config.MOCK_MAX_SCORE}",
-        "лучший пробный ЕНТ" if best else "пройдите пробный ЕНТ",
+        "🏆", "best", t("Лучший балл"),
+        best.score if best else "—", t("из {n}", n=config.MOCK_MAX_SCORE),
+        t("лучший пробный ЕНТ") if best else t("пройдите пробный ЕНТ"),
     )
     last_card = _stat_card(
-        "🕒", "last", "Последний балл",
-        last.score if last else "—", f"из {last.max_score}" if last else "",
-        _attempt_title(last) if last else "здесь появится последний тест",
+        "🕒", "last", t("Последний балл"),
+        last.score if last else "—", t("из {n}", n=last.max_score) if last else "",
+        _attempt_title(last) if last else t("здесь появится последний тест"),
     )
     total_card = _stat_card(
-        "📊", "total", "Всего попыток", len(attempts), "",
-        f"пробных: {len(mocks)} · тренировок: {practices}",
+        "📊", "total", t("Всего попыток"), len(attempts), "",
+        t("пробных: {mocks} · тренировок: {practices}", mocks=len(mocks), practices=practices),
     )
     if mocks:
         average = round(sum(a.score for a in mocks) / len(mocks))
         average_card = _stat_card(
-            "⭐", "avg", "Средний балл", average, f"из {config.MOCK_MAX_SCORE}",
-            "среднее по пробным ЕНТ",
+            "⭐", "avg", t("Средний балл"), average, t("из {n}", n=config.MOCK_MAX_SCORE),
+            t("среднее по пробным ЕНТ"),
         )
     elif attempts:
         average = round(sum(_percent(a.score, a.max_score) for a in attempts) / len(attempts))
-        average_card = _stat_card("⭐", "avg", "Средний балл", average, "%", "среднее по тренировкам")
+        average_card = _stat_card("⭐", "avg", t("Средний балл"), average, "%", t("среднее по тренировкам"))
     else:
-        average_card = _stat_card("⭐", "avg", "Средний балл", "—", "", "пока нет попыток")
+        average_card = _stat_card("⭐", "avg", t("Средний балл"), "—", "", t("пока нет попыток"))
 
     best_score = best.score if best else 0
     left = config.MOCK_MAX_SCORE - best_score
     if best is None:
-        goal_text = "Пройдите пробный ЕНТ — и здесь будет видно, сколько осталось до 140."
+        goal_text = t("Пройдите пробный ЕНТ — и здесь будет видно, сколько осталось до 140.")
     elif left == 0:
-        goal_text = "Максимальный балл! Так держать 🎉"
+        goal_text = t("Максимальный балл! Так держать 🎉")
     else:
-        goal_text = f"До максимума осталось {left} баллов."
+        goal_text = t("До максимума осталось {left} баллов.", left=left)
     if best is not None and best.max_score < config.MOCK_MAX_SCORE:
         goal_text += (
-            f" В вашем лучшем тесте можно было набрать {best.max_score}: банк вопросов пока неполный."
+            " " + t("В вашем лучшем тесте можно было набрать {n}: банк вопросов пока неполный.", n=best.max_score)
         )
 
     strengths = ent_logic.subject_strengths(user_id)
@@ -843,7 +911,7 @@ def dashboard(request: Request) -> Response:
     recent = (
         fragment('<ul class="recent-list">$rows</ul>', rows=_attempt_rows(attempts[:5]))
         if attempts else
-        SafeHTML('<p class="muted">Пока пусто. Начните с тренировки — это 10 минут.</p>')
+        fragment('<p class="muted">Пока пусто. Начните с тренировки — это 10 минут.</p>')
     )
 
     assert request.user is not None
@@ -861,17 +929,17 @@ def dashboard(request: Request) -> Response:
         max_score=config.MOCK_MAX_SCORE,
         goal_percent=_percent(best_score, config.MOCK_MAX_SCORE),
         goal_text=goal_text,
-        strong=_strength_rows(strong, f"Пока нет предметов с результатом от {STRONG_PERCENT}%."),
-        weak=_strength_rows(weak, "Слабых предметов не найдено — или ещё мало попыток."),
+        strong=_strength_rows(strong, t("Пока нет предметов с результатом от {n}%.", n=STRONG_PERCENT)),
+        weak=_strength_rows(weak, t("Слабых предметов не найдено — или ещё мало попыток.")),
         weak_topics=topic_rows(ent_logic.weak_topics(user_id, 3),
-                               "Слабых тем пока нет — или по темам ещё мало заданий."),
+                               t("Слабых тем пока нет — или по темам ещё мало заданий.")),
         recent=recent,
         total_questions=config.MOCK_TOTAL_QUESTIONS,
         duration_hours=config.MOCK_DURATION_MINUTES // 60,
         practice_count=config.PRACTICE_QUESTION_COUNT,
         ad=ads.banner_block("dashboard", request.user),
     )
-    return page(request, "Личный кабинет", content)
+    return page(request, t("Личный кабинет"), content)
 
 
 # ── Рекламные баннеры ────────────────────────────────────────────────────────
@@ -902,9 +970,7 @@ def _profile_page(request: Request, errors: list[str], city: str = "", name: str
     assert request.user is not None
     row = database.get_user_school(request.user.id)
     if row is not None and row["role"] == database.ROLE_TEACHER:
-        school_form = SafeHTML(
-            '<p class="muted">Школу учителя назначает главный администратор.</p>'
-        )
+        school_form = fragment('<p class="muted">Школу учителя назначает главный администратор.</p>')
     else:
         leave = (
             fragment(
@@ -920,7 +986,7 @@ def _profile_page(request: Request, errors: list[str], city: str = "", name: str
             csrf=_csrf_field(request),
             city=city if errors else (row["city"] if row else ""),
             name=name if errors else (row["name"] if row else ""),
-            button="Сменить школу" if row is not None else "Отправить заявку",
+            button=t("Сменить школу") if row is not None else t("Отправить заявку"),
             leave=leave,
         )
     content = render(
@@ -930,8 +996,10 @@ def _profile_page(request: Request, errors: list[str], city: str = "", name: str
         errors=_errors_block(errors),
         school_status=school_status_text(row),
         school_form=school_form,
+        csrf=_csrf_field(request),
+        language_options=language_options(i18n.get_language()),
     )
-    return page(request, "Профиль", content, status)
+    return page(request, t("Профиль"), content, status)
 
 
 @login_required
@@ -946,7 +1014,7 @@ def profile_school(request: Request) -> Response:
     user_id = _user_id(request)
     current = database.get_user_school(user_id)
     if current is not None and current["role"] == database.ROLE_TEACHER:
-        return error_page(request, 403, "Школу учителя назначает главный администратор.")
+        return error_page(request, 403, t("Школу учителя назначает главный администратор."))
     if request.form_value("action") == "leave":
         database.set_user_school(user_id, None, None)
         return redirect("/profile?msg=school_left")
@@ -954,7 +1022,7 @@ def profile_school(request: Request) -> Response:
     try:
         if schools.validate_school(city, name) is None:
             return _profile_page(
-                request, ["Укажите город и номер (или название) школы."], city, name, 400
+                request, [t("Укажите город и номер (или название) школы.")], city, name, 400
             )
         school_id = schools.join_school(user_id, city, name)
     except schools.SchoolError as error:
@@ -1014,7 +1082,7 @@ def choose_pair(request: Request) -> Response:
         complete = total >= config.MOCK_TOTAL_QUESTIONS
         any_incomplete = any_incomplete or not complete
         status = (
-            SafeHTML('<p class="pair-status ok">✅ Полный тест, как на ЕНТ</p>')
+            fragment('<p class="pair-status ok">✅ Полный тест, как на ЕНТ</p>')
             if complete else
             fragment(
                 '<p class="pair-status warn">В банке пока $have из $need заданий — '
@@ -1065,7 +1133,7 @@ def choose_pair(request: Request) -> Response:
         max_score=config.MOCK_MAX_SCORE,
         duration_hours=config.MOCK_DURATION_MINUTES // 60,
     )
-    return page(request, "Пробный ЕНТ", content)
+    return page(request, t("Пробный ЕНТ"), content)
 
 
 @student_area
@@ -1183,13 +1251,13 @@ def _question_form_block(aq: AttemptQuestion, label: str, allow_skip: bool = Tru
     """Одно задание внутри формы (без подсветки правильного ответа)."""
     if aq.qtype == config.MATCHING:
         inputs = _matching_inputs(aq, allow_skip)
-        hint = "Сопоставьте каждую строку с вариантом."
+        hint = t("Сопоставьте каждую строку с вариантом.")
     elif aq.qtype == config.MULTIPLE:
         inputs = _option_inputs(aq, "checkbox", allow_skip)
-        hint = "Выберите все верные варианты."
+        hint = t("Выберите все верные варианты.")
     else:
         inputs = _option_inputs(aq, "radio", allow_skip)
-        hint = "Выберите один вариант."
+        hint = t("Выберите один вариант.")
     return fragment(
         '<article class="card question" id="q$number">$head$body'
         '<p class="q-hint">$hint</p><div class="options">$inputs</div></article>',
@@ -1216,11 +1284,11 @@ def _review_options(aq: AttemptQuestion) -> SafeHTML:
     items = []
     for letter, text in zip(config.OPTION_LETTERS, aq.options):
         if letter in correct and letter in chosen:
-            kind, tag = "ro-correct ro-chosen", "✓ ваш ответ — верно"
+            kind, tag = "ro-correct ro-chosen", t("✓ ваш ответ — верно")
         elif letter in correct:
-            kind, tag = "ro-correct", "✓ правильный ответ"
+            kind, tag = "ro-correct", t("✓ правильный ответ")
         elif letter in chosen:
-            kind, tag = "ro-wrong ro-chosen", "✗ ваш ответ"
+            kind, tag = "ro-wrong ro-chosen", t("✗ ваш ответ")
         else:
             kind, tag = "", ""
         items.append(fragment(
@@ -1248,7 +1316,7 @@ def _review_matching(aq: AttemptQuestion) -> SafeHTML:
             number=index + 1,
             left=left_item,
             mark="✓" if ok else "✗",
-            mine=_option_label(aq, mine) if mine else "нет ответа",
+            mine=_option_label(aq, mine) if mine else t("нет ответа"),
             right=_option_label(aq, right),
         ))
     return fragment(
@@ -1272,7 +1340,7 @@ def _review_body(aq: AttemptQuestion) -> SafeHTML:
     """Задание с подсветкой ответов и объяснением (тренировка и разбор результата)."""
     marks = _review_matching(aq) if aq.qtype == config.MATCHING else _review_options(aq)
     empty = (
-        SafeHTML('<p class="no-answer">Вы не ответили на это задание.</p>')
+        fragment('<p class="no-answer">Вы не ответили на это задание.</p>')
         if not aq.answer else SafeHTML("")
     )
     return fragment(
@@ -1322,7 +1390,7 @@ def choose_practice(request: Request) -> Response:
         profile_cards=join(groups[False]),
         count=config.PRACTICE_QUESTION_COUNT,
     )
-    return page(request, "Тренировка", content)
+    return page(request, t("Тренировка"), content)
 
 
 @student_area
@@ -1401,11 +1469,11 @@ def practice_question(request: Request, attempt_id: int) -> Response:
         csrf=_csrf_field(request),
         question_id=current.id,
         question=_question_form_block(
-            current, f"Вопрос {current.position}", allow_skip=False
+            current, t("Вопрос {n}", n=current.position), allow_skip=False
         ),
         finish_action=f"/attempt/{attempt.id}/finish",
     )
-    return page(request, f"Тренировка — {config.SUBJECTS[attempt.subjects[0]].name}", content)
+    return page(request, t("Тренировка — {subject}", subject=config.SUBJECTS[attempt.subjects[0]].name), content)
 
 
 @login_required
@@ -1446,9 +1514,9 @@ def practice_review(request: Request, attempt_id: int, number: int) -> Response:
 
     state = ent_logic.question_state(aq)
     verdicts = {
-        "ok": ("✓", "Верно!"),
-        "partial": ("≈", "Почти! Одна ошибка"),
-        "wrong": ("✗", "Неверно" if aq.answer else "Без ответа"),
+        "ok": ("✓", t("Верно!")),
+        "partial": ("≈", t("Почти! Одна ошибка")),
+        "wrong": ("✗", t("Неверно") if aq.answer else t("Без ответа")),
     }
     mark, verdict = verdicts[state]
 
@@ -1477,11 +1545,11 @@ def practice_review(request: Request, attempt_id: int, number: int) -> Response:
         verdict=verdict,
         points=aq.points,
         max_points=ent_logic.question_max_points(aq.qtype),
-        question_head=_question_header(aq, f"Вопрос {aq.position}"),
+        question_head=_question_header(aq, t("Вопрос {n}", n=aq.position)),
         review=_review_body(aq),
         next_block=next_block,
     )
-    return page(request, f"Разбор — вопрос {aq.position}", content)
+    return page(request, t("Разбор — вопрос {n}", n=aq.position), content)
 
 
 # ── Прохождение пробного ЕНТ ─────────────────────────────────────────────────
@@ -1508,9 +1576,7 @@ def _load_active_attempt(
 def _timer(attempt: Attempt) -> SafeHTML:
     """Блок с оставшимся временем (его считает сервер при каждом запросе)."""
     if attempt.deadline is None:
-        return SafeHTML(
-            '<div class="timer timer-free">Тренировка — без ограничения по времени.</div>'
-        )
+        return fragment('<div class="timer timer-free">Тренировка — без ограничения по времени.</div>')
     left = ent_logic.remaining_seconds(attempt)
     total = max(ent_logic.total_seconds(attempt), 1)
     kind = " timer-low" if left < 15 * 60 else ""
@@ -1572,9 +1638,7 @@ def _section_buttons(attempt: Attempt, current: str) -> SafeHTML:
             "$name →</button>",
             code=following, name=config.SUBJECTS[following].name,
         ))
-    buttons.append(SafeHTML(
-        '<button type="submit" name="finish" value="1" class="btn btn-danger">Завершить тест</button>'
-    ))
+    buttons.append(fragment('<button type="submit" name="finish" value="1" class="btn btn-danger">Завершить тест</button>'))
     return join(buttons)
 
 
@@ -1584,13 +1648,13 @@ def _shortage_note(attempt: Attempt, subject: str | None = None) -> SafeHTML:
     if not items:
         return SafeHTML("")
     parts = [
-        f"{config.SUBJECTS[item['subject']].name} — «{config.QUESTION_TYPE_NAMES[item['type']]}»: "
-        f"{item['have']} из {item['need']}"
+        t("{subject} — «{qtype}»: {have} из {need}", subject=config.SUBJECTS[item["subject"]].name,
+          qtype=config.QUESTION_TYPE_NAMES[item["type"]], have=item["have"], need=item["need"])
         for item in items
     ]
     return _notice(
         "warning",
-        "Банк вопросов неполный, тест собран из имеющихся заданий. " + "; ".join(parts) + ".",
+        t("Банк вопросов неполный, тест собран из имеющихся заданий. ") + "; ".join(parts) + ".",
     )
 
 
@@ -1609,12 +1673,10 @@ def section_page(request: Request, attempt_id: int, subject: str) -> Response:
     questions = database.get_attempt_questions(attempt.id)
     section = [aq for aq in questions if aq.subject == subject]
     if section:
-        blocks = join(_question_form_block(aq, f"Задание {aq.position}") for aq in section)
+        blocks = join(_question_form_block(aq, t("Задание {n}", n=aq.position)) for aq in section)
     else:
-        blocks = SafeHTML(
-            '<div class="card empty">В банке пока нет заданий по этому предмету. '
-            "Переходите к следующему разделу.</div>"
-        )
+        blocks = fragment('<div class="card empty">В банке пока нет заданий по этому предмету. '
+            "Переходите к следующему разделу.</div>")
 
     answered = sum(1 for aq in questions if aq.answer)
     content = render(
@@ -1622,7 +1684,7 @@ def section_page(request: Request, attempt_id: int, subject: str) -> Response:
         mode_label=MODE_NAMES[attempt.mode],
         icon=_icon(subject, "big"),
         heading=config.SUBJECTS[subject].name,
-        progress=f"Отвечено {answered} из {len(questions)}",
+        progress=t("Отвечено {answered} из {total}", answered=answered, total=len(questions)),
         answered=answered,
         total=max(len(questions), 1),
         timer=_timer(attempt),
@@ -1692,10 +1754,10 @@ def finish_confirm(request: Request, attempt_id: int) -> Response:
         ))
 
     warning = (
-        _notice("warning", f"Без ответа осталось заданий: {unanswered_total}. "
-                           "После завершения изменить ответы будет нельзя.")
+        _notice("warning", t("Без ответа осталось заданий: {n}. После завершения изменить ответы будет нельзя.",
+                             n=unanswered_total))
         if unanswered_total else
-        _notice("success", "Вы ответили на все задания.")
+        _notice("success", t("Вы ответили на все задания."))
     )
     content = render(
         "finish_confirm.html",
@@ -1706,7 +1768,7 @@ def finish_confirm(request: Request, attempt_id: int) -> Response:
         csrf=_csrf_field(request),
         back_href=_attempt_url(attempt),
     )
-    return page(request, "Завершить тест?", content)
+    return page(request, t("Завершить тест?"), content)
 
 
 @login_required
@@ -1774,7 +1836,7 @@ def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
             icon=_icon(item.code),
             name=item.name, score=item.score, max=item.max_score, mistakes=mistakes,
             items=join(_review_item(aq) for aq in subject_questions)
-            or SafeHTML('<p class="muted">Заданий не было.</p>'),
+            or fragment('<p class="muted">Заданий не было.</p>'),
         ))
 
     official_note = SafeHTML("")
@@ -1787,13 +1849,13 @@ def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
         )
 
     if percent >= 85:
-        cheer = "Отличный результат! 🎉"
+        cheer = t("Отличный результат! 🎉")
     elif percent >= STRONG_PERCENT:
-        cheer = "Хороший результат — ещё немного до максимума 💪"
+        cheer = t("Хороший результат — ещё немного до максимума 💪")
     elif percent >= 40:
-        cheer = "Неплохо! Разберите ошибки ниже — это самый быстрый рост 📈"
+        cheer = t("Неплохо! Разберите ошибки ниже — это самый быстрый рост 📈")
     else:
-        cheer = "Не сдавайтесь: прочитайте объяснения и попробуйте ещё раз 🌱"
+        cheer = t("Не сдавайтесь: прочитайте объяснения и попробуйте ещё раз 🌱")
 
     duration = int((attempt.finished_at or attempt.started_at) - attempt.started_at)
     return render(
@@ -1830,7 +1892,7 @@ def result_page(request: Request, attempt_id: int) -> Response:
             return redirect(_attempt_url(attempt))
 
     again = (
-        SafeHTML('<a class="btn btn-secondary" href="/mock">Новый пробный ЕНТ</a>')
+        fragment('<a class="btn btn-secondary" href="/mock">Новый пробный ЕНТ</a>')
         if attempt.mode == ent_logic.MOCK else
         fragment(
             '<form method="post" action="/practice/start">$csrf'
@@ -1845,7 +1907,7 @@ def result_page(request: Request, attempt_id: int) -> Response:
         again=again,
     )
     content = join([result_content(attempt, actions), ads.banner_block("result", request.user)])
-    return page(request, "Результат", content)
+    return page(request, t("Результат"), content)
 
 
 @student_area
@@ -1881,10 +1943,8 @@ def history(request: Request) -> Response:
             rows=rows,
         )
     else:
-        table = SafeHTML(
-            '<div class="card empty">Пока нет завершённых попыток. '
+        table = fragment('<div class="card empty">Пока нет завершённых попыток. '
             '<a class="link" href="/mock">Начните пробный ЕНТ</a> или '
-            '<a class="link" href="/practice">тренировку</a>.</div>'
-        )
+            '<a class="link" href="/practice">тренировку</a>.</div>')
     content = render("history.html", table=table, count=len(attempts), ad=ads.banner_block("history", request.user))
-    return page(request, "История попыток", content)
+    return page(request, t("История попыток"), content)

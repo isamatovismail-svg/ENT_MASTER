@@ -17,9 +17,10 @@ from dataclasses import dataclass
 from http.cookies import SimpleCookie
 
 import config
-from app import database, mailer, schools
+from app import database, i18n, mailer, schools
 from app.database import User
 from app.web import Request
+from app.i18n import t
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 # Похоже на телефон: только цифры, «+», пробелы, скобки и дефисы.
@@ -73,16 +74,16 @@ def normalize_phone(raw: str) -> str:
     """
     value = raw.strip()
     if not PHONE_LIKE_RE.match(value) or "+" in value[1:]:
-        raise ValueError(PHONE_ERROR)
+        raise ValueError(t(PHONE_ERROR))
     digits = re.sub(r"\D", "", value)
     if value.startswith("+"):
         if not digits.startswith("7"):
-            raise ValueError(PHONE_ERROR)
+            raise ValueError(t(PHONE_ERROR))
         digits = digits[1:]
     elif len(digits) == 11 and digits[0] in "78":
         digits = digits[1:]
     if len(digits) != 10:
-        raise ValueError(PHONE_ERROR)
+        raise ValueError(t(PHONE_ERROR))
     return "+7" + digits
 
 
@@ -112,9 +113,9 @@ def _clean_text(raw: str) -> str:
 def _check_password(password: str, password2: str, errors: list[str]) -> None:
     """Проверяет длину пароля и повтор, дописывает ошибки в errors."""
     if len(password) < config.PASSWORD_MIN_LENGTH:
-        errors.append(f"Пароль должен быть не короче {config.PASSWORD_MIN_LENGTH} символов.")
+        errors.append(t("Пароль должен быть не короче {n} символов.", n=config.PASSWORD_MIN_LENGTH))
     elif password != password2:
-        errors.append("Пароли не совпадают.")
+        errors.append(t("Пароли не совпадают."))
 
 
 def normalize_email(raw: str) -> str:
@@ -153,16 +154,16 @@ def validate_registration(
     clean_phone: str | None = None
 
     if len(first) < 2:
-        errors.append("Введите имя (не короче 2 символов).")
+        errors.append(t("Введите имя (не короче 2 символов)."))
     if not last:
-        errors.append("Введите фамилию.")
+        errors.append(t("Введите фамилию."))
     if len(first) + len(last) + 1 > NAME_MAX_LENGTH:
-        errors.append(f"Имя и фамилия слишком длинные (максимум {NAME_MAX_LENGTH} символов вместе).")
+        errors.append(t("Имя и фамилия слишком длинные (максимум {n} символов вместе).", n=NAME_MAX_LENGTH))
 
     if not clean_email:
-        errors.append("Введите почту.")
+        errors.append(t("Введите почту."))
     elif not EMAIL_RE.match(clean_email) or len(clean_email) > 254:
-        errors.append("Почта указана неверно. Пример: aru@mail.kz")
+        errors.append(t("Почта указана неверно. Пример: aru@mail.kz"))
 
     if phone.strip():
         try:
@@ -183,12 +184,12 @@ def validate_registration(
         existing = find_email_user(clean_email)
         if existing is not None and existing["email_verified"]:
             errors.append(
-                "Пользователь с такой почтой уже зарегистрирован. Войдите или восстановите пароль."
+                t("Пользователь с такой почтой уже зарегистрирован. Войдите или восстановите пароль.")
             )
         elif existing is not None:
             pending_user_id = existing["id"]
         if clean_phone and database.phone_taken(clean_phone, pending_user_id):
-            errors.append("Этот номер телефона уже указан в другом аккаунте.")
+            errors.append(t("Этот номер телефона уже указан в другом аккаунте."))
 
     if errors:
         raise ValidationError(errors)
@@ -197,7 +198,7 @@ def validate_registration(
 
 def register_user(
     first_name: str, last_name: str, email: str, phone: str, password: str, password2: str,
-    school_city: str = "", school_name: str = "",
+    school_city: str = "", school_name: str = "", language: str = i18n.RU,
 ) -> int:
     """Создаёт неподтверждённый аккаунт и возвращает его id (или выбрасывает ValidationError).
 
@@ -219,14 +220,18 @@ def register_user(
     except sqlite3.IntegrityError as error:
         # Почту или телефон могли занять между проверкой и записью (два запроса одновременно).
         raise ValidationError(
-            ["Пользователь с такой почтой или телефоном уже зарегистрирован."]
+            [t("Пользователь с такой почтой или телефоном уже зарегистрирован.")]
         ) from error
+    database.set_user_language(user_id, i18n.normalize(language))
     # Школа: заявка ждёт подтверждения учителя (или «без школы»).
     if form.school is None:
         database.set_user_school(user_id, None, None)
     else:
-        database.set_user_school(user_id, schools.find_or_create_school(*form.school),
-                                 database.SCHOOL_PENDING)
+        school_id = schools.find_or_create_school(*form.school)
+        database.set_user_school(user_id, school_id, database.SCHOOL_PENDING)
+        from app import notifications  # импорт здесь: notifications → schools → auth не нужен
+
+        notifications.school_request(school_id, form.name, user_id)
     return user_id
 
 
@@ -257,7 +262,8 @@ def authenticate(login: str, password: str) -> User | None:
         return None
     if not verify_password(password, row["salt"], row["password_hash"]):
         return None
-    return User(row["id"], row["name"], row["login"], row["role"], bool(row["email_verified"]))
+    return User(row["id"], row["name"], row["login"], row["role"], bool(row["email_verified"]),
+                language=row["language"])
 
 
 # Пароли, которые подбирают первыми. Пароль хранится только как хеш, поэтому «слабость»
@@ -338,8 +344,10 @@ def send_email_code(user_id: int, email: str, purpose: str) -> int:
     code = f"{secrets.randbelow(10 ** 6):06d}"
     subject, body = _MAIL_TEXTS[purpose]
     minutes = config.EMAIL_CODE_MINUTES
-    body = body.format(code=code, minutes=minutes) + f"\n\nENT MASTER: {config.SITE_URL}"
-    mailer.send(email, subject.format(code=code), body)
+    with i18n.use(database.get_user_language(user_id)):  # письмо — на языке пользователя
+        subject = t(subject, code=code)
+        body = t(body, code=code, minutes=minutes) + f"\n\nENT MASTER: {config.SITE_URL}"
+    mailer.send(email, subject, body)
     now = time.time()
     database.save_email_code(user_id, purpose, _code_hash(user_id, purpose, code),
                              now + minutes * 60, now)
@@ -354,19 +362,19 @@ def check_email_code(user_id: int, purpose: str, code: str) -> str | None:
     code = re.sub(r"\s", "", code)
     row = database.get_email_code(user_id, purpose)
     if row is None:
-        return CODE_ERRORS["missing"]
+        return t(CODE_ERRORS["missing"])
     if row["attempts"] >= config.EMAIL_CODE_MAX_ATTEMPTS:
-        return CODE_ERRORS["blocked"]
+        return t(CODE_ERRORS["blocked"])
     if row["expires_at"] < time.time():
-        return CODE_ERRORS["expired"]
+        return t(CODE_ERRORS["expired"])
     if hmac.compare_digest(_code_hash(user_id, purpose, code), row["code_hash"]):
         database.delete_email_code(user_id, purpose)
         return None
     database.add_email_code_attempt(user_id, purpose)
     left = config.EMAIL_CODE_MAX_ATTEMPTS - row["attempts"] - 1
     if left <= 0:
-        return CODE_ERRORS["blocked"]
-    return CODE_ERRORS["wrong"].format(left=left)
+        return t(CODE_ERRORS["blocked"])
+    return t(CODE_ERRORS["wrong"], left=left)
 
 
 def verify_email(email: str, code: str) -> int:
@@ -426,7 +434,9 @@ def google_user(email: str, first_name: str, last_name: str) -> int:
         return int(existing["id"])
     name = _clean_text(f"{first_name} {last_name}") or email.split("@", 1)[0]
     try:
-        return create_account(name, email, secrets.token_urlsafe(32))
+        user_id = create_account(name, email, secrets.token_urlsafe(32))
+        database.set_user_language(user_id, i18n.get_language())
+        return user_id
     except sqlite3.IntegrityError:
         # Тот же аккаунт создал параллельный запрос.
         row = find_email_user(email)
@@ -534,6 +544,7 @@ def create_telegram_user(telegram_id: int, name: str) -> int:
     clean_name = " ".join(name.split())[:NAME_MAX_LENGTH] or TELEGRAM_NAME_FALLBACK
     try:
         user_id = database.create_user(clean_name, login, password_hash, salt, time.time())
+        database.set_user_language(user_id, i18n.get_language())
     except sqlite3.IntegrityError:
         # Такой аккаунт уже создавался раньше (а Telegram потом привязали к другому) —
         # возвращаемся к нему.

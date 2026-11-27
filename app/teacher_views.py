@@ -18,6 +18,7 @@ import config
 from app import database, ent_logic, notifications, question_form, schools, student_stats, views
 from app.templates import SafeHTML, fragment, join, render
 from app.web import Request, Response, redirect
+from app.i18n import t
 
 View = Callable[..., Response]
 
@@ -41,7 +42,7 @@ def school_access(view: View) -> View:
         """Пускает учителя этой школы и главного администратора."""
         assert request.user is not None
         if not request.user.is_admin and _teacher_school_id(request) != school_id:
-            return views.error_page(request, 403, FORBIDDEN)
+            return views.error_page(request, 403, t(FORBIDDEN))
         school = database.get_school(school_id)
         if school is None:
             return views.not_found(request)
@@ -68,7 +69,7 @@ def _page(request: Request, school, title: str, content: SafeHTML, status: int =
         ) if is_admin else SafeHTML(""),
         content=content,
     )
-    return views.page(request, f"Кабинет учителя — {title}", head, status)
+    return views.page(request, t("Кабинет учителя — {title}", title=title), head, status)
 
 
 def _date(timestamp: float | None) -> str:
@@ -90,7 +91,7 @@ def teacher_home(request: Request) -> Response:
     if request.user.is_admin:
         rows = database.list_schools()
         if not rows:
-            table = SafeHTML('<div class="card empty">Школ пока нет.</div>')
+            table = fragment('<div class="card empty">Школ пока нет.</div>')
         else:
             table = fragment(
                 '<div class="table-wrap"><table class="table"><thead><tr><th>Школа</th>'
@@ -115,10 +116,10 @@ def teacher_home(request: Request) -> Response:
             "</p></section>$table",
             count=len(rows), table=table,
         )
-        return views.page(request, "Школы", content)
+        return views.page(request, t("Школы"), content)
     school_id = _teacher_school_id(request)
     if school_id is None:
-        return views.error_page(request, 403, FORBIDDEN)
+        return views.error_page(request, 403, t(FORBIDDEN))
     return redirect(f"/teacher/{school_id}")
 
 
@@ -163,15 +164,15 @@ def _requests_block(request: Request, school_id: int) -> SafeHTML:
 def _activity_text(timestamp: float | None, now: float) -> str:
     """«сегодня 14:30», «вчера», «5 дн. назад» или «не заходил»."""
     if timestamp is None:
-        return "не заходил"
+        return t("не заходил")
     moment = datetime.fromtimestamp(timestamp)
     today = datetime.fromtimestamp(now).date()
     days = (today - moment.date()).days
     if days <= 0:
-        return f"сегодня {moment:%H:%M}"
+        return t("сегодня {time}", time=f"{moment:%H:%M}")
     if days == 1:
-        return f"вчера {moment:%H:%M}"
-    return f"{days} дн. назад"
+        return t("вчера {time}", time=f"{moment:%H:%M}")
+    return t("{days} дн. назад", days=days)
 
 
 def _counts_cell(counts: tuple[int, int]) -> SafeHTML:
@@ -222,10 +223,8 @@ def _students_table(school_id: int, period: str, sort: str, descending: bool) ->
     now = time.time()
     rows = student_stats.sort_rows(student_stats.school_overview(school_id, period, now), sort, descending)
     if not rows:
-        return SafeHTML(
-            '<div class="card empty">Подтверждённых учеников пока нет. Ученики указывают школу '
-            "при регистрации или в профиле, а вы принимаете заявку.</div>"
-        )
+        return fragment('<div class="card empty">Подтверждённых учеников пока нет. Ученики указывают школу '
+            "при регистрации или в профиле, а вы принимаете заявку.</div>")
 
     def header(code: str, label: str) -> SafeHTML:
         active = code == sort
@@ -244,10 +243,10 @@ def _students_table(school_id: int, period: str, sort: str, descending: bool) ->
             "<td>$activity</td><td>$today</td><td>$yesterday</td><td>$week</td>"
             "<td>$last</td><td>$avg</td><td>$best</td><td>$trend</td><td>$weak</td></tr>",
             cls="row-help" if row.needs_help else "", sid=school_id, uid=row.user_id, name=row.name,
-            help=SafeHTML(' <span class="badge badge-wrong">нужна помощь</span>' if row.needs_help else ""),
+            help=(fragment(' <span class="badge badge-wrong">нужна помощь</span>') if row.needs_help else SafeHTML("")),
             login=row.login, activity=_activity_text(row.last_activity, now),
             today=_counts_cell(row.today), yesterday=_counts_cell(row.yesterday), week=_counts_cell(row.week),
-            last=_percent_cell(row.last, f"ЕНТ {row.last_mock_score}/{config.MOCK_MAX_SCORE}"
+            last=_percent_cell(row.last, t("ЕНТ {score}/{max}", score=row.last_mock_score, max=config.MOCK_MAX_SCORE)
                                if row.last_mock_score is not None else ""),
             avg=_percent_cell(row.average), best=_percent_cell(row.best),
             trend=_trend_cell(row.trend), weak=_weak_cell(row.weak),
@@ -257,7 +256,7 @@ def _students_table(school_id: int, period: str, sort: str, descending: bool) ->
     return fragment(
         '<div class="table-wrap"><table class="table students-table"><thead><tr>$head</tr></thead>'
         "<tbody>$body</tbody></table></div>",
-        head=join(header(code, label) for code, label in STUDENT_COLUMNS), body=body,
+        head=join(header(code, t(label)) for code, label in STUDENT_COLUMNS), body=body,
     )
 
 
@@ -292,7 +291,7 @@ def school_page(request: Request, school) -> Response:
         periods=_period_filter(period, sort, descending),
         students=_students_table(school_id, period, sort, descending), sid=school_id,
     )
-    return _page(request, school, "Ученики", content)
+    return _page(request, school, t("Ученики"), content)
 
 
 @school_access
@@ -312,7 +311,7 @@ def assignments_page(request: Request, school) -> Response:
                 '<td><a class="link" href="/teacher/$sid/assignments/$aid">Кто выполнил →</a></td></tr>',
                 title=schools.assignment_title(assignment["mode"], assignment["target"],
                                                assignment["count"]),
-                who="всем ученикам" if assignment["for_all"] else "выбранным ученикам",
+                who=t("всем ученикам") if assignment["for_all"] else t("выбранным ученикам"),
                 created=_date(assignment["created_at"]),
                 deadline=views._deadline_text(assignment["deadline"]),
                 done=done, total=len(progress) or 1, sid=school_id, aid=assignment["id"],
@@ -324,7 +323,7 @@ def assignments_page(request: Request, school) -> Response:
             rows=join(rows),
         )
     else:
-        table = SafeHTML('<div class="card empty">Заданий пока нет. Нажмите «Выдать задание».</div>')
+        table = fragment('<div class="card empty">Заданий пока нет. Нажмите «Выдать задание».</div>')
     content = fragment(
         '<section class="page-head admin-head"><div><span class="eyebrow">Задания</span>'
         "<h1>📋 Задания школы: $count</h1>"
@@ -333,7 +332,7 @@ def assignments_page(request: Request, school) -> Response:
         '<a class="btn btn-primary" href="/teacher/$sid/assignments/new">＋ Выдать задание</a></section>$table',
         count=len(assignments), sid=school_id, table=table,
     )
-    return _page(request, school, "Задания", content)
+    return _page(request, school, t("Задания"), content)
 
 
 @school_access
@@ -346,7 +345,7 @@ def member_action(request: Request, school, user_id: int) -> Response:
     }
     action = statuses.get(request.form_value("action"))
     if action is None:
-        return views.error_page(request, 400, "Неизвестное действие.")
+        return views.error_page(request, 400, t("Неизвестное действие."))
     status, message = action
     if not database.set_member_status(school["id"], user_id, status):
         return views.not_found(request)
@@ -363,17 +362,17 @@ WEEKDAYS = ("понедельник", "вторник", "среда", "четв�
 def _day_title(day: date, today: date) -> str:
     """«Сегодня», «Вчера» или «25.11.2026, среда»."""
     if day == today:
-        return "Сегодня"
+        return t("Сегодня")
     if (today - day).days == 1:
-        return "Вчера"
-    return f"{day:%d.%m.%Y}, {WEEKDAYS[day.weekday()]}"
+        return t("Вчера")
+    return f"{day:%d.%m.%Y}, {t(WEEKDAYS[day.weekday()])}"
 
 
 def _timeline_block(school_id: int, user_id: int) -> SafeHTML:
     """Лента ученика по дням: что делал, баллы, по каким предметам."""
     days = student_stats.timeline(user_id)
     if not days:
-        return SafeHTML('<div class="card empty">Ученик ещё не завершил ни одного теста.</div>')
+        return fragment('<div class="card empty">Ученик ещё не завершил ни одного теста.</div>')
     today = date.today()
     blocks = []
     for day, items in days:
@@ -423,11 +422,11 @@ def student_card(request: Request, school, user_id: int) -> Response:
         best=max((a.score for a in mocks), default="—"),
         average=round(sum(a.score for a in mocks) / len(mocks)) if mocks else "—",
         max_score=config.MOCK_MAX_SCORE,
-        weak=views._strength_rows(weak, "Слабых предметов не найдено — или ещё мало попыток."),
+        weak=views._strength_rows(weak, t("Слабых предметов не найдено — или ещё мало попыток.")),
         weak_topics=views.topic_rows(
             ent_logic.weak_topics(user_id, 6),
-            f"Слабых тем нет: по всем темам с {ent_logic.MIN_TOPIC_QUESTIONS}+ заданиями результат "
-            f"не ниже {ent_logic.WEAK_TOPIC_PERCENT}% — или заданий пока мало."),
+            t("Слабых тем нет: по всем темам с {n}+ заданиями результат не ниже {p}% — или заданий пока мало.",
+              n=ent_logic.MIN_TOPIC_QUESTIONS, p=ent_logic.WEAK_TOPIC_PERCENT)),
         timeline=_timeline_block(school["id"], user_id),
     )
     return _page(request, school, student["name"], content)
@@ -444,7 +443,7 @@ def student_attempt(request: Request, school, user_id: int, attempt_id: int) -> 
         '<a class="btn btn-primary" href="/teacher/$sid/students/$uid">← К ученику $name</a>',
         sid=school["id"], uid=user_id, name=student["name"],
     )
-    return _page(request, school, "Разбор попытки", views.result_content(attempt, actions))
+    return _page(request, school, t("Разбор попытки"), views.result_content(attempt, actions))
 
 
 # ── Задания ──────────────────────────────────────────────────────────────────
@@ -480,7 +479,7 @@ def _assignment_form(request: Request, school, errors: list[str], status: int = 
         fragment('<label class="check"><input type="checkbox" name="students" value="$id"$c> $name'
                  "</label>", id=row["id"], c=checked(str(row["id"]) in chosen), name=row["name"])
         for row in students
-    ) if students else SafeHTML('<p class="muted small">Подтверждённых учеников пока нет.</p>')
+    ) if students else fragment('<p class="muted small">Подтверждённых учеников пока нет.</p>')
     content = render(
         "teacher_assignment_form.html",
         errors=views._errors_block(errors), csrf=views._csrf_field(request), sid=school["id"],
@@ -492,7 +491,7 @@ def _assignment_form(request: Request, school, errors: list[str], status: int = 
         all_checked=checked(for_all), some_checked=checked(not for_all),
         students=student_boxes,
     )
-    return _page(request, school, "Новое задание", content, status)
+    return _page(request, school, t("Новое задание"), content, status)
 
 
 @school_access
@@ -532,13 +531,13 @@ def assignment_page(request: Request, school, assignment_id: int) -> Response:
                     "<td>$done из $count</td><td>$scores</td><td>$status</td></tr>",
                     sid=school["id"], uid=item.user_id, name=item.name, done=item.done,
                     count=assignment["count"], scores=", ".join(item.scores) or "—",
-                    status=SafeHTML(views.ASSIGNMENT_STATUS[item.status]),
+                    status=fragment(views.ASSIGNMENT_STATUS[item.status]),
                 )
                 for item in progress
             ),
         )
     else:
-        table = SafeHTML('<div class="card empty">Задание пока некому выполнять.</div>')
+        table = fragment('<div class="card empty">Задание пока некому выполнять.</div>')
     done = sum(item.status == "done" for item in progress)
     content = fragment(
         '<section class="page-head"><span class="eyebrow">Задание</span><h1>📋 $title</h1>'
@@ -549,12 +548,12 @@ def assignment_page(request: Request, school, assignment_id: int) -> Response:
         '$csrf<button type="submit" class="btn btn-link">Удалить задание</button></form>',
         title=schools.assignment_title(assignment["mode"], assignment["target"], assignment["count"]),
         created=_date(assignment["created_at"]),
-        deadline=views._deadline_text(assignment["deadline"]).removeprefix("до "),
-        who="всем ученикам школы" if assignment["for_all"] else "выбранным ученикам",
+        deadline=views._date_only(assignment["deadline"]),
+        who=t("всем ученикам школы") if assignment["for_all"] else t("выбранным ученикам"),
         done=done, total=len(progress), table=table, sid=school["id"], aid=assignment_id,
         csrf=views._csrf_field(request),
     )
-    return _page(request, school, "Задание", content)
+    return _page(request, school, t("Задание"), content)
 
 
 @school_access
@@ -586,8 +585,8 @@ def teacher_only(view: View) -> View:
         school = database.get_school(school_id) if school_id is not None else None
         if school is None:
             return views.error_page(
-                request, 403, "Раздел «Мои вопросы» доступен только учителям. "
-                "Администратор проверяет вопросы в админке → «Проверка».")
+                request, 403, t("Раздел «Мои вопросы» доступен только учителям. "
+                "Администратор проверяет вопросы в админке → «Проверка»."))
         return view(request, school=school, **kwargs)
 
     return views.login_required(wrapper)
@@ -601,10 +600,10 @@ def my_questions(request: Request, school) -> Response:
     csrf = views._csrf_field(request)
     rows = []
     for question in items:
-        comment = (fragment('<p class="review-comment">💬 $comment</p>', comment=question.review_comment)
+        comment = (fragment('<p class="review-comment">💬 $comment</p>', comment=t(question.review_comment))
                    if question.review_comment else SafeHTML(""))
         if question.status == database.Q_APPROVED:
-            actions = SafeHTML('<span class="muted small">в общем банке</span>')
+            actions = fragment('<span class="muted small">в общем банке</span>')
         else:
             actions = fragment(
                 '<a class="link" href="/teacher/questions/$id/edit">Изменить</a>'
@@ -616,7 +615,7 @@ def my_questions(request: Request, school) -> Response:
             '<article class="card my-question"><header class="review-head">$status'
             '<span class="muted small">#$id · $icon $subject · $type · отправлен $date</span></header>'
             '<p><strong>$text</strong></p>$comment<div class="review-actions">$actions</div></article>',
-            status=SafeHTML(QUESTION_STATUS.get(question.status, "")), id=question.id,
+            status=fragment(QUESTION_STATUS.get(question.status, "")), id=question.id,
             icon=views._icon(question.subject), subject=config.SUBJECTS[question.subject].name,
             type=config.QUESTION_TYPE_NAMES[question.qtype],
             date=_date(question.submitted_at), text=question.text, comment=comment,
@@ -633,10 +632,9 @@ def my_questions(request: Request, school) -> Response:
         "</section>$list",
         pending=counts[database.Q_PENDING], approved=counts[database.Q_APPROVED],
         rejected=counts[database.Q_REJECTED],
-        list=join(rows) if rows else SafeHTML(
-            '<div class="card empty">Вы ещё не предлагали вопросов.</div>'),
+        list=join(rows) if rows else fragment('<div class="card empty">Вы ещё не предлагали вопросов.</div>'),
     )
-    return _page(request, school, "Мои вопросы", content)
+    return _page(request, school, t("Мои вопросы"), content)
 
 
 def _question_page(request: Request, school, form, url: str, title: str, errors: list[str],
@@ -644,8 +642,8 @@ def _question_page(request: Request, school, form, url: str, title: str, errors:
     """Форма вопроса учителя (та же, что в админке)."""
     content = question_form.form_content(
         request, form, url, url, title, errors, note,
-        back_url="/teacher/questions", back_label="← К моим вопросам",
-        submit_label="📨 Отправить на проверку",
+        back_url="/teacher/questions", back_label=t("← К моим вопросам"),
+        submit_label=t("📨 Отправить на проверку"),
     )
     return _page(request, school, title, content, status)
 
@@ -665,11 +663,11 @@ def my_question_new(request: Request, school) -> Response:
                 errors = question_form.duplicate_error()
             else:
                 return redirect("/teacher/questions?msg=tq_submitted")
-        return _question_page(request, school, form, url, "Новый вопрос", errors, 400)
+        return _question_page(request, school, form, url, t("Новый вопрос"), errors, 400)
     form = question_form.QuestionForm(qtype=question_form.requested_type(request, config.SINGLE))
     subject = request.query_value("subject")
     form.subject = subject if subject in config.SUBJECTS else ""
-    return _question_page(request, school, form, url, "Новый вопрос", [])
+    return _question_page(request, school, form, url, t("Новый вопрос"), [])
 
 
 @teacher_only
@@ -682,8 +680,8 @@ def my_question_edit(request: Request, school, question_id: int) -> Response:
     if existing.status == database.Q_APPROVED:
         return redirect("/teacher/questions?msg=tq_locked")
     url = f"/teacher/questions/{question_id}/edit"
-    title = f"Вопрос #{question_id}"
-    note = (views._notice("warning", f"Комментарий администратора: {existing.review_comment}")
+    title = t("Вопрос #{n}", n=question_id)
+    note = (views._notice("warning", t("Комментарий администратора: {c}", c=existing.review_comment))
             if existing.review_comment else None)
     if request.method == "POST":
         form = question_form.form_from_request(request)

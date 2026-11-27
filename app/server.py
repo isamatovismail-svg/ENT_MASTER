@@ -17,8 +17,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 import config
-from app import auth, router, views
+from app import auth, i18n, router, views
 from app.web import Request, Response, UploadedFile
+from app.i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _build_response(self, method: str) -> Response:
         """Разбирает запрос и передаёт его маршрутизатору."""
         url = urlsplit(self.path)
+        i18n.set_language(i18n.DEFAULT)  # поток мог остаться с языком прошлого запроса
         if method == "GET" and url.path.startswith("/static/"):
             return serve_static(url.path.removeprefix("/static/"))
 
@@ -162,11 +164,11 @@ class RequestHandler(BaseHTTPRequestHandler):
             try:
                 length = int(self.headers.get("Content-Length") or 0)
             except ValueError:
-                return views.error_page(None, 400, "Некорректный запрос.")
+                return views.error_page(None, 400, t("Некорректный запрос."))
             if length < 0:
-                return views.error_page(None, 400, "Некорректный запрос.")
+                return views.error_page(None, 400, t("Некорректный запрос."))
             if length > config.MAX_REQUEST_BODY_BYTES:
-                return views.error_page(None, 413, "Слишком большой запрос.")
+                return views.error_page(None, 413, t("Слишком большой запрос."))
             body = self.rfile.read(length)
             content_type = self.headers.get("Content-Type", "")
             if content_type.lower().startswith("multipart/form-data"):
@@ -183,6 +185,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             cookies=_parse_cookies(self.headers.get("Cookie", "")),
         )
         auth.attach_user(request)
+        i18n.set_language(views.request_language(request, self.headers.get("Accept-Language", "")))
         return router.dispatch(request)
 
     def _send(self, response: Response) -> None:

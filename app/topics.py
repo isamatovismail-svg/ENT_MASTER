@@ -15,17 +15,29 @@
 
 from dataclasses import dataclass
 
+from app.i18n import t
+
 SPEC_SOURCE = "https://testcenter.kz/?page_id=15094&lang=ru"
 SPEC_YEAR = 2026
 
 
 @dataclass(frozen=True)
 class Topic:
-    """Тема спецификации: номер («05»), раздел и название."""
+    """Тема спецификации: номер («05»), раздел и название (по-русски; показываются на языке запроса)."""
 
     code: str
-    section: str
-    name: str
+    section_ru: str
+    name_ru: str
+
+    @property
+    def section(self) -> str:
+        """Раздел на языке текущего запроса."""
+        return t(self.section_ru)
+
+    @property
+    def name(self) -> str:
+        """Название темы на языке текущего запроса."""
+        return t(self.name_ru)
 
 
 def _table(rows: list[tuple[str, list[str]]]) -> list[Topic]:
@@ -554,4 +566,4 @@ def get_topic(subject: str, code: str) -> Topic | None:
 def topic_label(subject: str, code: str) -> str:
     """«05. Линейные, квадратные…» или «Без темы»."""
     item = get_topic(subject, code)
-    return f"{item.code}. {item.name}" if item else "Без темы"
+    return f"{item.code}. {item.name}" if item else t("Без темы")

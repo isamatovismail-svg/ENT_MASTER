@@ -51,6 +51,8 @@ ROUTES: list[tuple[str, str, View]] = [
     ("GET", "/profile", views.profile),
     ("POST", "/profile/school", views.profile_school),
     # Кабинет учителя (учитель своей школы и главный администратор)
+    ("GET", "/lang/<code>", views.switch_language),
+    ("POST", "/profile/language", views.profile_language),
     ("GET", "/notifications", views.notifications_page),
     ("POST", "/notifications/read", views.notifications_read),
     ("GET", "/notifications/<int:notification_id>", views.notification_open),

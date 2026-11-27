@@ -15,6 +15,7 @@ from datetime import date, datetime
 import config
 from app import database
 from app.database import Attempt
+from app.i18n import t
 
 CITY_MAX_LENGTH = 60
 SCHOOL_MAX_LENGTH = 100
@@ -44,7 +45,7 @@ def _clean(raw: str) -> str:
 
 def _normalized(raw: str) -> str:
     """Нижний регистр, без знаков препинания и слов вроде «школа»."""
-    words = _PUNCTUATION_RE.sub(" ", raw.casefold().replace("ё", "е")).split()
+    words = _PUNCTUATION_RE.sub(" ", raw.casefold().replace(t("ё"), t("е"))).split()
     meaningful = [word for word in words if word not in _NOISE_WORDS]
     return " ".join(meaningful or words)
 
@@ -56,7 +57,7 @@ def school_key(city: str, name: str) -> str:
 
 def school_title(city: str, name: str) -> str:
     """Название для показа: «Алматы, школа №12» или «Астана, НИШ»."""
-    shown = f"школа №{name}" if name.isdigit() else name
+    shown = t("школа №{n}", n=name) if name.isdigit() else name
     return f"{city}, {shown}"
 
 
@@ -67,16 +68,16 @@ def validate_school(city: str, name: str) -> tuple[str, str] | None:
         return None
     errors: list[str] = []
     if not clean_city:
-        errors.append("Укажите город школы (или оставьте оба поля школы пустыми).")
+        errors.append(t("Укажите город школы (или оставьте оба поля школы пустыми)."))
     elif len(clean_city) > CITY_MAX_LENGTH or not _normalized(clean_city):
-        errors.append("Город школы указан неверно.")
+        errors.append(t("Город школы указан неверно."))
     if not clean_name:
-        errors.append("Укажите номер или название школы (или оставьте оба поля школы пустыми).")
+        errors.append(t("Укажите номер или название школы (или оставьте оба поля школы пустыми)."))
     elif len(clean_name) > SCHOOL_MAX_LENGTH or not _normalized(clean_name):
-        errors.append("Номер или название школы указаны неверно.")
+        errors.append(t("Номер или название школы указаны неверно."))
     if errors:
         raise SchoolError(errors)
-    digits = re.fullmatch(r"(?:школа|сош|мектеп)?\s*№?\s*(\d+)", clean_name.casefold())
+    digits = re.fullmatch(t(r"(?:школа|сош|мектеп)?\s*№?\s*(\d+)"), clean_name.casefold())
     return clean_city, digits.group(1) if digits else clean_name
 
 
@@ -133,10 +134,10 @@ def assignment_title(mode: str, target: str, count: int) -> str:
     """«3 пробных ЕНТ: Математика + Физика» или «5 тренировок: Химия»."""
     if mode == "mock":
         pair = pair_codes(target)
-        what = " + ".join(config.SUBJECTS[c].name for c in pair) if pair else "любая пара"
-        return f"Пробный ЕНТ × {count}: {what}"
+        what = " + ".join(config.SUBJECTS[c].name for c in pair) if pair else t("любая пара")
+        return t("Пробный ЕНТ × {count}: {what}", count=count, what=what)
     subject = config.SUBJECTS.get(target)
-    return f"Тренировка × {count}: {subject.name if subject else target}"
+    return t("Тренировка × {count}: {what}", count=count, what=subject.name if subject else target)
 
 
 def attempt_counts(assignment, attempt: Attempt) -> bool:
@@ -196,9 +197,9 @@ def parse_deadline(raw: str, today: date | None = None) -> float:
     try:
         day = date.fromisoformat(raw.strip())
     except ValueError as error:
-        raise SchoolError(["Укажите срок выполнения задания."]) from error
+        raise SchoolError([t("Укажите срок выполнения задания.")]) from error
     if day < today:
-        raise SchoolError(["Срок не может быть в прошлом."])
+        raise SchoolError([t("Срок не может быть в прошлом.")])
     return datetime(day.year, day.month, day.day, 23, 59, 59).timestamp()
 
 
@@ -211,22 +212,22 @@ def create_assignment(
     target = ""
     if mode == "practice":
         if subject not in config.SUBJECTS:
-            errors.append("Выберите предмет тренировки.")
+            errors.append(t("Выберите предмет тренировки."))
         target = subject
     elif mode == "mock":
         if pair:
             codes = pair_codes(pair)
             if codes is None or codes not in config.PROFILE_PAIRS:
-                errors.append("Выберите пару профильных предметов из списка.")
+                errors.append(t("Выберите пару профильных предметов из списка."))
             target = pair
     else:
-        errors.append("Выберите вид задания: пробный ЕНТ или тренировка.")
+        errors.append(t("Выберите вид задания: пробный ЕНТ или тренировка."))
     try:
         count = int(count_raw)
     except ValueError:
         count = 0
     if not 1 <= count <= ASSIGNMENT_MAX_COUNT:
-        errors.append(f"Количество — от 1 до {ASSIGNMENT_MAX_COUNT}.")
+        errors.append(t("Количество — от 1 до {n}.", n=ASSIGNMENT_MAX_COUNT))
     try:
         deadline = parse_deadline(deadline_raw)
     except SchoolError as error:
@@ -238,7 +239,7 @@ def create_assignment(
             school_id, database.SCHOOL_APPROVED)}
         chosen = sorted(set(student_ids) & allowed)
         if not chosen:
-            errors.append("Отметьте хотя бы одного ученика или выберите «всем ученикам».")
+            errors.append(t("Отметьте хотя бы одного ученика или выберите «всем ученикам»."))
     if errors:
         raise SchoolError(errors)
     assignment_id = database.create_assignment(

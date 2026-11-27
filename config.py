@@ -8,6 +8,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.i18n import Translated, t
+
 # ── Пути и сервер ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 HOST = "127.0.0.1"
@@ -127,12 +129,13 @@ MULTIPLE = "multiple"    # один или несколько правильны
 
 QUESTION_TYPES = (SINGLE, CONTEXT, MATCHING, MULTIPLE)
 
-QUESTION_TYPE_NAMES = {
+# Translated: подпись отдаётся на языке текущего запроса (app/i18n.py).
+QUESTION_TYPE_NAMES = Translated({
     SINGLE: "Один ответ",
     CONTEXT: "По контексту",
     MATCHING: "Соответствие",
     MULTIPLE: "Несколько ответов",
-}
+})
 
 # Максимальный балл за одно задание каждого типа.
 # Для соответствия и нескольких ответов: 2 балла без ошибок, 1 балл при одной ошибке.
@@ -147,10 +150,15 @@ class SubjectInfo:
     """Описание предмета ЕНТ: код, название и квота заданий по типам."""
 
     code: str
-    name: str
+    title: str                          # название по-русски (ключ словаря переводов)
     icon: str                           # эмодзи-иконка предмета (цвет задан в style.css)
     compulsory: bool
     quota: tuple[tuple[str, int], ...]  # пары (тип задания, количество)
+
+    @property
+    def name(self) -> str:
+        """Название предмета на языке текущего запроса."""
+        return t(self.title)
 
     @property
     def question_count(self) -> int:

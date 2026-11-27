@@ -10,6 +10,7 @@ GET только показывает страницу и НЕ тратит то
 from app import auth, database, views
 from app.templates import SafeHTML, fragment, render
 from app.web import Request, Response, redirect
+from app.i18n import t
 
 INVALID_LINK = (
     "Ссылка для входа недействительна: она одноразовая и действует "
@@ -38,7 +39,7 @@ def _page(request: Request, token: str, info, errors: list[str], login: str = ""
             "Войти</button></form>",
             name=linked.name, token=token,
         )
-        divider = "привязать к другому аккаунту?"
+        divider = t("привязать к другому аккаунту?")
     else:
         main = fragment(
             '<form method="post" action="/tg/login" class="tg-option">'
@@ -48,13 +49,13 @@ def _page(request: Request, token: str, info, errors: list[str], login: str = ""
             '<p class="muted small">Новый аккаунт, вход в него — через бота.</p></form>',
             token=token,
         )
-        divider = "уже есть аккаунт на сайте?"
+        divider = t("уже есть аккаунт на сайте?")
     actions = render(
         "tg_link_options.html", main=main, current=current, divider=divider, token=token,
         login=login, errors=views._errors_block(errors),
     )
     content = render("tg_login.html", telegram_name=info["telegram_name"], actions=actions)
-    return views.page(request, "Вход через Telegram", content, status)
+    return views.page(request, t("Вход через Telegram"), content, status)
 
 
 def tg_login_page(request: Request) -> Response:
@@ -62,7 +63,7 @@ def tg_login_page(request: Request) -> Response:
     token = request.query_value("token")
     info = auth.peek_telegram_token(token)
     if info is None:
-        return views.error_page(request, 400, INVALID_LINK)
+        return views.error_page(request, 400, t(INVALID_LINK))
     return _page(request, token, info, [])
 
 
@@ -71,7 +72,7 @@ def tg_login_submit(request: Request) -> Response:
     token = request.form_value("token")
     info = auth.peek_telegram_token(token)
     if info is None:
-        return views.error_page(request, 400, INVALID_LINK)
+        return views.error_page(request, 400, t(INVALID_LINK))
     telegram_id = info["telegram_id"]
     action = request.form_value("action")
     linked = database.get_user_by_telegram(telegram_id)
@@ -80,10 +81,10 @@ def tg_login_submit(request: Request) -> Response:
         login = request.form_value("login")
         user = auth.authenticate(login, request.form_value("password"))
         if user is None:
-            return _page(request, token, info, ["Неверная почта/телефон или пароль."], login, 400)
+            return _page(request, token, info, [t("Неверная почта/телефон или пароль.")], login, 400)
         if not user.email_verified:
             return _page(request, token, info,
-                         ["Сначала подтвердите почту: войдите на сайт и введите код из письма."],
+                         [t("Сначала подтвердите почту: войдите на сайт и введите код из письма.")],
                          login, 400)
         user_id = user.id
     elif action == "current":
@@ -103,7 +104,7 @@ def tg_login_submit(request: Request) -> Response:
 
     # Токен тратится только здесь — один раз, даже если форму отправят дважды.
     if not auth.use_telegram_token(token):
-        return views.error_page(request, 400, INVALID_LINK)
+        return views.error_page(request, 400, t(INVALID_LINK))
     if action == "new" and not user_id:
         user_id = auth.create_telegram_user(telegram_id, info["telegram_name"])
     elif action in ("link", "current"):

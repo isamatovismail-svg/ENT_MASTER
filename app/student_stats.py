@@ -12,18 +12,18 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 import config
-from app import database
+from app import database, i18n
 from app.database import Attempt
 from app.ent_logic import MOCK, question_max_points
 
 # Периоды фильтра: код → подпись.
-PERIODS = {
+PERIODS = i18n.Translated({
     "today": "Сегодня",
     "yesterday": "Вчера",
     "7d": "7 дней",
     "30d": "30 дней",
     "all": "Всё время",
-}
+})
 DEFAULT_PERIOD = "30d"
 
 WEAK_SUBJECT_PERCENT = 60   # предмет слабый, если за период набрано меньше 60 % баллов

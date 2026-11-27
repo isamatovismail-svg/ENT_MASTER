@@ -19,7 +19,8 @@ from datetime import datetime
 from typing import Any, Protocol
 
 import config
-from app import database, schools
+from app import database, i18n, schools
+from app.i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -83,20 +84,24 @@ def _deadline(params: dict) -> str:
 
 
 def render_text(kind: str, params: dict) -> str:
-    """Текст уведомления из его вида и параметров."""
+    """Текст уведомления из его вида и параметров — на языке текущего запроса."""
+    student = params.get("student", "")
+    school = params.get("school", "")
     if kind == SCHOOL_REQUEST:
-        return f"Новая заявка в школу: {params.get('student', '')}. Подтвердите или отклоните её."
+        return t("Новая заявка в школу: {student}. Подтвердите или отклоните её.", student=student)
     if kind == ASSIGNMENT_DONE:
-        return f"{params.get('student', '')} выполнил(а) задание «{_assignment_title(params)}»."
+        return t("{student} выполнил(а) задание «{title}».", student=student, title=_assignment_title(params))
     if kind == REQUEST_APPROVED:
-        return f"Учитель подтвердил вашу заявку: {params.get('school', '')}. Теперь вам видны задания."
+        return t("Учитель подтвердил вашу заявку: {school}. Теперь вам видны задания.", school=school)
     if kind == REQUEST_REJECTED:
-        return f"Заявка в школу отклонена: {params.get('school', '')}."
+        return t("Заявка в школу отклонена: {school}.", school=school)
     if kind == ASSIGNMENT_NEW:
-        return f"Новое задание: {_assignment_title(params)}. Срок — до {_deadline(params)}."
+        return t("Новое задание: {title}. Срок — до {deadline}.", title=_assignment_title(params),
+                 deadline=_deadline(params))
     if kind == ASSIGNMENT_DUE:
-        return (f"До срока задания «{_assignment_title(params)}» меньше суток "
-                f"(до {_deadline(params)}), сделано {params.get('done', 0)} из {params.get('count', 0)}.")
+        return t("До срока задания «{title}» меньше суток (до {deadline}), сделано {done} из {count}.",
+                 title=_assignment_title(params), deadline=_deadline(params),
+                 done=params.get("done", 0), count=params.get("count", 0))
     return kind
 
 
@@ -139,7 +144,8 @@ def _to_telegram(user_id: int, kind: str, params: dict, link: str) -> None:
         return
     if not chat_id or (_sender is None and not config.TELEGRAM_BOT_TOKEN):
         return
-    text = f"{ICONS.get(kind, '🔔')} {render_text(kind, params)}"
+    with i18n.use(database.get_user_language(user_id)):  # Telegram — на языке получателя
+        text = f"{ICONS.get(kind, '🔔')} {render_text(kind, params)}"
     if link:
         text += f"\n{config.SITE_URL}{link}"
     if _sender is not None:
