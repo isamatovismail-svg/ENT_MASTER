@@ -77,7 +77,7 @@ class DictionaryTests(unittest.TestCase):
     def _render_register():
         with i18n.use("kk"):
             return render("register.html", errors="", first_name="", last_name="", email="", phone="",
-                          school_city="", school_name="", min_length=8, google="", language_options="")
+                          school_city="", school_name="", min_length=8, google="", language_options="", csrf="")
 
 
 class KazakhPagesTests(DatabaseTestCase):

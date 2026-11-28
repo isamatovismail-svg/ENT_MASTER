@@ -124,10 +124,11 @@ class ServiceAlertTests(AlertTestCase):
     def test_notify_command_reads_systemd_variables(self) -> None:
         """notify.py stopped берёт причину из переменных окружения systemd."""
         env = {"SERVICE_RESULT": "exit-code", "EXIT_CODE": "exited", "EXIT_STATUS": "2"}
-        with mock.patch.dict("os.environ", env), mock.patch.object(alerts, "_api", return_value=self.api):
+        with mock.patch.dict("os.environ", env), mock.patch.object(alerts, "_api", return_value=self.api), \
+                mock.patch("logging.basicConfig"):
             self.assertEqual(notify.main(["stopped", "ent-master-site.service"]), 0)
         self.assertIn("завершилась с кодом 2", self.api.messages[0][1])
-        with mock.patch("sys.stdout", io.StringIO()):
+        with mock.patch("sys.stdout", io.StringIO()), mock.patch("logging.basicConfig"):
             self.assertEqual(notify.main(["что-то"]), 2)
 
 

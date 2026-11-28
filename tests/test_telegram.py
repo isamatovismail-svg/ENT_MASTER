@@ -139,7 +139,7 @@ class ApiTests(DatabaseTestCase):
                 return step
 
         pauses = []
-        with self.assertRaises(TelegramError):
+        with self.assertRaises(TelegramError), self.assertLogs("app.telegram_bot", "WARNING"):
             run_polling(ScriptedAPI(), sleep=pauses.append)
         polls = [params for method, params in calls if method == "getUpdates"]
         self.assertEqual(pauses, [1.0])
@@ -432,7 +432,8 @@ class TelegramLoginPagesTests(DatabaseTestCase):
         with database.connect() as connection:
             connection.execute("UPDATE telegram_login_tokens SET expires_at = ?", (time.time() - 1,))
         self.assertEqual(browser.get(f"/tg/login?token={token}")[0], 400)
-        self.assertEqual(browser.post("/tg/login", {"token": token, "action": "new"})[0], 400)
+        self.assertEqual(browser.post("/tg/login", {"token": token, "action": "new",
+                                                    "csrf_token": test_pages.PagesTests.csrf(browser.get("/profile")[2])})[0], 400)
         self.assertIsNone(database.get_user_by_telegram(42))
 
 

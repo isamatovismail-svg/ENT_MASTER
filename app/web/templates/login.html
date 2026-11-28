@@ -3,7 +3,7 @@
     <h1>С возвращением!</h1>
     <p class="muted">Войдите по почте или номеру телефона, чтобы продолжить подготовку.</p>
     $errors
-    <form method="post" action="/login" class="form" novalidate>
+    <form method="post" action="/login" class="form" novalidate>$csrf
       <input type="hidden" name="next" value="$next">
       <label class="field">
         <span>Почта или номер телефона</span>

@@ -27,6 +27,7 @@ class Request:
     user: User | None = None
     csrf_token: str = ""
     session_key: str = ""
+    new_guest_csrf: str = ""
 
     def form_value(self, name: str, default: str = "") -> str:
         """Первое значение поля формы (или default, если поля нет)."""

@@ -9,6 +9,7 @@ import threading
 import urllib.error
 import urllib.request
 import uuid
+from contextlib import closing
 from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
@@ -92,7 +93,7 @@ class BackupTests(DatabaseTestCase):
         self.assertEqual(backup.list_backups(target), made[-3:])
         restored = Path(self._tmp.name) / "restored.sqlite3"
         restored.write_bytes(gzip.decompress(made[-1].read_bytes()))
-        with sqlite3.connect(restored) as connection:
+        with closing(sqlite3.connect(restored)) as connection:
             self.assertEqual(connection.execute("SELECT login FROM users").fetchone()[0], "ali@mail.kz")
         self.assertFalse(list(target.glob("*.sqlite3")))
 

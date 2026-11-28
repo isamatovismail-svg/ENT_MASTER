@@ -28,25 +28,25 @@ def _page(request: Request, token: str, info, errors: list[str], login: str = ""
     if linked is not None:
         main = fragment(
             '<p>Этот Telegram привязан к аккаунту <strong>$name</strong>.</p>'
-            '<form method="post" action="/tg/login"><input type="hidden" name="token" value="$token">'
+            '<form method="post" action="/tg/login">$csrf<input type="hidden" name="token" value="$token">'
             '<button type="submit" name="action" value="login" class="btn btn-primary btn-block btn-lg">'
             "Войти</button></form>",
-            name=linked.name, token=token,
+            name=linked.name, token=token, csrf=views._csrf_field(request),
         )
         divider = t("привязать к другому аккаунту?")
     else:
         main = fragment(
-            '<form method="post" action="/tg/login" class="tg-option">'
+            '<form method="post" action="/tg/login" class="tg-option">$csrf'
             '<input type="hidden" name="token" value="$token">'
             '<button type="submit" name="action" value="new" class="btn btn-primary btn-block btn-lg">'
             "Создать аккаунт и войти</button>"
             '<p class="muted small">Новый аккаунт, вход в него — через бота.</p></form>',
-            token=token,
+            token=token, csrf=views._csrf_field(request),
         )
         divider = t("уже есть аккаунт на сайте?")
     actions = render(
         "tg_link_options.html", main=main, current=current, divider=divider, token=token,
-        login=login, errors=views._errors_block(errors),
+        login=login, errors=views._errors_block(errors), csrf=views._csrf_field(request),
     )
     content = render("tg_login.html", telegram_name=info["telegram_name"], actions=actions)
     return views.page(request, t("Вход через Telegram"), content, status)
@@ -61,6 +61,7 @@ def tg_login_page(request: Request) -> Response:
     return _page(request, token, info, [])
 
 
+@views.csrf_protected
 def tg_login_submit(request: Request) -> Response:
     """POST /tg/login — вход, регистрация или привязка Telegram к аккаунту."""
     token = request.form_value("token")

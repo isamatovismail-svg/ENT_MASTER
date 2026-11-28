@@ -31,21 +31,15 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     salt          TEXT NOT NULL,
     created_at    REAL NOT NULL,
-    role          TEXT NOT NULL DEFAULT 'user',  -- 'user' или 'admin'
-    telegram_id   INTEGER,                       -- привязанный аккаунт Telegram (или NULL)
-    phone         TEXT,                          -- телефон +7XXXXXXXXXX (необязательно, не подтверждается)
-    -- 0 — зарегистрировался по почте и ещё не ввёл код из письма (войти нельзя).
-    -- Старые аккаунты (до подтверждения почты) считаются подтверждёнными.
+    role          TEXT NOT NULL DEFAULT 'user',
+    telegram_id   INTEGER,
+    phone         TEXT,
     email_verified INTEGER NOT NULL DEFAULT 1,
-    -- Школа: у ученика — куда он подал заявку (school_status), у учителя — его школа.
     school_id     INTEGER,
-    school_status TEXT,                          -- pending / approved / rejected (или NULL)
-    last_login_at REAL,                          -- время последнего входа
-    language      TEXT NOT NULL DEFAULT 'ru'     -- язык интерфейса и вопросов: ru / kk
+    school_status TEXT,
+    last_login_at REAL,
+    language      TEXT NOT NULL DEFAULT 'ru'
 );
-
--- Школы: город + номер или название. key — нормализованная пара «город|школа»,
--- чтобы «Школа №12» и «12» в одном городе были одной школой.
 CREATE TABLE IF NOT EXISTS schools (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     city       TEXT NOT NULL,
@@ -53,57 +47,51 @@ CREATE TABLE IF NOT EXISTS schools (
     key        TEXT NOT NULL UNIQUE,
     created_at REAL NOT NULL
 );
-
--- Задания учителя: N пробных ЕНТ (любая или конкретная пара) или N тренировок по предмету.
 CREATE TABLE IF NOT EXISTS assignments (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     school_id  INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     mode       TEXT NOT NULL CHECK (mode IN ('mock', 'practice')),
-    -- Тренировка: код предмета. Пробный ЕНТ: «math,physics» или '' — любая пара.
     target     TEXT NOT NULL DEFAULT '',
     count      INTEGER NOT NULL,
-    for_all    INTEGER NOT NULL DEFAULT 1,  -- 1 — всем подтверждённым ученикам школы
+    for_all    INTEGER NOT NULL DEFAULT 1,
     created_at REAL NOT NULL,
     deadline   REAL NOT NULL
 );
-
--- Рекламные баннеры (свои, без JavaScript): картинка хранится в базе и попадает в резервные копии.
 CREATE TABLE IF NOT EXISTS banners (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    title       TEXT NOT NULL,            -- подпись (alt картинки) и название в админке
-    link_url    TEXT NOT NULL,            -- куда ведёт баннер (http/https)
+    title       TEXT NOT NULL,
+    link_url    TEXT NOT NULL,
     image       BLOB NOT NULL,
-    image_type  TEXT NOT NULL,            -- image/png, image/jpeg, image/gif, image/webp
-    placements  TEXT NOT NULL,            -- места показа через запятую: landing,dashboard
-    starts_on   TEXT NOT NULL,            -- ГГГГ-ММ-ДД, показывать с этого дня
-    ends_on     TEXT NOT NULL,            -- ГГГГ-ММ-ДД, по этот день включительно
+    image_type  TEXT NOT NULL,
+    placements  TEXT NOT NULL,
+    starts_on   TEXT NOT NULL,
+    ends_on     TEXT NOT NULL,
     active      INTEGER NOT NULL DEFAULT 1,
     impressions INTEGER NOT NULL DEFAULT 0,
     clicks      INTEGER NOT NULL DEFAULT 0,
     created_at  REAL NOT NULL
 );
-
--- Ученики, выбранные для задания (если for_all = 0).
 CREATE TABLE IF NOT EXISTS assignment_students (
     assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
     user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (assignment_id, user_id)
 );
-
--- Коды из писем: подтверждение почты (verify) и восстановление пароля (reset).
--- У пользователя не больше одного действующего кода каждого вида. Хранится только хеш.
 CREATE TABLE IF NOT EXISTS email_codes (
     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     purpose    TEXT NOT NULL CHECK (purpose IN ('verify', 'reset')),
     code_hash  TEXT NOT NULL,
     expires_at REAL NOT NULL,
     sent_at    REAL NOT NULL,
-    attempts   INTEGER NOT NULL DEFAULT 0,  -- сколько раз ввели неверный код
+    attempts   INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, purpose)
 );
 
--- Одноразовые ссылки входа из Telegram-бота. Хранится только SHA-256 от токена.
+CREATE TABLE IF NOT EXISTS login_failures (
+    login     TEXT NOT NULL,
+    failed_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_login_failures ON login_failures(login, failed_at);
 CREATE TABLE IF NOT EXISTS telegram_login_tokens (
     token_hash    TEXT PRIMARY KEY,
     telegram_id   INTEGER NOT NULL,
@@ -129,36 +117,25 @@ CREATE TABLE IF NOT EXISTS questions (
     left_json    TEXT NOT NULL DEFAULT '[]',
     correct_json TEXT NOT NULL,
     explanation  TEXT NOT NULL DEFAULT '',
-    -- 1 — вопрос удалён в админке, но остаётся в базе, потому что есть в чьих-то попытках.
-    -- Такой вопрос не попадает в новые тесты и в счётчики банка.
     deleted      INTEGER NOT NULL DEFAULT 0,
-    -- 1 — вопрос создан или изменён в админке: seed.py его больше не перезаписывает.
     edited_by_admin INTEGER NOT NULL DEFAULT 0,
-    -- Вопросы учителей проходят проверку: pending (на проверке), approved, rejected.
-    -- В тесты и во все выборки банка попадают только approved.
     status         TEXT NOT NULL DEFAULT 'approved',
-    author_id      INTEGER,                   -- учитель-автор (NULL — банк/админ)
-    review_comment TEXT NOT NULL DEFAULT '',  -- комментарий администратора
-    submitted_at   REAL,                      -- когда отправлен на проверку
-    reviewed_at    REAL,                      -- когда проверен
-    -- Тема по спецификации НЦТ: номер из app/topics.py («05»), '' — без темы.
+    author_id      INTEGER,
+    review_comment TEXT NOT NULL DEFAULT '',
+    submitted_at   REAL,
+    reviewed_at    REAL,
     topic          TEXT NOT NULL DEFAULT '',
-    -- Язык вопроса: ru / kk. Иностранный язык — общий (на английском), см. config.SHARED_LANGUAGE_SUBJECTS.
     language       TEXT NOT NULL DEFAULT 'ru',
     UNIQUE (subject, text)
 );
-
--- Уведомления (колокольчик в меню). Текст собирается при показе из kind + params_json,
--- чтобы его можно было показать на языке пользователя. dedup_key защищает от повторов
--- («до срока меньше суток» — один раз на ученика и задание).
 CREATE TABLE IF NOT EXISTS notifications (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     kind        TEXT NOT NULL,
     params_json TEXT NOT NULL DEFAULT '{}',
-    link        TEXT NOT NULL DEFAULT '',   -- адрес страницы сайта («/dashboard»)
+    link        TEXT NOT NULL DEFAULT '',
     created_at  REAL NOT NULL,
-    read_at     REAL,                       -- NULL — не прочитано
+    read_at     REAL,
     dedup_key   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read_at);
@@ -188,10 +165,7 @@ CREATE TABLE IF NOT EXISTS attempt_questions (
     position    INTEGER NOT NULL,
     answer_json TEXT,
     points      INTEGER NOT NULL DEFAULT 0,
-    -- Порядок вариантов, в котором их видит ученик: [индекс исходного варианта, ...].
-    -- NULL — исходный порядок. Ответ ученика хранится в буквах ПОКАЗАННОГО порядка.
     option_order_json TEXT,
-    -- Тренировка: 1 — ученик уже ответил на задание и увидел разбор.
     checked     INTEGER NOT NULL DEFAULT 0,
     UNIQUE (attempt_id, question_id)
 );
@@ -199,7 +173,6 @@ CREATE TABLE IF NOT EXISTS attempt_questions (
 CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_attempt_questions_attempt ON attempt_questions(attempt_id);
 CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject, qtype);
--- Для выбора «сначала невиденные вопросы»: сколько раз ученик видел вопрос.
 CREATE INDEX IF NOT EXISTS idx_attempt_questions_question ON attempt_questions(question_id, attempt_id);
 """
 
@@ -631,6 +604,29 @@ def delete_session(token_hash: str) -> None:
     """Удаляет сессию (выход из аккаунта)."""
     with connect() as connection:
         connection.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+
+
+def record_login_failure(login: str, now: float, keep_seconds: float) -> None:
+    """Запоминает неудачный вход и забывает попытки старше keep_seconds."""
+    with connect() as connection:
+        connection.execute("DELETE FROM login_failures WHERE failed_at < ?", (now - keep_seconds,))
+        connection.execute("INSERT INTO login_failures (login, failed_at) VALUES (?, ?)", (login, now))
+
+
+def login_failures_since(login: str, since: float) -> list[float]:
+    """Время неудачных входов по логину начиная с since (по возрастанию)."""
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT failed_at FROM login_failures WHERE login = ? AND failed_at >= ? ORDER BY failed_at",
+            (login, since),
+        ).fetchall()
+    return [row["failed_at"] for row in rows]
+
+
+def clear_login_failures(login: str) -> None:
+    """Сбрасывает счётчик неудачных входов после успешного входа или смены пароля."""
+    with connect() as connection:
+        connection.execute("DELETE FROM login_failures WHERE login = ?", (login,))
 
 
 def delete_expired_sessions(now: float) -> None:

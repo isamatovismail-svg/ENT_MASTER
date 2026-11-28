@@ -165,7 +165,10 @@ ENT formati `app/config.py` da kvotalar orqali tasvirlangan — umumiy sonlar qo
 - **Parollar** faqat xesh ko‘rinishida saqlanadi: PBKDF2-SHA256, har bir foydalanuvchi uchun alohida «tuz».
 - **Sessiya** cookie’sida tasodifiy token; bazada faqat uning SHA-256 xeshi. Cookie — `HttpOnly`, `SameSite=Lax`
   (HTTPS serverda — `Secure`).
-- **CSRF**: tizimga kirgan foydalanuvchining har bir POST-formasi sessiya tokeni bilan tekshiriladi.
+- **CSRF**: har bir POST-forma token bilan tekshiriladi — tizimga kirgan foydalanuvchida sessiya tokeni,
+  mehmonda (kirish, ro‘yxatdan o‘tish, parolni tiklash formalari) `HttpOnly` cookie’dagi token.
+- **Parolni tanlab topishdan himoya**: bitta login bo‘yicha 15 daqiqada 10 ta noto‘g‘ri urinishdan so‘ng
+  kirish vaqtincha yopiladi; pochta kodini kiritishga 5 ta urinish beriladi, kodni qayta yuborish — daqiqasiga bir marta.
 - **CSP** (Content-Security-Policy) har qanday skriptni va tashqi resurslarni taqiqlaydi; saytda JavaScript yo‘q.
 - **SQL in’ektsiyalardan himoya**: barcha so‘rovlar faqat parametrlangan.
 - **XSS’dan himoya**: shablonlarga qo‘yiladigan har bir qiymat HTML-ekranlanadi.
@@ -180,7 +183,9 @@ ENT formati `app/config.py` da kvotalar orqali tasvirlangan — umumiy sonlar qo
 - **Python 3.11+**, faqat standart kutubxona: `http.server`, `sqlite3`, `hashlib`, `hmac`, `secrets`,
   `string.Template`, `urllib`, `smtplib`, `email`, `contextvars`, `unittest` va boshqalar.
 - **SQLite** — ma’lumotlar bazasi.
-- **HTML + CSS** — interfeys (moslashuvchan dizayn, yorug‘ va qorong‘i mavzu), **JavaScript’siz**.
+- **HTML + CSS** — interfeys, **JavaScript’siz**. Dizayn qat’iy va sodda: 3 ta rang — och fon `#F8FAFC`,
+  to‘q `#0F172A` (matn, sarlavha) va urg‘u rangi `#2563EB` (tugmalar, havolalar); yashil va qizil faqat
+  «to‘g‘ri / noto‘g‘ri» uchun. 8px to‘r, WCAG AA kontrast, telefonda qulay (375–1280px), qorong‘i mavzu.
 - Freymvorklar ham, `pip install` ham kerak emas.
 
 ---
@@ -209,21 +214,25 @@ vaqtinchalik ommaviy havola katta qilib chiqadi — uni o‘qituvchiga yuboring.
 terminalda **Ctrl+C** bosing: sayt, bot va tunnel birga to‘xtaydi. Buning uchun bir marta Cloudflare’ning
 rasmiy `cloudflared` paketini o‘rnatish kerak.
 
-Doimiy serverga joylash (Ubuntu, systemd, Caddy orqali HTTPS, zaxira nusxalar) — `server/` papkasida.
+Doimiy serverga joylash (Ubuntu, systemd, Caddy orqali HTTPS, zaxira nusxalar) — `server/` papkasida:
+`sudo bash server/setup.sh <domen>`, yangilash — `sudo bash server/update.sh`. Zaxira nusxa qo‘lda:
+`python3 -m server.backup`.
 
 ---
 
 ## Testlar
 
 ```bash
-python3 -m unittest            # barcha testlar (190 ga yaqin)
+python3 -m unittest            # barcha testlar (200 ga yaqin)
 python3 -m unittest -v tests.test_languages
 ```
 
 Testlar har birida alohida vaqtinchalik bazadan foydalanadi, haqiqiy serverni ishga tushirib sahifalarni
 «brauzer» kabi tekshiradi, Telegram va pochtaga hech narsa yubormaydi. Ular quyidagilarni tekshiradi:
 baholash qoidalari, testni yig‘ish, har bir juftlik va har bir til uchun to‘liq 120 ta topshiriqli test,
-kirish huquqlari, CSRF, o‘qituvchi kabineti, bildirishnomalar, qozoqcha sahifalarda ruscha matn
+kirish huquqlari (har bir marshrut), CSRF (har bir POST), kirish urinishlari chegarasi, uzun va
+xavfli kiritmalar, vaqt tugagandan keyingi javoblar, ikki marta bosish, bo‘sh savollar banki,
+o‘qituvchi kabineti, bildirishnomalar, qozoqcha sahifalarda ruscha matn
 qolmaganligi, qozoqcha tarjimada javoblar, raqamlar va formulalar o‘zgarmaganligi.
 
 ---

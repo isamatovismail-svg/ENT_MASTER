@@ -381,7 +381,8 @@ class AccountPagesTests(DatabaseTestCase):
             _, _, _, headers = other.get("/auth/google")
             state = urllib.parse.parse_qs(urllib.parse.urlsplit(headers["Location"]).query)["state"][0]
             with mock.patch.object(google_auth, "post_form",
-                                   side_effect=google_auth.GoogleAuthError("сеть")):
+                                   side_effect=google_auth.GoogleAuthError("сеть")), \
+                    self.assertLogs("app.web.account_views", "WARNING"):
                 _, _, _, headers = other.get(
                     "/auth/google/callback?" + urllib.parse.urlencode({"code": "c", "state": state})
                 )

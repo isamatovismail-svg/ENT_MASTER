@@ -78,6 +78,7 @@ MESSAGES: dict[str, tuple[str, str]] = {
 DEMO_ADMIN_BLOCKED = ("Демо-администратор не может войти, пока сайт открыт через интернет "
                       "(режим показа). Войдите как демо-учитель или демо-ученик.")
 
+TOO_MANY_LOGINS = "Слишком много неудачных попыток входа. Попробуйте снова через {n} мин."
 MAIL_FAILED = "Не удалось отправить письмо с кодом. Попробуйте ещё раз через минуту."
 
 MODE_NAMES = i18n.Translated({ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"})
@@ -115,6 +116,16 @@ def _safe_next(value: str) -> str:
     if value.startswith("/") and not value.startswith("//") and "\\" not in value:
         return value
     return "/dashboard"
+
+
+def csrf_protected(view: Callable[..., Response]) -> Callable[..., Response]:
+    """Отклоняет POST без верного csrf-токена (формы гостей: вход, регистрация, коды)."""
+    @wraps(view)
+    def wrapper(request: Request, *args, **kwargs) -> Response:
+        if not auth.check_csrf(request):
+            return error_page(request, 403, t(MESSAGES["csrf"][1]))
+        return view(request, *args, **kwargs)
+    return wrapper
 
 
 def _csrf_field(request: Request) -> SafeHTML:
@@ -420,6 +431,7 @@ def _register_form(request: Request, errors: list[str]) -> Response:
         min_length=config.PASSWORD_MIN_LENGTH,
         google=google_button(),
         language_options=language_options(i18n.normalize(request.form_value("language") or i18n.get_language())),
+        csrf=_csrf_field(request),
     )
     return page(request, t("Регистрация"), content, 400 if errors else 200)
 
@@ -437,6 +449,7 @@ def register_page(request: Request) -> Response:
     return _register_form(request, [])
 
 
+@csrf_protected
 def register_submit(request: Request) -> Response:
     """POST /register — проверка полей и создание аккаунта."""
     if request.user is not None:
@@ -460,12 +473,12 @@ def register_submit(request: Request) -> Response:
     return redirect(verify_url(email, "code_sent"))
 
 
-def _login_form(request: Request, errors: list[str], login: str, next_url: str) -> Response:
+def _login_form(request: Request, errors: list[str], login: str, next_url: str, status: int = 400) -> Response:
     content = render(
         "login.html", errors=_errors_block(errors), login=login, next=next_url,
-        google=google_button(),
+        google=google_button(), csrf=_csrf_field(request),
     )
-    return page(request, t("Вход"), content, 400 if errors else 200)
+    return page(request, t("Вход"), content, status if errors else 200)
 
 
 def login_page(request: Request) -> Response:
@@ -477,13 +490,18 @@ def login_page(request: Request) -> Response:
     )
 
 
+@csrf_protected
 def login_submit(request: Request) -> Response:
     """POST /login — проверка пароля и создание сессии."""
     login = request.form_value("login")
     next_url = _safe_next(request.form_value("next"))
     if not login.strip() or not request.form_value("password"):
         return _login_form(request, [t("Введите почту (или телефон) и пароль.")], login, next_url)
+    wait = auth.login_wait_minutes(login)
+    if wait:
+        return _login_form(request, [t(TOO_MANY_LOGINS, n=wait)], login, next_url, status=429)
     user = auth.authenticate(login, request.form_value("password"))
+    auth.note_login(login, user is not None)
     if user is None:
         return _login_form(request, [t("Неверная почта/телефон или пароль.")], login, next_url)
     if auth.is_blocked_demo_admin(user.login, user.role):
@@ -741,11 +759,9 @@ def assignment_start(request: Request, assignment_id: int) -> Response:
         return not_found(request)
     ent_logic.finish_expired_attempts(user_id)
     if assignment["mode"] == ent_logic.PRACTICE:
-        try:
-            attempt_id = ent_logic.build_practice(user_id, assignment["target"])
-        except (ValueError, ent_logic.TestBuildError):
+        if assignment["target"] not in config.SUBJECTS:
             return redirect("/practice?msg=no_questions")
-        return redirect(f"/practice/{attempt_id}")
+        return _launch_practice(user_id, assignment["target"])
     pair = schools.pair_codes(assignment["target"])
     if pair is None or pair not in config.PROFILE_PAIRS:
         return redirect("/mock")
@@ -1347,8 +1363,16 @@ def start_practice(request: Request) -> Response:
     subject = request.form_value("subject")
     if subject not in config.SUBJECTS:
         return redirect("/practice?msg=bad_subject")
+    return _launch_practice(_user_id(request), subject)
+
+
+def _launch_practice(user_id: int, subject: str) -> Response:
+    existing = database.get_in_progress_attempt(user_id, ent_logic.PRACTICE)
+    if (existing is not None and existing.subjects == [subject]
+            and not any(aq.checked for aq in database.get_attempt_questions(existing.id))):
+        return redirect(f"/practice/{existing.id}")
     try:
-        attempt_id = ent_logic.build_practice(_user_id(request), subject)
+        attempt_id = ent_logic.build_practice(user_id, subject)
     except ent_logic.TestBuildError:
         return redirect("/practice?msg=no_questions")
     return redirect(f"/practice/{attempt_id}")

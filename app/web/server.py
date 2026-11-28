@@ -170,8 +170,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             cookies=_parse_cookies(self.headers.get("Cookie", "")),
         )
         auth.attach_user(request)
+        auth.attach_guest_csrf(request)
         i18n.set_language(views.request_language(request, self.headers.get("Accept-Language", "")))
-        return router.dispatch(request)
+        response = router.dispatch(request)
+        if request.new_guest_csrf:
+            response.headers.append(("Set-Cookie", auth.guest_csrf_cookie(request.new_guest_csrf)))
+        return response
 
     def _send(self, response: Response) -> None:
         self.send_response(response.status)

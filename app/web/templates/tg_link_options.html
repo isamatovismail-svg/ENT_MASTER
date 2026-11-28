@@ -2,7 +2,7 @@ $main
 $current
 <div class="divider"><span>$divider</span></div>
 $errors
-<form method="post" action="/tg/login" class="form" novalidate>
+<form method="post" action="/tg/login" class="form" novalidate>$csrf
   <input type="hidden" name="token" value="$token">
   <label class="field">
     <span>Почта или номер телефона</span>

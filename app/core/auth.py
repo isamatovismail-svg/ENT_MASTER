@@ -228,6 +228,25 @@ def authenticate(login: str, password: str) -> User | None:
                 language=row["language"])
 
 
+def login_wait_minutes(login: str, now: float | None = None) -> int:
+    """Сколько минут ждать до следующей попытки входа (0 — можно входить)."""
+    now = time.time() if now is None else now
+    failures = database.login_failures_since(normalize_login(login), now - config.LOGIN_LOCK_SECONDS)
+    if len(failures) < config.LOGIN_MAX_FAILURES:
+        return 0
+    unlock_at = failures[-config.LOGIN_MAX_FAILURES] + config.LOGIN_LOCK_SECONDS
+    return max(1, math.ceil((unlock_at - now) / 60))
+
+
+def note_login(login: str, success: bool, now: float | None = None) -> None:
+    """Учитывает результат входа: неудача увеличивает счётчик, успех его сбрасывает."""
+    key = normalize_login(login)
+    if success:
+        database.clear_login_failures(key)
+    else:
+        database.record_login_failure(key, time.time() if now is None else now, config.LOGIN_LOCK_SECONDS)
+
+
 WEAK_PASSWORDS = (
     "12345678", "123456789", "1234567890", "87654321", "11111111", "00000000",
     "password", "password1", "qwerty123", "qwertyui", "1q2w3e4r", "iloveyou",
@@ -428,6 +447,25 @@ def attach_user(request: Request) -> None:
         return
     request.user, request.csrf_token = user, csrf_token
     request.session_key = key
+
+
+def attach_guest_csrf(request: Request) -> None:
+    """Гостю — csrf-токен из cookie; если cookie нет, выдаёт новый (сервер запишет его в ответ)."""
+    if request.user is not None:
+        return
+    token = request.cookies.get(config.GUEST_CSRF_COOKIE_NAME, "")
+    if not GUEST_TOKEN_RE.fullmatch(token):
+        token = secrets.token_urlsafe(32)
+        request.new_guest_csrf = token
+    request.csrf_token = token
+
+
+def guest_csrf_cookie(token: str) -> str:
+    """Set-Cookie с csrf-токеном гостя (для форм входа, регистрации и восстановления)."""
+    return cookie_header(config.GUEST_CSRF_COOKIE_NAME, token, config.SESSION_LIFETIME_SECONDS)
+
+
+GUEST_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{43}")
 
 
 def check_csrf(request: Request) -> bool:

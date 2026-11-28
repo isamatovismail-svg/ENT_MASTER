@@ -73,8 +73,9 @@ def start(part: str, label: str, extra_env: dict[str, str] | None = None) -> sub
     process = _popen([sys.executable, "-u", str(config.BASE_DIR / "run.py"), part], env)
 
     def pump() -> None:
-        for line in process.stdout:
-            log(label, line.rstrip("\n"))
+        with process.stdout:
+            for line in process.stdout:
+                log(label, line.rstrip("\n"))
 
     threading.Thread(target=pump, daemon=True).start()
     return process
@@ -93,15 +94,16 @@ class Tunnel:
         threading.Thread(target=self._pump, daemon=True).start()
 
     def _pump(self) -> None:
-        for line in self.process.stdout:
-            line = line.rstrip("\n")
-            found = TUNNEL_URL_RE.search(line)
-            if found and not self.url:
-                self.url = found.group(0)
-            if TUNNEL_READY_MARK in line and self.url:
-                self.ready.set()
-            if " ERR " in line:
-                log(TUNNEL_LABEL, line)
+        with self.process.stdout:
+            for line in self.process.stdout:
+                line = line.rstrip("\n")
+                found = TUNNEL_URL_RE.search(line)
+                if found and not self.url:
+                    self.url = found.group(0)
+                if TUNNEL_READY_MARK in line and self.url:
+                    self.ready.set()
+                if " ERR " in line:
+                    log(TUNNEL_LABEL, line)
         self.ready.set()
 
     def wait(self, timeout: float) -> str:

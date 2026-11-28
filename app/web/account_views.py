@@ -31,6 +31,7 @@ def _verify_form(request: Request, email: str, errors: list[str], status: int = 
         errors=views._errors_block(errors),
         email=email,
         minutes=config.EMAIL_CODE_MINUTES,
+        csrf=views._csrf_field(request),
     )
     return views.page(request, t("Подтверждение почты"), content, status)
 
@@ -43,6 +44,7 @@ def verify_page(request: Request) -> Response:
     return _verify_form(request, email, [])
 
 
+@views.csrf_protected
 def verify_submit(request: Request) -> Response:
     """POST /verify — проверка кода; при успехе аккаунт активен и пользователь входит."""
     email = auth.normalize_email(request.form_value("email"))
@@ -56,6 +58,7 @@ def verify_submit(request: Request) -> Response:
     return _login_now(request, user_id, "/dashboard?msg=verified")
 
 
+@views.csrf_protected
 def verify_resend(request: Request) -> Response:
     """POST /verify/resend — «Отправить код ещё раз» (не чаще раза в минуту)."""
     email = auth.normalize_email(request.form_value("email"))
@@ -74,7 +77,8 @@ def verify_resend(request: Request) -> Response:
 
 
 def _forgot_form(request: Request, email: str, errors: list[str], status: int = 200) -> Response:
-    content = render("forgot.html", errors=views._errors_block(errors), email=email)
+    content = render("forgot.html", errors=views._errors_block(errors), email=email,
+                     csrf=views._csrf_field(request))
     return views.page(request, t("Восстановление пароля"), content, status)
 
 
@@ -83,6 +87,7 @@ def forgot_page(request: Request) -> Response:
     return _forgot_form(request, request.query_value("email"), [])
 
 
+@views.csrf_protected
 def forgot_submit(request: Request) -> Response:
     """POST /forgot — отправка кода на почту."""
     email = auth.normalize_email(request.form_value("email"))
@@ -104,6 +109,7 @@ def _reset_form(request: Request, email: str, errors: list[str], status: int = 2
         email=email,
         minutes=config.EMAIL_CODE_MINUTES,
         min_length=config.PASSWORD_MIN_LENGTH,
+        csrf=views._csrf_field(request),
     )
     return views.page(request, t("Новый пароль"), content, status)
 
@@ -116,6 +122,7 @@ def reset_page(request: Request) -> Response:
     return _reset_form(request, email, [])
 
 
+@views.csrf_protected
 def reset_submit(request: Request) -> Response:
     """POST /reset — смена пароля по коду; все старые сессии завершаются, пользователь входит."""
     email = auth.normalize_email(request.form_value("email"))

@@ -57,8 +57,16 @@ class Browser:
         return self.request(path)
 
     def post(self, path: str, data: dict | list) -> tuple[int, str, str, dict]:
-        """POST-запрос с данными формы."""
+        """POST-запрос с данными формы; гость, как браузер, отправляет csrf-токен из cookie."""
+        if isinstance(data, dict) and "csrf_token" not in data and not self.cookie("ent_session"):
+            if not self.cookie("ent_csrf"):
+                self.get(path)
+            data = {**data, "csrf_token": self.cookie("ent_csrf")}
         return self.request(path, data)
+
+    def cookie(self, name: str) -> str:
+        """Значение cookie из хранилища браузера (или пустая строка)."""
+        return next((item.value for item in self.cookies if item.name == name), "")
 
 
 class PagesTests(DatabaseTestCase):
