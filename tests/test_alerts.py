@@ -9,15 +9,14 @@ import threading
 from pathlib import Path
 from unittest import mock
 
-import backup
-import config
-import notify
-from app import alerts, auth, database
-from app.server import create_server, parse_multipart
+from app import config
+from app.core import auth, database
 from app.telegram_bot import TelegramAPI, TelegramError
+from app.web.server import create_server, parse_multipart
+from server import alerts, backup, notify
 from tests.base import DatabaseTestCase
 
-DEPLOY_DIR = config.BASE_DIR / "deploy"
+UNITS_DIR = config.BASE_DIR / "server" / "systemd"
 
 
 class FakeSender:
@@ -73,9 +72,9 @@ class RecipientsTests(DatabaseTestCase):
     def test_no_token_or_recipient(self) -> None:
         """Без токена или получателя ничего не отправляется и ничего не ломается."""
         with mock.patch.multiple(config, TELEGRAM_BOT_TOKEN="", ADMIN_TELEGRAM_CHAT_IDS=[1]), \
-                self.assertLogs("app.alerts", "WARNING"):
+                self.assertLogs("server.alerts", "WARNING"):
             self.assertEqual(alerts.send("текст"), 0)
-        with mock.patch.object(config, "ADMIN_TELEGRAM_CHAT_IDS", []), self.assertLogs("app.alerts", "WARNING"):
+        with mock.patch.object(config, "ADMIN_TELEGRAM_CHAT_IDS", []), self.assertLogs("server.alerts", "WARNING"):
             self.assertEqual(alerts.send("текст", FakeSender()), 0)
 
 
@@ -113,7 +112,7 @@ class ServiceAlertTests(AlertTestCase):
 
     def test_failed_send_is_retried_later(self) -> None:
         """Если Telegram недоступен, сообщение не считается отправленным и уйдёт при следующем сбое."""
-        with self.assertLogs("app.alerts", "ERROR"):
+        with self.assertLogs("server.alerts", "ERROR"):
             self.assertFalse(alerts.service_stopped("ent-master-site.service", "exit-code", "exited", "1",
                                                     FakeSender(fail=True), now=1000))
         self.assertTrue(alerts.service_stopped("ent-master-site.service", "exit-code", "exited", "1",
@@ -232,15 +231,15 @@ class AlertUnitsTests(DatabaseTestCase):
 
     def test_units(self) -> None:
         for unit in ("ent-master-site.service", "ent-master-bot.service"):
-            text = (DEPLOY_DIR / unit).read_text(encoding="utf-8")
-            self.assertIn("ExecStopPost=/usr/bin/python3 /opt/ent-master/notify.py stopped %n", text)
+            text = (UNITS_DIR / unit).read_text(encoding="utf-8")
+            self.assertIn("ExecStopPost=/usr/bin/python3 -m server.notify stopped %n", text)
             self.assertIn("OnFailure=ent-master-alert@%n.service", text)
-        backup_unit = (DEPLOY_DIR / "ent-master-backup.service").read_text(encoding="utf-8")
-        self.assertIn("backup.py --telegram", backup_unit)
+        backup_unit = (UNITS_DIR / "ent-master-backup.service").read_text(encoding="utf-8")
+        self.assertIn("-m server.backup --telegram", backup_unit)
         self.assertIn("OnFailure=ent-master-alert@%n.service", backup_unit)
-        self.assertIn("notify.py failed %i", (DEPLOY_DIR / "ent-master-alert@.service").read_text(encoding="utf-8"))
-        self.assertIn("notify.py healthcheck",
-                      (DEPLOY_DIR / "ent-master-health.service").read_text(encoding="utf-8"))
-        self.assertIn("OnUnitActiveSec=5min", (DEPLOY_DIR / "ent-master-health.timer").read_text(encoding="utf-8"))
-        setup = (DEPLOY_DIR / "setup.sh").read_text(encoding="utf-8")
+        self.assertIn("-m server.notify failed %i", (UNITS_DIR / "ent-master-alert@.service").read_text(encoding="utf-8"))
+        self.assertIn("-m server.notify healthcheck",
+                      (UNITS_DIR / "ent-master-health.service").read_text(encoding="utf-8"))
+        self.assertIn("OnUnitActiveSec=5min", (UNITS_DIR / "ent-master-health.timer").read_text(encoding="utf-8"))
+        setup = (config.BASE_DIR / "server" / "setup.sh").read_text(encoding="utf-8")
         self.assertIn("ent-master-health.timer", setup)

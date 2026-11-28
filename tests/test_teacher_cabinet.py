@@ -4,9 +4,9 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
-import config
-from app import auth, database, ent_logic, notifications, schools, student_stats
-from app.server import create_server
+from app import config
+from app.core import auth, database, ent_logic, notifications, schools, student_stats
+from app.web.server import create_server
 from tests.base import DatabaseTestCase
 from tests.test_deploy import PNG
 from tests.test_pages import CSRF_RE, Browser
@@ -217,7 +217,7 @@ class StudentsTableTests(CabinetServerTestCase):
         self.assertIn("Физика: 2 / 10", html)
 
     def test_sort_rows_by_any_column(self) -> None:
-        for code, _ in __import__("app.teacher_views", fromlist=["x"]).STUDENT_COLUMNS:
+        for code, _ in __import__("app.web.teacher_views", fromlist=["x"]).STUDENT_COLUMNS:
             self.assertIn(code, student_stats.SORT_KEYS)
             student_stats.sort_rows(student_stats.school_overview(self.school), code, True)
 
@@ -259,7 +259,7 @@ class NotificationTests(CabinetServerTestCase):
         self.telegram.fail = True
         teacher, _ = self.login("teacher@mail.kz")
         _, _, html, _ = teacher.get(f"/teacher/{self.school}/assignments/new")
-        with self.assertLogs("app.notifications", "WARNING"):
+        with self.assertLogs("app.core.notifications", "WARNING"):
             status, _, html, _ = teacher.post(f"/teacher/{self.school}/assignments/new", {
                 "csrf_token": csrf(html), "mode": "practice", "subject": "physics", "count": "1",
                 "deadline": NEXT_WEEK, "for_all": "1"})

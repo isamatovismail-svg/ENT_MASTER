@@ -3,11 +3,12 @@
 import re
 import threading
 
-import config
+from app import config
 import seed
-from app import auth, database, ent_logic, generators, i18n
-from app.question_bank import validate_question
-from app.server import create_server
+from app import generators, i18n
+from app.core import auth, database, ent_logic
+from app.core.question_bank import validate_question
+from app.web.server import create_server
 from tests.base import DatabaseTestCase
 from tests.test_pages import CSRF_RE, Browser
 
@@ -117,7 +118,7 @@ class TeacherQuestionLanguageTests(DatabaseTestCase):
     """Учитель выбирает язык вопроса; админ видит его в проверке."""
 
     def test_teacher_question_language(self) -> None:
-        from app import schools
+        from app.core import schools
         server = create_server("127.0.0.1", 0)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try:

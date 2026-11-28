@@ -2,8 +2,8 @@
 
 import sqlite3
 
-import config
-from app import auth, database, ent_logic
+from app import config
+from app.core import auth, database, ent_logic
 from tests.base import DatabaseTestCase
 
 

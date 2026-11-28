@@ -10,10 +10,11 @@ import time
 import unittest
 from pathlib import Path
 
-import config
-import run
-from app import auth, database, server
-from app.server import create_server
+from app import config
+from server import launcher as run
+from app.core import auth, database
+from app.web import server
+from app.web.server import create_server
 from tests.base import DatabaseTestCase
 from tests.test_pages import CSRF_RE, Browser
 
@@ -55,7 +56,7 @@ class HttpsAttemptTests(DatabaseTestCase):
         super().tearDown()
 
     def test_tls_client_hello_gets_hint_not_400(self) -> None:
-        with self.assertLogs("app.server", level="WARNING") as logs:
+        with self.assertLogs("app.web.server", level="WARNING") as logs:
             with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
                 sock.sendall(b"\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03" + b"\x00" * 40 + b"\r\n")
                 reply = sock.recv(1024)
@@ -96,7 +97,7 @@ class ShareModeTests(DatabaseTestCase):
     def test_existing_demo_admin_session_ignored(self) -> None:
         cookie = auth.start_session(self.admin_id)
         token = cookie.split(";")[0].split("=", 1)[1]
-        from app.web import Request
+        from app.web.http import Request
         request = Request("GET", "/", cookies={config.SESSION_COOKIE_NAME: token})
         config.SHARE_MODE = True
         auth.attach_user(request)

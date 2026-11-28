@@ -4,11 +4,12 @@ import random
 import unittest
 from fractions import Fraction
 
-import config
+from app import config
 import seed
-from app import auth, database, ent_logic, generators
+from app import generators
+from app.core import auth, database, ent_logic
 from app.generators.common import num, plural, space_thousands
-from app.question_bank import validate_question
+from app.core.question_bank import validate_question
 from tests.base import DatabaseTestCase
 
 

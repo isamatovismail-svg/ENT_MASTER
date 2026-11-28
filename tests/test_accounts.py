@@ -11,9 +11,9 @@ import time
 import urllib.parse
 from unittest import mock
 
-import config
-from app import auth, database, google_auth, mailer
-from app.server import create_server
+from app import config
+from app.core import auth, database, google_auth, mailer
+from app.web.server import create_server
 from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser

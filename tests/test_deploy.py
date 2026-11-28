@@ -13,10 +13,10 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
-import backup
-import config
-from app import ads, auth, database, ent_logic
-from app.server import create_server, parse_multipart
+from app import config
+from app.core import ads, auth, database, ent_logic
+from app.web.server import create_server, parse_multipart
+from server import backup
 from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser
@@ -24,7 +24,8 @@ from tests.test_pages import Browser
 PNG = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4   # «картинка»: сигнатура PNG + любые байты
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00\xff" * 100
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
-DEPLOY_DIR = config.BASE_DIR / "deploy"
+SERVER_DIR = config.BASE_DIR / "server"
+UNITS_DIR = SERVER_DIR / "systemd"
 
 
 def multipart(fields: dict, files: dict[str, tuple[str, str, bytes]]) -> tuple[bytes, str]:
@@ -63,7 +64,7 @@ class ConfigTests(DatabaseTestCase):
         """HOST, PORT, DATABASE_PATH, COOKIE_SECURE и BACKUP_* читаются из окружения."""
         env = {**os.environ, "HOST": "0.0.0.0", "PORT": "8080", "DATABASE_PATH": "/tmp/x.sqlite3",
                "COOKIE_SECURE": "1", "BACKUP_DIR": "/tmp/b", "BACKUP_KEEP": "3"}
-        code = ("import config; print(config.HOST, config.PORT, config.DATABASE_PATH, config.COOKIE_SECURE, "
+        code = ("from app import config; print(config.HOST, config.PORT, config.DATABASE_PATH, config.COOKIE_SECURE, "
                 "config.BACKUP_DIR, config.BACKUP_KEEP)")
         result = subprocess.run([sys.executable, "-c", code], cwd=config.BASE_DIR, env=env,
                                 capture_output=True, text=True, check=True)
@@ -75,7 +76,7 @@ class ConfigTests(DatabaseTestCase):
         self.assertNotIn("Secure", auth.start_session(user_id))
         with mock.patch.object(config, "COOKIE_SECURE", True):
             self.assertIn("Secure", auth.start_session(user_id))
-            from app import account_views
+            from app.web import account_views
             self.assertIn("Secure", account_views._state_cookie("x", 60))
 
 
@@ -304,18 +305,21 @@ class DeployFilesTests(DatabaseTestCase):
 
     def test_units_and_scripts(self) -> None:
         """Службы запускают существующие скрипты проекта; Caddy проксирует на адрес сайта."""
-        for unit, script in (("ent-master-site.service", "main.py"), ("ent-master-bot.service", "bot.py"),
-                             ("ent-master-backup.service", "backup.py")):
-            text = (DEPLOY_DIR / unit).read_text(encoding="utf-8")
-            self.assertIn(f"/opt/ent-master/{script}", text)
+        for unit, command, script in (
+                ("ent-master-site.service", "/opt/ent-master/run.py site", "run.py"),
+                ("ent-master-bot.service", "/opt/ent-master/run.py bot", "run.py"),
+                ("ent-master-backup.service", "-m server.backup", "server/backup.py")):
+            text = (UNITS_DIR / unit).read_text(encoding="utf-8")
+            self.assertIn(command, text)
+            self.assertIn("WorkingDirectory=/opt/ent-master", text)
             self.assertTrue((config.BASE_DIR / script).is_file(), script)
             self.assertIn("User=ent", text)
             self.assertIn("NoNewPrivileges=yes", text)
-        self.assertIn("OnCalendar=", (DEPLOY_DIR / "ent-master-backup.timer").read_text(encoding="utf-8"))
-        caddy = (DEPLOY_DIR / "Caddyfile").read_text(encoding="utf-8")
+        self.assertIn("OnCalendar=", (UNITS_DIR / "ent-master-backup.timer").read_text(encoding="utf-8"))
+        caddy = (SERVER_DIR / "Caddyfile").read_text(encoding="utf-8")
         self.assertIn(f"reverse_proxy {config.HOST}:{config.PORT}", caddy)
         for script in ("setup.sh", "update.sh"):
-            subprocess.run(["bash", "-n", str(DEPLOY_DIR / script)], check=True)
+            subprocess.run(["bash", "-n", str(SERVER_DIR / script)], check=True)
 
     def test_backups_are_not_committed(self) -> None:
         """Резервные копии и .env не попадают в git."""

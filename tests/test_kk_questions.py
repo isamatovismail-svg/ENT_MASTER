@@ -12,8 +12,8 @@ import re
 import unittest
 from collections import Counter
 
-import config
-from app.question_bank import validate_question
+from app import config
+from app.core.question_bank import validate_question
 
 KK_DIR = config.QUESTIONS_DIR / "kk"
 CYRILLIC = re.compile("[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]")

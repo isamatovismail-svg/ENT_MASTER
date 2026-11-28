@@ -1,0 +1,32 @@
+# Сайт ENT MASTER: python3 run.py site на 127.0.0.1:8000, снаружи — через Caddy (HTTPS).
+# Установка: server/setup.sh копирует файл в /etc/systemd/system/.
+[Unit]
+Description=ENT MASTER — сайт подготовки к ЕНТ
+After=network-online.target
+Wants=network-online.target
+# Если служба падает 5 раз за 10 минут, systemd перестаёт её перезапускать —
+# тогда главному администратору уходит оповещение «не работает» (ent-master-alert@).
+StartLimitIntervalSec=600
+StartLimitBurst=5
+OnFailure=ent-master-alert@%n.service
+
+[Service]
+Type=simple
+User=ent
+Group=ent
+WorkingDirectory=/opt/ent-master
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/ent-master/run.py site
+Restart=on-failure
+# После каждой остановки: если это сбой, а не обычная остановка, — сообщение в Telegram.
+ExecStopPost=/usr/bin/python3 -m server.notify stopped %n
+RestartSec=3
+# Защита: процесс не получает новых прав и может писать только в свою папку и папку копий.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/ent-master /var/backups/ent-master
+
+[Install]
+WantedBy=multi-user.target

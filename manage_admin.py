@@ -14,7 +14,7 @@
 
 import sys
 
-from app import auth, database, schools
+from app.core import auth, database, schools
 
 
 def main(argv: list[str]) -> int:

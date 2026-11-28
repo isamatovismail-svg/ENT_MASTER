@@ -12,7 +12,7 @@ import random
 import re
 from fractions import Fraction
 
-import config
+from app import config
 
 MINUS = "−"  # типографский минус, как в остальных вопросах банка
 

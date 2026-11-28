@@ -7,10 +7,12 @@ import unittest
 from datetime import date, timedelta
 from html import unescape
 
-import config
-from app import auth, database, ent_logic, i18n, i18n_keys, notifications, schools
-from app.server import create_server
-from app.templates import fragment, render
+from app import config
+from app import i18n
+from app.core import auth, database, ent_logic, notifications, schools
+from app.i18n import keys as i18n_keys
+from app.web.server import create_server
+from app.web.render import fragment, render
 from tests.base import DatabaseTestCase
 from tests.test_pages import CSRF_RE, Browser
 

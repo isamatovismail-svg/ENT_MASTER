@@ -78,51 +78,67 @@ tashqi paket yoki JavaScript ishlatilmagan.
 
 ```mermaid
 flowchart LR
-    B([Brauzer]) -->|HTTP| S[app/server.py<br/>ThreadingHTTPServer]
-    S --> A[app/auth.py<br/>sessiya, CSRF]
-    S --> R[app/router.py<br/>marshrutlar jadvali]
-    R --> V[app/views.py<br/>teacher_views, admin_views ...]
-    V --> T[app/templates.py + templates/*.html<br/>HTML, avtomatik ekranlash]
-    V --> I[app/i18n.py<br/>rus / qozoq lug‘ati]
-    V --> L[app/ent_logic.py<br/>test yig‘ish va baholash]
-    L --> D[(app/database.py<br/>SQLite)]
+    B([Brauzer]) -->|HTTP| S[app/web/server.py<br/>ThreadingHTTPServer]
+    S --> A[app/core/auth.py<br/>sessiya, CSRF]
+    S --> R[app/web/router.py<br/>marshrutlar jadvali]
+    R --> V[app/web/views.py<br/>teacher_views, admin_views ...]
+    V --> T[app/web/render.py + app/web/templates/*.html<br/>HTML, avtomatik ekranlash]
+    V --> I[app/i18n/<br/>rus / qozoq lug‘ati]
+    V --> L[app/core/ent_logic.py<br/>test yig‘ish va baholash]
+    L --> D[(app/core/database.py<br/>SQLite)]
     V --> D
-    TG([Telegram]) <-->|long polling| BOT[bot.py + app/telegram_bot.py]
+    TG([Telegram]) <-->|long polling| BOT[app/telegram_bot.py]
     BOT --> L
     G[app/generators/*<br/>savollar generatorlari] -->|seed.py| D
     J[data/questions/*.json<br/>data/questions/kk/*.json] -->|seed.py| D
 ```
 
+Loyiha papkalari:
+
+```text
+run.py            sayt va botni ishga tushirish (--share — internet orqali ko‘rsatish)
+seed.py           savollarni bazaga yuklash
+manage_admin.py   administrator va o‘qituvchi rollarini berish
+app/
+  config.py       ENT formati va barcha sozlamalar
+  core/           baza, test logikasi, avtorizatsiya, maktablar, bildirishnomalar
+  web/            HTTP-server, marshrutlar, sahifalar, templates/ va static/
+  i18n/           ikki tilli interfeys (rus / qozoq)
+  generators/     savollar generatorlari
+  telegram_bot.py Telegram-bot
+data/questions/   savollar (JSON), kk/ — qozoqcha
+server/           serverga joylash: systemd, Caddy, setup.sh, update.sh, zaxira nusxa, xabarlar, --share
+tests/            avtomatik testlar
+```
+
 | Fayl | Vazifasi |
 |---|---|
-| `main.py` | Bazani tayyorlaydi va saytni ishga tushiradi. |
-| `run.py` | Sayt va botni bitta buyruq bilan ishga tushiradi; `--share` — internet orqali ko‘rsatish (Cloudflare Quick Tunnel). |
-| `config.py` | ENT formatining yagona manbai: fanlar, topshiriq turlari bo‘yicha kvotalar, ballar, vaqt, juftliklar, tillar. |
+| `run.py` | Sayt va botni bitta buyruq bilan ishga tushiradi; `run.py site` / `run.py bot` — alohida; `--share` — internet orqali ko‘rsatish (Cloudflare Quick Tunnel). |
+| `app/config.py` | ENT formatining yagona manbai: fanlar, topshiriq turlari bo‘yicha kvotalar, ballar, vaqt, juftliklar, tillar. |
 | `seed.py` | JSON-savollarni tekshiradi va bazaga yuklaydi, generatorlar savollarini qo‘shadi, rus/qozoq jadvalini chiqaradi. |
-| `app/server.py` | HTTP-server: so‘rovni tahlil qiladi, statik fayllar, xavfsizlik sarlavhalari, xatolarni chiroyli sahifaga aylantiradi. |
-| `app/router.py` | URL → ishlovchi funksiya jadvali (`<int:id>` parametrlari bilan). |
-| `app/views.py` | O‘quvchi sahifalari: kabinet, sinov ENT, mashq, natija, tarix, profil, bildirishnomalar. |
-| `app/teacher_views.py` | O‘qituvchi kabineti: arizalar, o‘quvchilar jadvali, kartochka, topshiriqlar, savollar. |
-| `app/admin_views.py` | Administrator paneli. |
-| `app/ent_logic.py` | Testni yig‘ish (kvotalar, aralashtirish, o‘quvchi tili), baholash, server taymeri. |
-| `app/database.py` | Barcha SQL so‘rovlar (faqat parametrlangan), jadvallar va eski bazani yangilash (migratsiya). |
-| `app/auth.py` | Parollar (PBKDF2), sessiyalar, CSRF, pochta kodlari, telefonni normallashtirish. |
-| `app/i18n.py` | Ikki tilli interfeys: rus matni — kalit, qozoqcha — qiymat; shablonlarni avtomatik tarjima qilish. |
-| `app/templates.py` | `string.Template` asosidagi shablonlar; har bir qiymat HTML-ekranlanadi. |
-| `app/notifications.py` | Bildirishnomalar (🔔) va ularning Telegram’dagi nusxasi. |
-| `app/student_stats.py` | O‘qituvchi uchun o‘quvchilar statistikasi: davrlar, o‘zgarish, zaif fanlar, kunlik lenta. |
+| `app/web/server.py` | HTTP-server: so‘rovni tahlil qiladi, statik fayllar, xavfsizlik sarlavhalari, xatolarni chiroyli sahifaga aylantiradi. |
+| `app/web/router.py` | URL → ishlovchi funksiya jadvali (`<int:id>` parametrlari bilan). |
+| `app/web/views.py` | O‘quvchi sahifalari: kabinet, sinov ENT, mashq, natija, tarix, profil, bildirishnomalar. |
+| `app/web/teacher_views.py` | O‘qituvchi kabineti: arizalar, o‘quvchilar jadvali, kartochka, topshiriqlar, savollar. |
+| `app/web/admin_views.py` | Administrator paneli. |
+| `app/web/render.py` | `string.Template` asosidagi shablonlar; har bir qiymat HTML-ekranlanadi. |
+| `app/core/ent_logic.py` | Testni yig‘ish (kvotalar, aralashtirish, o‘quvchi tili), baholash, server taymeri. |
+| `app/core/database.py` | Barcha SQL so‘rovlar (faqat parametrlangan), jadvallar va eski bazani yangilash (migratsiya). |
+| `app/core/auth.py` | Parollar (PBKDF2), sessiyalar, CSRF, pochta kodlari, telefonni normallashtirish. |
+| `app/core/notifications.py` | Bildirishnomalar va ularning Telegram’dagi nusxasi. |
+| `app/core/student_stats.py` | O‘qituvchi uchun o‘quvchilar statistikasi: davrlar, o‘zgarish, zaif fanlar, kunlik lenta. |
+| `app/i18n/` | Ikki tilli interfeys: rus matni — kalit, qozoqcha (`kk.py`) — qiymat; shablonlarni avtomatik tarjima qilish. |
 | `app/generators/` | Hisob-kitob savollari shablonlari va faktlar jadvallaridan savollar (rus va qozoq tillarida). |
 | `app/telegram_bot.py` | Telegram-bot: faqat standart kutubxona (`urllib`). |
-| `templates/`, `static/style.css` | HTML-shablonlar va yagona CSS (yorug‘ va qorong‘i mavzu). |
 | `data/questions/` | Savollar JSON’da; `kk/` papkasida — ularning qozoqcha tarjimasi. |
-| `deploy/` | Serverga joylash: systemd xizmatlari, Caddy (HTTPS), zaxira nusxalar, nosozlik xabarlari. |
+| `server/` | Serverga joylash: systemd xizmatlari, Caddy (HTTPS), `setup.sh`, `update.sh`, zaxira nusxalar (`python3 -m server.backup`), nosozlik xabarlari (`python3 -m server.notify`), `--share` tunneli. |
 | `tests/` | Avtomatik testlar. |
 
 ---
 
 ## Ballar qanday hisoblanadi va test qanday yig‘iladi
 
-ENT formati `config.py` da kvotalar orqali tasvirlangan — umumiy sonlar qo‘lda yozilmaydi, kvotalardan hisoblanadi:
+ENT formati `app/config.py` da kvotalar orqali tasvirlangan — umumiy sonlar qo‘lda yozilmaydi, kvotalardan hisoblanadi:
 
 | Bo‘lim | Topshiriqlar | Ball |
 |---|---|---|
@@ -193,7 +209,7 @@ vaqtinchalik ommaviy havola katta qilib chiqadi — uni o‘qituvchiga yuboring.
 terminalda **Ctrl+C** bosing: sayt, bot va tunnel birga to‘xtaydi. Buning uchun bir marta Cloudflare’ning
 rasmiy `cloudflared` paketini o‘rnatish kerak.
 
-Doimiy serverga joylash (Ubuntu, systemd, Caddy orqali HTTPS, zaxira nusxalar) — `deploy/` papkasida.
+Doimiy serverga joylash (Ubuntu, systemd, Caddy orqali HTTPS, zaxira nusxalar) — `server/` papkasida.
 
 ---
 

@@ -1,7 +1,7 @@
 """Тесты регистрации, входа, хеширования паролей и сессий."""
 
-from app import auth, database
-from app.web import Request
+from app.core import auth, database
+from app.web.http import Request
 from tests.base import DatabaseTestCase
 
 

@@ -2,9 +2,9 @@
 
 import unittest
 
-import config
-from app import database, ent_logic
-from app.database import AttemptQuestion
+from app import config
+from app.core import database, ent_logic
+from app.core.database import AttemptQuestion
 
 
 def make_question(

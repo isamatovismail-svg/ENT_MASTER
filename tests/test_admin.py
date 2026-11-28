@@ -6,10 +6,10 @@ import re
 import threading
 from urllib.parse import urlencode
 
-import config
+from app import config
 import manage_admin
-from app import database, ent_logic
-from app.server import create_server
+from app.core import database, ent_logic
+from app.web.server import create_server
 from tests.base import DatabaseTestCase
 from tests import test_pages
 from tests.test_pages import Browser
@@ -29,7 +29,7 @@ class ManageAdminTests(DatabaseTestCase):
 
     def test_grant_and_revoke(self) -> None:
         """Назначение и снятие роли; логин нормализуется как при входе."""
-        from app import auth
+        from app.core import auth
         auth.create_account("Админ", "boss@mail.kz", "password1")
         code, text = self.run_command("boss@mail.KZ")
         self.assertEqual(code, 0, text)

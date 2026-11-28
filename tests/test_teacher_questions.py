@@ -3,10 +3,10 @@
 import threading
 import time
 
-import config
-from app import auth, database, ent_logic, schools
-from app.database import Question
-from app.server import create_server
+from app import config
+from app.core import auth, database, ent_logic, schools
+from app.core.database import Question
+from app.web.server import create_server
 from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser

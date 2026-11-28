@@ -13,10 +13,10 @@ import urllib.request
 
 from html import escape as html_escape
 
-import config
+from app import config
 import seed
-from app import database, ent_logic
-from app.server import create_server
+from app.core import database, ent_logic
+from app.web.server import create_server
 from tests.base import DatabaseTestCase, FakeMailer
 
 CSRF_RE = re.compile(r'name="csrf_token" value="([^"]+)"')

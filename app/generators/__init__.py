@@ -8,8 +8,8 @@
 
 import random
 
-import config
-from app.question_bank import validate_question
+from app import config
+from app.core.question_bank import validate_question
 from app.generators import (
     biology_gen, chemistry_gen, foreign_language_gen, geography_gen, informatics_gen, kazakh_language_gen,
     kazakh_literature_gen, kz_history_gen, law_gen, math_gen, math_literacy_gen, physics_gen,

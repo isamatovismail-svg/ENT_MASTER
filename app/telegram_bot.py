@@ -21,9 +21,10 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlsplit
 
-import config
-from app import auth, database, ent_logic, i18n, notifications
-from app.database import Attempt, AttemptQuestion, User
+from app import config
+from app import i18n
+from app.core import auth, database, ent_logic, notifications
+from app.core.database import Attempt, AttemptQuestion, User
 from app.i18n import t
 
 logger = logging.getLogger(__name__)
@@ -633,3 +634,35 @@ def run_polling(api: TelegramAPI, max_cycles: int | None = None,
                 bot.handle_update(update)
             except Exception:  # одно сломанное обновление не должно ронять бота
                 logger.exception("Ошибка при обработке обновления %s", update.get("update_id"))
+
+
+def serve() -> int:
+    """Проверяет токен и запускает бота (long polling) до нажатия Ctrl+C."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if not config.TELEGRAM_BOT_TOKEN:
+        print(
+            "Нет токена бота. Создайте файл .env в папке проекта (образец — .env.example):\n"
+            "    TELEGRAM_BOT_TOKEN=123456789:ABC...\n"
+            "Токен выдаёт @BotFather в Telegram (команда /newbot)."
+        )
+        return 1
+    database.init_db()
+    if not database.question_counts():
+        logger.warning("Банк вопросов пуст. Загрузите вопросы командой: python seed.py")
+    api = TelegramAPI(config.TELEGRAM_BOT_TOKEN)
+    try:
+        me = api.call("getMe")
+        api.call("setMyCommands", commands=BOT_COMMANDS)
+        api.call("setMyCommands", commands=bot_commands("kk"), language_code="kk")
+        logger.info("Бот @%s запущен. Ссылки входа ведут на %s (остановить: Ctrl+C)",
+                    me.get("username"), config.SITE_URL)
+        run_polling(api)
+    except KeyboardInterrupt:
+        logger.info("Бот остановлен.")
+    except TelegramError as error:
+        print(f"Telegram отклонил запрос (проверьте токен в .env): {error}")
+        return 1
+    except OSError as error:
+        print(f"Нет связи с Telegram: {error}")
+        return 1
+    return 0

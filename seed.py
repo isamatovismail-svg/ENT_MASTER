@@ -12,9 +12,10 @@ import json
 import sys
 from pathlib import Path
 
-import config
-from app import database, generators
-from app.question_bank import validate_question
+from app import config
+from app import generators
+from app.core import database
+from app.core.question_bank import validate_question
 
 
 def load_file(path: Path, language: str = "ru") -> tuple[int, list[str]]:

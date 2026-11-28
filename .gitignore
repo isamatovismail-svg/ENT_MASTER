@@ -31,3 +31,6 @@ demo_accounts.py
 
 # Локальные заметки (прежний подробный README на русском и т. п.)
 docs-local/
+
+# Установочные пакеты (cloudflared и т. п.)
+*.deb

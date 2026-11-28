@@ -4,11 +4,12 @@ import json
 import threading
 import time
 
-import config
+from app import config
 import seed
-from app import auth, database, ent_logic, generators, schools, topics
-from app.question_bank import validate_question
-from app.server import create_server
+from app import generators
+from app.core import auth, database, ent_logic, schools, topics
+from app.core.question_bank import validate_question
+from app.web.server import create_server
 from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser

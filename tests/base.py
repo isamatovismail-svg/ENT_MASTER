@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import config
-from app import database, mailer, notifications
+from app import config
+from app.core import database, mailer, notifications
 
 CODE_RE = re.compile(r"\b(\d{6})\b")
 

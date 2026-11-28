@@ -10,9 +10,9 @@ import urllib.error
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import config
-from app import auth, database, ent_logic
-from app.server import create_server
+from app import config
+from app.core import auth, database, ent_logic
+from app.web.server import create_server
 from app.telegram_bot import Bot, TelegramAPI, TelegramError, run_polling
 from tests import test_pages
 from tests.base import DatabaseTestCase

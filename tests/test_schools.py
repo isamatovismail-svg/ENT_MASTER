@@ -6,10 +6,10 @@ import threading
 import time
 from datetime import date, timedelta
 
-import config
+from app import config
 import manage_admin
-from app import auth, database, ent_logic, schools
-from app.server import create_server
+from app.core import auth, database, ent_logic, schools
+from app.web.server import create_server
 from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser
