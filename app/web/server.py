@@ -1,10 +1,4 @@
-"""HTTP-сервер на стандартной библиотеке: ThreadingHTTPServer + обработчик запросов.
-
-Обработчик разбирает запрос (путь, параметры, форму, cookie), определяет
-пользователя по сессии, передаёт запрос маршрутизатору и отправляет ответ.
-Любая непредвиденная ошибка записывается в лог, а пользователь видит
-аккуратную страницу «Что-то пошло не так» без трейсбека.
-"""
+"""HTTP-сервер на стандартной библиотеке: ThreadingHTTPServer + обработчик запросов."""
 
 import logging
 import mimetypes
@@ -26,8 +20,6 @@ from app.i18n import t
 
 logger = logging.getLogger(__name__)
 
-# Заголовки безопасности для каждого ответа. CSP запрещает любые скрипты
-# и внешние ресурсы: страницы используют только свой CSS.
 SECURITY_HEADERS = (
     ("X-Content-Type-Options", "nosniff"),
     ("X-Frame-Options", "DENY"),
@@ -40,8 +32,6 @@ SECURITY_HEADERS = (
 )
 
 
-# Первый байт TLS-рукопожатия (ClientHello). Так начинается запрос, если браузер
-# открыл https:// на нашем http-сервере.
 TLS_HANDSHAKE_BYTE = 0x16
 TLS_WARNING_INTERVAL_SECONDS = 60
 _tls_warning_lock = threading.Lock()
@@ -59,7 +49,6 @@ def https_hint() -> str:
 
 
 def _warn_https_attempt() -> None:
-    """Пишет подсказку про https в лог, но не чаще раза в минуту (браузер шлёт много попыток)."""
     global _tls_warned_at
     with _tls_warning_lock:
         now = time.monotonic()
@@ -70,7 +59,6 @@ def _warn_https_attempt() -> None:
 
 
 def _parse_cookies(header: str) -> dict[str, str]:
-    """Разбирает заголовок Cookie. Повреждённый заголовок просто игнорируется."""
     cookie = SimpleCookie()
     try:
         cookie.load(header)
@@ -80,18 +68,14 @@ def _parse_cookies(header: str) -> dict[str, str]:
 
 
 def parse_multipart(content_type: str, body: bytes) -> tuple[dict[str, list[str]], dict[str, UploadedFile]]:
-    """Разбирает тело формы multipart/form-data: текстовые поля и файлы.
-
-    Используется email.parser (модуль cgi убран из Python 3.13). Повреждённое тело даёт
-    пустую форму — обработчик ответит ошибкой проверки (например, csrf).
-    """
+    """Разбирает тело формы multipart/form-data: текстовые поля и файлы."""
     form: dict[str, list[str]] = {}
     files: dict[str, UploadedFile] = {}
     header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("latin-1", "replace")
     try:
         message = BytesParser(policy=HTTP).parsebytes(header + body)
         parts = list(message.iter_parts()) if message.is_multipart() else []
-    except Exception:  # noqa: BLE001 — любой мусор во входных данных = пустая форма
+    except Exception:
         return {}, {}
     for part in parts:
         name = part.get_param("name", header="content-disposition")
@@ -137,16 +121,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             return False
         return super().parse_request()
 
-    def do_GET(self) -> None:  # noqa: N802 (имя задано BaseHTTPRequestHandler)
+    def do_GET(self) -> None:
         """Обработка GET-запросов."""
         self._handle("GET")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         """Обработка POST-запросов (отправка форм)."""
         self._handle("POST")
 
     def _handle(self, method: str) -> None:
-        """Строит ответ и отправляет его; ошибки превращаются в страницу 500."""
         try:
             response = self._build_response(method)
         except Exception:
@@ -155,9 +138,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._send(response)
 
     def _build_response(self, method: str) -> Response:
-        """Разбирает запрос и передаёт его маршрутизатору."""
         url = urlsplit(self.path)
-        i18n.set_language(i18n.DEFAULT)  # поток мог остаться с языком прошлого запроса
+        i18n.set_language(i18n.DEFAULT)
         if method == "GET" and url.path.startswith("/static/"):
             return serve_static(url.path.removeprefix("/static/"))
 
@@ -192,12 +174,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         return router.dispatch(request)
 
     def _send(self, response: Response) -> None:
-        """Отправляет статус, заголовки и тело ответа."""
         self.send_response(response.status)
         self.send_header("Content-Type", response.content_type)
         self.send_header("Content-Length", str(len(response.body)))
         if response.content_type.startswith("text/html"):
-            # Личные страницы не кэшируем: после выхода «Назад» их не покажет.
             self.send_header("Cache-Control", "no-store")
         for name, value in SECURITY_HEADERS:
             self.send_header(name, value)
@@ -206,7 +186,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response.body)
 
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: object) -> None:
         """Пишет журнал запросов через logging вместо stderr."""
         logger.info("%s - %s", self.address_string(), format % args)
 

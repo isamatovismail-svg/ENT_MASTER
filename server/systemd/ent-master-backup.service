@@ -1,7 +1,5 @@
-# Резервная копия базы (python3 -m server.backup). Запускается таймером ent-master-backup.timer.
 [Unit]
 Description=ENT MASTER — резервная копия базы SQLite
-# Копия не создалась или не отправилась — оповещение главному администратору.
 OnFailure=ent-master-alert@%n.service
 
 [Service]
@@ -9,7 +7,6 @@ Type=oneshot
 User=ent
 Group=ent
 WorkingDirectory=/opt/ent-master
-# Копия сохраняется на сервере и отправляется файлом главному администратору в Telegram.
 ExecStart=/usr/bin/python3 -m server.backup --telegram
 NoNewPrivileges=yes
 PrivateTmp=yes

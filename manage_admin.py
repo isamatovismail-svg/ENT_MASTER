@@ -1,5 +1,10 @@
-"""Назначение ролей: главный администратор и учитель школы.
+"""Назначение ролей: главный администратор и учитель школы."""
 
+import sys
+
+from app.core import auth, database, schools
+
+USAGE = """\
 Запуск:
     python manage_admin.py <логин>                            — сделать администратором
     python manage_admin.py <логин> --teacher <город> <школа>  — сделать учителем школы
@@ -12,10 +17,6 @@
 Пользователь должен быть уже зарегистрирован на сайте.
 """
 
-import sys
-
-from app.core import auth, database, schools
-
 
 def main(argv: list[str]) -> int:
     """Меняет роль пользователя. Код возврата 0 — успех, 1 — ошибка."""
@@ -27,7 +28,7 @@ def main(argv: list[str]) -> int:
     elif len(args) == 1 and not args[0].startswith("--"):
         mode = "admin"
     else:
-        print(__doc__.strip())
+        print(USAGE.strip())
         return 1
 
     login = auth.normalize_login(args[0])

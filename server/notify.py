@@ -1,22 +1,20 @@
-"""Оповещения главному администратору в Telegram (вызываются systemd на сервере).
-
-Запуск:
-    python -m server.notify test               — пробное сообщение (проверить токен и получателя)
-    python -m server.notify stopped <служба>   — служба остановилась (ExecStopPost; берёт причину
-                                          из переменных SERVICE_RESULT, EXIT_CODE, EXIT_STATUS,
-                                          обычная остановка сообщения не вызывает)
-    python -m server.notify failed <служба>    — служба окончательно упала (OnFailure)
-    python -m server.notify healthcheck        — проверить, что сайт отвечает (таймер каждые 5 минут)
-
-Получатели — ADMIN_TELEGRAM_CHAT_ID из .env или главные администраторы, привязавшие Telegram.
-Код возврата всегда 0 (кроме неверных аргументов): оповещение не должно ломать службы.
-"""
+"""Оповещения главному администратору в Telegram (вызываются systemd на сервере)."""
 
 import logging
 import os
 import sys
 
 from server import alerts
+
+USAGE = """\
+Запуск:
+    python -m server.notify test              — пробное сообщение (проверить токен и получателя)
+    python -m server.notify stopped <служба>  — служба остановилась (ExecStopPost; обычная остановка молчит)
+    python -m server.notify failed <служба>   — служба окончательно упала (OnFailure)
+    python -m server.notify healthcheck       — проверить, что сайт отвечает (таймер каждые 5 минут)
+
+Получатели — ADMIN_TELEGRAM_CHAT_ID из .env или главные администраторы, привязавшие Telegram.
+"""
 
 
 def main(argv: list[str]) -> int:
@@ -34,7 +32,7 @@ def main(argv: list[str]) -> int:
     elif command == "healthcheck":
         print(f"Сайт: {alerts.healthcheck()}")
     else:
-        print(__doc__.strip())
+        print(USAGE.strip())
         return 2
     return 0
 

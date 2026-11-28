@@ -21,7 +21,7 @@ from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser
 
-PNG = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4   # «картинка»: сигнатура PNG + любые байты
+PNG = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00\xff" * 100
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
 SERVER_DIR = config.BASE_DIR / "server"
@@ -94,7 +94,7 @@ class BackupTests(DatabaseTestCase):
         restored.write_bytes(gzip.decompress(made[-1].read_bytes()))
         with sqlite3.connect(restored) as connection:
             self.assertEqual(connection.execute("SELECT login FROM users").fetchone()[0], "ali@mail.kz")
-        self.assertFalse(list(target.glob("*.sqlite3")))  # несжатых промежуточных файлов нет
+        self.assertFalse(list(target.glob("*.sqlite3")))
 
     def test_missing_database(self) -> None:
         """Нет базы — понятная ошибка и код возврата 1."""
@@ -232,7 +232,6 @@ class BannerPagesTests(DatabaseTestCase):
         _, _, html, _ = admin.get("/admin/banners/new")
         self.assertIn('enctype="multipart/form-data"', html)
 
-        # Без csrf — отказ; SVG — ошибка формы.
         fields = self.banner_fields(html)
         status, _, _ = post_multipart(admin, "/admin/banners/new", {**fields, "csrf_token": "x"},
                                       {"image": ("a.png", "image/png", PNG)})
@@ -265,12 +264,10 @@ class BannerPagesTests(DatabaseTestCase):
         self.assertEqual((row["impressions"], row["clicks"]), (1, 1))
         self.assertEqual(Browser(self.base_url).get("/ad/999")[0], 404)
 
-        # Ученик видит баннер в кабинете (место «dashboard»), но не в разделе истории.
         student = self.login("student@mail.kz")
         self.assertIn(f"/ad/{banner_id}/image", student.get("/dashboard")[2])
         self.assertNotIn("ad-banner", student.get("/history")[2])
 
-        # Изменение без новой картинки: выключаем — баннер пропадает с главной.
         _, _, html, _ = admin.get(f"/admin/banners/{banner_id}/edit")
         self.assertIn("Загрузите новый файл, только если", html)
         fields = self.banner_fields(html, title="Новое название")

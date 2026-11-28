@@ -146,7 +146,7 @@ def currency(rng: random.Random) -> dict:
 @topic("09")
 def tiles(rng: random.Random) -> dict:
     length, width = rng.randint(2, 8), rng.randint(2, 6)
-    tile = rng.choice([(50, 4), (25, 16), (20, 25)])  # (сторона в см, плиток на 1 м²)
+    tile = rng.choice([(50, 4), (25, 16), (20, 25)])
     side, per_m2 = tile
     area = length * width
     answer = area * per_m2
@@ -255,8 +255,6 @@ def reading_pages(rng: random.Random) -> dict:
     wrong = [days - 1, days + 1, pages - per_day, days * 2]
     return single(rng, text, num(days), number_distractors(rng, days, wrong), expl)
 
-
-# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
 
 _MONTHS = ["январе", "феврале", "марте", "апреле", "мае", "июне"]
 

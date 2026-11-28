@@ -1,10 +1,4 @@
-"""Генераторы вопросов: тысячи расчётных задач по шаблонам.
-
-Каждый модуль предмета содержит словарь TEMPLATES {тип задания: [функции]}.
-Функция-шаблон принимает random.Random и возвращает готовый вопрос.
-У каждого вопроса есть тема спецификации НЦТ (topic): у расчётных шаблонов —
-из декоратора @topic, у шаблонов по таблицам — из строки таблицы (Event/Fact/Category).
-"""
+"""Генераторы вопросов: тысячи расчётных задач по шаблонам."""
 
 import random
 
@@ -17,7 +11,6 @@ from app.generators import (
 )
 from app.generators.common import SkipQuestion, polish
 
-# Предмет → шаблоны по типам заданий.
 SUBJECT_TEMPLATES = {
     "math": math_gen.TEMPLATES,
     "math_literacy": math_literacy_gen.TEMPLATES,
@@ -36,10 +29,7 @@ SUBJECT_TEMPLATES = {
     "foreign_language": foreign_language_gen.TEMPLATES,
 }
 
-# Казахские версии шаблонов (app/generators/kk_*.py) — для предметов, вопросы которых зависят
-# от языка обучения. У предметов со своим языком (казахский/русский язык и литература) и у
-# общего иностранного языка одна версия.
-from app.generators import kk_gen  # noqa: E402
+from app.generators import kk_gen
 
 KK_TEMPLATES = kk_gen.TEMPLATES
 
@@ -51,25 +41,16 @@ def templates_for(subject: str, lang: str = "ru") -> dict:
     return SUBJECT_TEMPLATES[subject]
 
 
-# Расчётные предметы: в них большие числа разбиваются пробелами (18 480).
-# В остальных числа — это обычно годы, их трогать нельзя (1771, а не 1 771).
 NUMERIC_SUBJECTS = {"math", "math_literacy", "physics", "chemistry", "informatics"}
 
-# Сколько вопросов каждого типа создавать по умолчанию.
 DEFAULT_COUNTS = {"single": 600, "context": 120, "matching": 120, "multiple": 120}
 
 
 def generate(subject: str, qtype: str, count: int, seed: int = 2026, lang: str = "ru") -> list[dict]:
-    """Создаёт до count разных вопросов (тексты не повторяются).
-
-    seed делает результат воспроизводимым: повторный запуск даёт те же вопросы,
-    и seed.py не наплодит дубликатов. Шаблоны используются по очереди,
-    чтобы задачи были разнообразными.
-    """
+    """Создаёт до count разных вопросов (тексты не повторяются)."""
     templates = templates_for(subject, lang).get(qtype, [])
     if not templates:
         return []
-    # У русской версии ключ генератора прежний — уже загруженные задачи не меняются.
     rng = random.Random(f"{seed}:{subject}:{qtype}" + ("" if lang == "ru" else f":{lang}"))
     questions: list[dict] = []
     seen: set[str] = set()
@@ -83,26 +64,24 @@ def generate(subject: str, qtype: str, count: int, seed: int = 2026, lang: str =
             continue
         try:
             question = templates[number](rng)
-            # Тема: шаблон таблицы ставит её сам (по строке таблицы), расчётный — декоратором @topic.
             question.setdefault("topic", getattr(templates[number], "topic", ""))
             if subject in NUMERIC_SUBJECTS:
                 question = polish(question)
         except (SkipQuestion, ZeroDivisionError):
-            misses[number] += 1  # шаблон, который всё время пропускает, тоже считается исчерпанным
+            misses[number] += 1
             if misses[number] > 200:
                 exhausted.add(number)
             continue
         if len(set(question["options"])) != len(question["options"]):
-            continue  # после оформления два варианта могли совпасть
-        # В базе вопрос уникален по (предмет, текст), поэтому тексты не должны повторяться.
+            continue
         key = question["text"]
         if key in seen:
             misses[number] += 1
-            if misses[number] > 200:  # шаблон исчерпал свои варианты
+            if misses[number] > 200:
                 exhausted.add(number)
             continue
         problems = validate_question(question, subject)
-        if problems:  # защита от ошибок в шаблонах
+        if problems:
             raise ValueError(f"{templates[number].__name__}: {problems}")
         misses[number] = 0
         seen.add(key)

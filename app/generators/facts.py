@@ -1,13 +1,4 @@
-"""Шаблоны для предметов «на знание фактов»: история, география, биология, право, литература.
-
-Код не придумывает факты — он берёт их из таблиц (их проверяет человек) и собирает
-из одной таблицы много разных вопросов. Неправильные варианты берутся из соседних
-строк той же таблицы, поэтому они правдоподобные.
-
-Таблицы:
-  Event(year, clause, noun) — «В каком году {clause}?» и «Какое событие произошло в {year} году?»
-  Fact(name, about, who, what) — «{who}» → name и «{what}» → about.
-"""
+"""Шаблоны для предметов «на знание фактов»: история, география, биология, право, литература."""
 
 import random
 from dataclasses import dataclass, replace
@@ -16,7 +7,6 @@ from typing import Callable
 from app.generators.common import SkipQuestion, matching, multiple, single
 
 
-# Служебные фразы шаблонов на языке предмета: русский, казахский, английский.
 PHRASES = {
     "ru": {"match": "Установите соответствие {title}: 1) {a}; 2) {b}.",
            "right": "Подходят: ",
@@ -47,24 +37,15 @@ class Event:
     """Событие с датой."""
 
     year: int
-    clause: str   # продолжение вопроса «В каком году …?»: «было образовано Казахское ханство»
-    noun: str     # название события: «Образование Казахского ханства»
-    note: str = ""  # пояснение для объяснения (по желанию)
-    topic: str = ""  # номер темы спецификации НЦТ (app/topics.py)
+    clause: str
+    noun: str
+    note: str = ""
+    topic: str = ""
 
 
 @dataclass(frozen=True)
 class Fact:
-    """Факт «имя — описание» с двумя формулировками вопроса.
-
-    name     — кто или что: «Тауке-хан», «Туркестан».
-    about    — чем известен, короткой фразой: «свод законов «Жеті жарғы»».
-    who      — вопрос, ответ на который name: «При каком хане был составлен свод «Жеті жарғы»?»
-    what     — вопрос, ответ на который about: «С каким документом связано имя Тауке-хана?»
-               (пустая строка — такого вопроса нет).
-    group    — варианты берутся только из той же группы (ханы к ханам, города к городам).
-    note     — объяснение, почему ответ верный.
-    """
+    """Факт «имя — описание» с двумя формулировками вопроса."""
 
     name: str
     about: str
@@ -72,7 +53,7 @@ class Fact:
     what: str = ""
     group: str = ""
     note: str = ""
-    topic: str = ""  # номер темы спецификации НЦТ (app/topics.py)
+    topic: str = ""
 
 
 def with_topic(question: dict, code: str) -> dict:
@@ -82,16 +63,11 @@ def with_topic(question: dict, code: str) -> dict:
 
 
 def set_topics(items: list, rule) -> list:
-    """Проставляет темы строкам таблицы: rule(строка) → номер темы.
-
-    Так тема задаётся одним правилом (например, по году события), а не в каждой строке.
-    Строка, у которой тема уже указана, не меняется.
-    """
+    """Проставляет темы строкам таблицы: rule(строка) → номер темы."""
     return [item if item.topic else replace(item, topic=rule(item)) for item in items]
 
 
 def _year_options(rng: random.Random, events: list[Event], target: Event) -> list[str]:
-    """Неправильные годы: даты других событий неподалёку и годы рядом с правильным."""
     others = sorted({e.year for e in events if e.year != target.year},
                     key=lambda y: abs(y - target.year))[:8]
     near = [target.year + d for d in (-10, -5, -3, -2, 2, 3, 5, 10)]
@@ -113,7 +89,6 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
 
     def year_to_event(rng: random.Random) -> dict:
         event = rng.choice(events)
-        # Неправильные варианты — события других лет, иначе было бы два верных ответа.
         candidates = [e for e in events if abs(e.year - event.year) >= 3]
         candidates.sort(key=lambda e: abs(e.year - event.year))
         wrong_events = rng.sample(candidates[:12], 3)
@@ -125,7 +100,6 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
                                  [e.noun for e in wrong_events], explanation), event.topic)
 
     def chronology_multiple(rng: random.Random) -> dict:
-        # Век года y: (y − 1) // 100 + 1, т.е. XIX век — это 1801–1900 годы.
         index = rng.choice(sorted({(e.year - 1) // 100 for e in events}))
         inside = [e for e in events if (e.year - 1) // 100 == index]
         outside = [e for e in events if (e.year - 1) // 100 != index]
@@ -156,12 +130,10 @@ def event_templates(events: list[Event]) -> tuple[list[Callable], list[Callable]
 
 
 def _lower_first(text: str) -> str:
-    """Первая буква строчная, остальные как были: «Открытие Америки» → «открытие Америки»."""
     return text[:1].lower() + text[1:]
 
 
 def _century(start: int) -> str:
-    """Римская запись века для года-начала столетия (1800 → XIX)."""
     number = start // 100 + 1
     romans = [(10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
     result = ""
@@ -175,14 +147,7 @@ def _century(start: int) -> str:
 def fact_templates(facts: list[Fact], titles: dict[str, str],
                    what_phrases: dict[str, str] | None = None,
                    lang: str = "ru") -> tuple[list[Callable], list[Callable]]:
-    """Шаблоны по таблице фактов: (один ответ, соответствие).
-
-    titles — заголовки заданий на соответствие по группам:
-    {"хан": "между ханом и связанным с ним событием"}.
-    what_phrases — общая формулировка вопроса «чем известен» для группы, например
-    {"деятель": "Чем известен в истории деятель {name}?"}. Она заменяет fact.what,
-    чтобы вопрос подходил ко всем вариантам ответа из группы.
-    """
+    """Шаблоны по таблице фактов: (один ответ, соответствие)."""
     what_phrases = what_phrases or {}
 
     def same_group(fact: Fact) -> list[Fact]:
@@ -214,8 +179,6 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
         if len(members) < 4:
             raise SkipQuestion
         picked = rng.sample(members, 4)
-        # У одного автора бывает несколько произведений: все четыре строки должны быть
-        # от разных «имён», иначе лишний вариант тоже оказался бы верным.
         if len({f.about for f in picked}) < 4 or len({f.name for f in picked}) < 4:
             raise SkipQuestion
         a, b = picked[0], picked[1]
@@ -234,11 +197,11 @@ def fact_templates(facts: list[Fact], titles: dict[str, str],
 class Category:
     """Группа для заданий «выберите все…»: вопрос, подходящие и неподходящие варианты."""
 
-    question: str            # «Какие из рек впадают в Каспийское море»
-    right: tuple[str, ...]   # подходящие
-    wrong: tuple[str, ...]   # неподходящие (правдоподобные)
-    note: str = ""           # общее объяснение правила
-    topic: str = ""          # номер темы спецификации НЦТ (app/topics.py)
+    question: str
+    right: tuple[str, ...]
+    wrong: tuple[str, ...]
+    note: str = ""
+    topic: str = ""
 
 
 def category_templates(categories: list[Category], lang: str = "ru") -> list[Callable]:
@@ -275,8 +238,6 @@ def context_templates(facts: list[Fact], lang: str = "ru") -> list[Callable]:
         return with_topic(single(rng, phrases["describe"].format(who=fact.who), fact.name, wrong,
                                  explanation, context=fact.note), fact.topic)
 
-    # «Описание» из одного названия произведения («Евгений Онегин») — не описание; такие строки пропускаем.
-    # Описание из одного-двух слов («sang») — тоже не описание.
     describable = [f for f in facts if not f.about.startswith("«") and len(f.about.split()) >= 3]
 
     def by_about(rng: random.Random) -> dict:
@@ -319,7 +280,7 @@ def build(events: list[Event] | None = None, facts: list[Fact] | None = None,
           lang: str = "ru") -> dict[str, list[Callable]]:
     """Собирает TEMPLATES профильного предмета из таблиц: все четыре типа заданий ЕНТ."""
     templates: dict[str, list[Callable]] = {"single": [], "context": [], "matching": [], "multiple": []}
-    if events:  # шаблоны событий пока только на русском
+    if events:
         single_t, multiple_t, matching_t = event_templates(events)
         templates["single"] += single_t
         templates["multiple"] += multiple_t

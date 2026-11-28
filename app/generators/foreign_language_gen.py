@@ -23,7 +23,6 @@ REGULAR = ["play", "watch", "help", "clean", "cook", "visit", "open", "listen", 
 
 
 def _regular_past(verb: str) -> str:
-    """Typical learner's mistake: adding -ed to an irregular verb."""
     if verb.endswith("e"):
         return verb + "d"
     if verb.endswith("y"):
@@ -211,11 +210,9 @@ CATEGORIES = [
              "Adjectives describe nouns; words ending in -ly here are adverbs."),
 ]
 
-# Темы спецификации НЦТ (app/topics.py): слова — лексика (01), формы слов и части речи — 03.
 CATEGORIES = [replace(cat, topic="03") for cat in CATEGORIES]
 FACTS = set_topics(FACTS, lambda fact: "01" if fact.group == "word" else "03")
 
-# Constructions and speech norms (spec topics 05 and 06).
 EXTRA_QUIZZES = [
     quiz([
         ("Choose the correct form: There ___ many books on the shelf.", "are", ["is", "be", "has"],

@@ -1,12 +1,3 @@
-/* ==========================================================================
-   ENT MASTER — единый стиль сайта (только CSS, без JavaScript).
-
-   • Цвета, тени и скругления — CSS-переменные в :root; тёмная тема
-     переопределяет их через prefers-color-scheme.
-   • У каждого предмета свой градиент: класс .subj-<код> задаёт --c1 и --c2.
-   • Атрибут style запрещён политикой CSP, поэтому всё динамическое
-     (цвет предмета, процент на кольце) задаётся классами.
-   ========================================================================== */
 
 :root {
   --bg: #f6f5ff;
@@ -82,8 +73,6 @@
   }
 }
 
-/* ── Цвета предметов ──────────────────────────────────────────────────────── */
-
 .subj-kz_history { --c1: #f59e0b; --c2: #dc2626; }
 .subj-math_literacy { --c1: #10b981; --c2: #0891b2; }
 .subj-reading_literacy { --c1: #8b5cf6; --c2: #db2777; }
@@ -102,8 +91,6 @@
 .subj-foreign_language { --c1: #6366f1; --c2: #db2777; }
 .subj-profile { --c1: #f59e0b; --c2: #db2777; }
 .subj-mock { --c1: #7c3aed; --c2: #db2777; }
-
-/* ── Основа ───────────────────────────────────────────────────────────────── */
 
 *,
 *::before,
@@ -213,8 +200,6 @@ a { color: var(--color-primary); }
   outline-offset: 2px;
 }
 
-/* ── Анимации появления ───────────────────────────────────────────────────── */
-
 @keyframes rise {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
@@ -251,7 +236,6 @@ a { color: var(--color-primary); }
 .feedback,
 .verdict { animation: pop 0.5s var(--ease) backwards; }
 
-/* Каскад: элементы сеток появляются по очереди. */
 :is(.stat-grid, .exam-grid, .features, .pair-grid, .subject-grid, .big-actions, .big-stats, .grid-2) > :nth-child(2) { animation-delay: 0.06s; }
 :is(.stat-grid, .exam-grid, .features, .pair-grid, .subject-grid, .big-actions, .big-stats, .grid-2) > :nth-child(3) { animation-delay: 0.12s; }
 :is(.stat-grid, .exam-grid, .features, .pair-grid, .subject-grid, .big-actions, .big-stats, .grid-2) > :nth-child(4) { animation-delay: 0.18s; }
@@ -269,8 +253,6 @@ a { color: var(--color-primary); }
     scroll-behavior: auto !important;
   }
 }
-
-/* ── Шапка и подвал ───────────────────────────────────────────────────────── */
 
 .site-header {
   position: sticky;
@@ -362,8 +344,6 @@ a { color: var(--color-primary); }
   gap: 8px;
   padding-block: 22px;
 }
-
-/* ── Кнопки ───────────────────────────────────────────────────────────────── */
 
 .btn {
   display: inline-flex;
@@ -479,8 +459,6 @@ a { color: var(--color-primary); }
   font-size: 0.75rem;
 }
 
-/* ── Карточки, плашки, уведомления ────────────────────────────────────────── */
-
 .card {
   position: relative;
   padding: 24px;
@@ -593,8 +571,6 @@ section + .card { margin-top: 20px; }
   color: var(--muted);
 }
 
-/* ── Прогресс-полосы и кольцо ─────────────────────────────────────────────── */
-
 progress {
   display: block;
   width: 100%;
@@ -645,8 +621,6 @@ progress::-moz-progress-bar {
 .p-50 { --p: 50; } .p-55 { --p: 55; } .p-60 { --p: 60; } .p-65 { --p: 65; } .p-70 { --p: 70; }
 .p-75 { --p: 75; } .p-80 { --p: 80; } .p-85 { --p: 85; } .p-90 { --p: 90; } .p-95 { --p: 95; }
 .p-100 { --p: 100; }
-
-/* ── Главная ──────────────────────────────────────────────────────────────── */
 
 .hero {
   display: grid;
@@ -906,8 +880,6 @@ progress::-moz-progress-bar {
 
 .cta-band p { opacity: 0.9; }
 
-/* ── Авторизация ──────────────────────────────────────────────────────────── */
-
 .auth {
   display: grid;
   place-items: center;
@@ -982,14 +954,11 @@ select:focus {
   text-align: center;
 }
 
-/* Имя и фамилия в одной строке; на узком экране — друг под другом. */
 .field-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
-
-/* ── Кабинет ──────────────────────────────────────────────────────────────── */
 
 .big-actions {
   display: grid;
@@ -1201,8 +1170,6 @@ select:focus {
 .grade-mid { background: var(--warning-soft); color: var(--warning); }
 .grade-low { background: var(--danger-soft); color: var(--danger); }
 
-/* ── Выбор пары и предмета ────────────────────────────────────────────────── */
-
 .compulsory { margin-bottom: 24px; }
 
 .avail-list {
@@ -1357,8 +1324,6 @@ select:focus {
   margin-top: 8px;
   font-weight: 700;
 }
-
-/* ── Прохождение теста ────────────────────────────────────────────────────── */
 
 .test-head {
   display: grid;
@@ -1652,8 +1617,6 @@ select:focus {
   box-shadow: none;
 }
 
-/* ── Тренировка ───────────────────────────────────────────────────────────── */
-
 .practice-head {
   display: grid;
   gap: 14px;
@@ -1756,8 +1719,6 @@ select:focus {
   font-size: 1.5rem;
   font-weight: 900;
 }
-
-/* ── Разбор: подсветка ответов ────────────────────────────────────────────── */
 
 .review-options {
   display: grid;
@@ -1862,8 +1823,6 @@ select:focus {
   font-weight: 800;
 }
 
-/* ── Результат ────────────────────────────────────────────────────────────── */
-
 .result-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
@@ -1953,7 +1912,6 @@ select:focus {
 .switch input:checked + .switch-track::after { transform: translateX(18px); background: #fff; }
 .switch input:focus-visible + .switch-track { outline: 3px solid color-mix(in srgb, var(--color-primary) 55%, transparent); }
 
-/* «Только ошибки»: скрыть верные задания и предметы без ошибок — без JavaScript. */
 body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
 
 .review-list {
@@ -2033,8 +1991,6 @@ body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
 .legend-partial::before { background: var(--warning); }
 .legend-wrong::before { background: var(--danger); }
 
-/* ── Таблицы ──────────────────────────────────────────────────────────────── */
-
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -2072,8 +2028,6 @@ body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
 .table tbody tr:hover { background: var(--surface-2); }
 .table tbody tr:last-child td { border-bottom: 0; }
 
-/* ── Ошибки ───────────────────────────────────────────────────────────────── */
-
 .error-page {
   max-width: 560px;
   margin: 40px auto;
@@ -2090,8 +2044,6 @@ body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
   font-weight: 900;
   line-height: 1;
 }
-
-/* ── Адаптивность ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 1020px) {
   .exam-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2116,7 +2068,6 @@ body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
     padding-block: 10px;
   }
 
-  /* Меню на телефоне — горизонтальная лента, которую можно листать пальцем. */
   .nav {
     width: 100%;
     overflow-x: auto;
@@ -2160,8 +2111,6 @@ body:has(#only-mistakes:checked) .review-item.review-ok { display: none; }
   .table th,
   .table td { padding: 10px 12px; }
 }
-
-/* ── Админ-панель ─────────────────────────────────────────────────────────── */
 
 .nav > a.nav-admin {
   background: var(--color-primary-soft);
@@ -2382,7 +2331,6 @@ code {
   .filter-bar .field { min-width: 100%; }
 }
 
-/* Таблица вопросов на телефоне — карточки: текст вопроса виден без прокрутки вбок. */
 @media (max-width: 700px) {
   .admin-table thead { display: none; }
 
@@ -2417,12 +2365,8 @@ code {
   white-space: nowrap;
 }
 
-/* ── Вход через Telegram ──────────────────────────────────────────────────── */
-
 .tg-option { margin-top: 16px; }
 .tg-option p { margin: 8px 0 0; text-align: center; }
-
-/* ── Школа, задания и кабинет учителя ─────────────────────────────────────── */
 
 .school-card h3 { margin: 18px 0 10px; }
 
@@ -2498,8 +2442,6 @@ code {
 .delta-down { color: var(--danger); }
 .delta-same { color: var(--muted); }
 
-/* ── Вопросы учителей и проверка ──────────────────────────────────────────── */
-
 .review-card,
 .my-question { display: grid; gap: 12px; margin-bottom: 16px; }
 
@@ -2539,12 +2481,8 @@ code {
 
 .small-head { margin: 18px 0 8px; font-size: 1rem; }
 
-/* ── Темы спецификации ────────────────────────────────────────────────────── */
-
 .section-row th { background: var(--surface-2); text-align: left; }
 .topic-empty td { color: var(--danger); }
-
-/* ── Рекламные баннеры ────────────────────────────────────────────────────── */
 
 .ad-banner {
   display: grid;
@@ -2575,7 +2513,6 @@ code {
 
 .ad-thumb-big { width: 100%; max-width: 480px; max-height: 160px; }
 
-/* ── Этап 8: колокольчик, задания ученика, уведомления, таблица учителя ── */
 .bell {
   position: relative;
   display: inline-flex;
@@ -2672,7 +2609,6 @@ code {
   .task-progress progress { width: 100%; }
 }
 
-/* ── Этап 9: переключатель языка РУС / ҚАЗ ── */
 .lang-switch {
   display: inline-flex;
   margin-left: 12px;

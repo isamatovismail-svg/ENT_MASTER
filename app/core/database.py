@@ -1,9 +1,4 @@
-"""Работа с базой данных sqlite3.
-
-Здесь собраны создание таблиц и ВСЕ SQL-запросы приложения.
-Все запросы параметризованные (знаки ?), значения никогда не вставляются
-в текст SQL напрямую — это защищает от SQL-инъекций.
-"""
+"""Работа с базой данных sqlite3."""
 
 import json
 import sqlite3
@@ -15,20 +10,17 @@ from pathlib import Path
 from app import config
 
 ROLE_USER = "user"
-ROLE_TEACHER = "teacher"  # учитель — администратор своей школы
-ROLE_ADMIN = "admin"      # главный администратор, полный доступ
+ROLE_TEACHER = "teacher"
+ROLE_ADMIN = "admin"
 
-# Статус вопроса: на проверке, одобрен (участвует в тестах), отклонён.
 Q_PENDING = "pending"
 Q_APPROVED = "approved"
 Q_REJECTED = "rejected"
 
-# Статус ученика в школе: ждёт подтверждения учителя, подтверждён, отклонён.
 SCHOOL_PENDING = "pending"
 SCHOOL_APPROVED = "approved"
 SCHOOL_REJECTED = "rejected"
 
-# Путь к файлу базы. Тесты подменяют его через configure().
 _db_path: Path = config.DATABASE_PATH
 
 SCHEMA = """
@@ -211,8 +203,6 @@ CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject, qtype);
 CREATE INDEX IF NOT EXISTS idx_attempt_questions_question ON attempt_questions(question_id, attempt_id);
 """
 
-# Колонки, добавленные после первой версии. init_db() добавляет их в старую базу,
-# чтобы существующие пользователи и попытки сохранились.
 _ADDED_COLUMNS = (
     ("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
     ("users", "telegram_id", "INTEGER"),
@@ -237,8 +227,6 @@ _ADDED_COLUMNS = (
 )
 
 
-# ── Классы данных, которые возвращают запросы ────────────────────────────────
-
 @dataclass
 class User:
     """Пользователь сайта (без пароля)."""
@@ -248,7 +236,7 @@ class User:
     login: str
     role: str = ROLE_USER
     email_verified: bool = True
-    language: str = "ru"          # язык обучения: интерфейс и вопросы (ru / kk)
+    language: str = "ru"
 
     @property
     def is_admin(self) -> bool:
@@ -313,8 +301,6 @@ class AttemptQuestion:
     checked: bool = False
 
 
-# ── Подключение ──────────────────────────────────────────────────────────────
-
 def configure(path: Path) -> None:
     """Задаёт другой файл базы данных (используется в тестах)."""
     global _db_path
@@ -323,11 +309,7 @@ def configure(path: Path) -> None:
 
 @contextmanager
 def connect() -> Iterator[sqlite3.Connection]:
-    """Открывает соединение, фиксирует изменения при успехе и всегда закрывает его.
-
-    Для каждого запроса создаётся своё соединение: сервер многопоточный,
-    а соединение sqlite3 нельзя делить между потоками.
-    """
+    """Открывает соединение, фиксирует изменения при успехе и всегда закрывает его."""
     connection = sqlite3.connect(_db_path, timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
@@ -348,15 +330,11 @@ def init_db() -> None:
         for table, column, definition in _ADDED_COLUMNS:
             existing = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
             if column not in existing:
-                # Имена таблиц и колонок — константы этого модуля, не данные пользователя.
                 try:
                     connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
                 except sqlite3.OperationalError as error:
-                    # run.py запускает сайт и бота одновременно: оба видят старую базу,
-                    # и колонку может успеть добавить второй процесс. Это не ошибка.
                     if "duplicate column name" not in str(error):
                         raise
-        # Индекс создаётся после миграции: в старой базе колонки telegram_id ещё не было.
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id) "
             "WHERE telegram_id IS NOT NULL"
@@ -371,14 +349,11 @@ def init_db() -> None:
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_questions_language ON questions(subject, language, qtype)"
         )
-        # До этапа 10 язык не хранился: казахский язык и литература всегда были на казахском.
         connection.execute(
             "UPDATE questions SET language = 'kk' WHERE subject IN ('kazakh_language', 'kazakh_literature') "
             "AND language = 'ru'"
         )
 
-
-# ── Пользователи ─────────────────────────────────────────────────────────────
 
 def create_user(
     name: str,
@@ -389,10 +364,7 @@ def create_user(
     phone: str | None = None,
     email_verified: bool = True,
 ) -> int:
-    """Добавляет пользователя и возвращает его id.
-
-    Если логин или телефон заняты, sqlite3 выбросит IntegrityError (ограничение UNIQUE).
-    """
+    """Добавляет пользователя и возвращает его id."""
     with connect() as connection:
         cursor = connection.execute(
             "INSERT INTO users (name, login, password_hash, salt, created_at, phone, email_verified) "
@@ -405,10 +377,7 @@ def create_user(
 def update_unverified_user(
     user_id: int, name: str, phone: str | None, password_hash: str, salt: str
 ) -> bool:
-    """Повторная регистрация на ту же почту до подтверждения: новые имя, телефон и пароль.
-
-    False — аккаунт уже подтверждён (тогда его менять нельзя) или не найден.
-    """
+    """Повторная регистрация на ту же почту до подтверждения: новые имя, телефон и пароль."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE users SET name = ?, phone = ?, password_hash = ?, salt = ? "
@@ -444,8 +413,6 @@ def set_user_role(login: str, role: str) -> bool:
         )
         return cursor.rowcount == 1
 
-
-# ── Коды из писем ────────────────────────────────────────────────────────────
 
 def save_email_code(
     user_id: int, purpose: str, code_hash: str, expires_at: float, sent_at: float
@@ -487,8 +454,6 @@ def delete_email_code(user_id: int, purpose: str) -> None:
             "DELETE FROM email_codes WHERE user_id = ? AND purpose = ?", (user_id, purpose)
         )
 
-
-# ── Telegram ─────────────────────────────────────────────────────────────────
 
 def get_user_by_telegram(telegram_id: int) -> User | None:
     """Пользователь сайта, к которому привязан этот аккаунт Telegram."""
@@ -570,7 +535,6 @@ def use_telegram_login_token(token_hash: str, now: float) -> bool:
             "WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
             (now, token_hash, now),
         )
-        # Заодно чистим старые токены, чтобы таблица не росла.
         connection.execute(
             "DELETE FROM telegram_login_tokens WHERE expires_at < ?", (now - 24 * 60 * 60,)
         )
@@ -625,10 +589,7 @@ def phone_taken(phone: str, except_user_id: int = 0) -> bool:
 
 
 def get_user_credentials(login: str) -> sqlite3.Row | None:
-    """Данные для проверки пароля: id, имя, логин, роль, подтверждена ли почта, хеш и соль.
-
-    Искать можно по логину (почта, старый телефонный логин, tg…) или по телефону из профиля.
-    """
+    """Данные для проверки пароля: id, имя, логин, роль, подтверждена ли почта, хеш и соль."""
     with connect() as connection:
         return connection.execute(
             "SELECT id, name, login, role, email_verified, password_hash, salt, language FROM users "
@@ -636,8 +597,6 @@ def get_user_credentials(login: str) -> sqlite3.Row | None:
             (login, login, login),
         ).fetchone()
 
-
-# ── Сессии ───────────────────────────────────────────────────────────────────
 
 def create_session(
     token_hash: str, user_id: int, csrf_token: str, expires_at: float, now: float | None = None
@@ -680,8 +639,6 @@ def delete_expired_sessions(now: float) -> None:
         connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now,))
 
 
-# ── Банк вопросов ────────────────────────────────────────────────────────────
-
 _UPSERT_SQL = (
     "INSERT INTO questions "
     "(subject, qtype, text, context, options_json, left_json, correct_json, explanation, topic, language) "
@@ -691,14 +648,11 @@ _UPSERT_SQL = (
     "options_json = excluded.options_json, left_json = excluded.left_json, "
     "correct_json = excluded.correct_json, explanation = excluded.explanation, "
     "deleted = 0 "
-    # Вопросы, исправленные в админке, и вопросы учителей не трогаем:
-    # ручная правка важнее файла.
     "WHERE questions.edited_by_admin = 0 AND questions.author_id IS NULL"
 )
 
 
 def _upsert_values(subject: str, question: dict) -> tuple:
-    """Значения для _UPSERT_SQL из вопроса в формате data/questions/*.json."""
     return (
         subject,
         question["type"],
@@ -725,11 +679,7 @@ def upsert_question(
     topic: str = "",
     language: str = "ru",
 ) -> None:
-    """Добавляет вопрос или обновляет существующий с тем же предметом и текстом.
-
-    Благодаря этому seed.py можно запускать повторно: исправления в JSON
-    попадут в базу, а дубликаты не появятся.
-    """
+    """Добавляет вопрос или обновляет существующий с тем же предметом и текстом."""
     question = {"type": qtype, "text": text, "context": context, "options": options,
                 "left": left, "correct": correct, "explanation": explanation, "topic": topic,
                 "language": language}
@@ -738,10 +688,7 @@ def upsert_question(
 
 
 def upsert_questions(subject: str, questions: list[dict]) -> None:
-    """То же, что upsert_question, но для многих вопросов в одной транзакции.
-
-    Тысячи сгенерированных вопросов так загружаются за секунды, а не минуты.
-    """
+    """То же, что upsert_question, но для многих вопросов в одной транзакции."""
     with connect() as connection:
         connection.executemany(_UPSERT_SQL, [_upsert_values(subject, q) for q in questions])
 
@@ -759,13 +706,13 @@ class Question:
     left: list[str]
     correct: list[str]
     explanation: str
-    used: int = 0  # в скольких попытках встречался
-    topic: str = ""  # номер темы спецификации (app/topics.py)
+    used: int = 0
+    topic: str = ""
     status: str = Q_APPROVED
     author_id: int | None = None
     review_comment: str = ""
     submitted_at: float | None = None
-    language: str = "ru"  # ru / kk
+    language: str = "ru"
 
 
 _QUESTION_COLUMNS = (
@@ -777,7 +724,6 @@ _QUESTION_COLUMNS = (
 
 
 def _question_from_row(row: sqlite3.Row) -> Question:
-    """Строка таблицы questions → Question."""
     return Question(
         id=row["id"],
         subject=row["subject"],
@@ -828,7 +774,6 @@ def get_question(question_id: int) -> Question | None:
 
 
 def _question_values(question: Question) -> tuple:
-    """Значения колонок вопроса для INSERT/UPDATE."""
     return (
         question.subject,
         question.qtype,
@@ -844,10 +789,7 @@ def _question_values(question: Question) -> tuple:
 
 
 def insert_question(question: Question) -> int:
-    """Добавляет вопрос из админки (с пометкой edited_by_admin) и возвращает его id.
-
-    Если у предмета уже есть вопрос с таким текстом, sqlite3 выбросит IntegrityError.
-    """
+    """Добавляет вопрос из админки (с пометкой edited_by_admin) и возвращает его id."""
     with connect() as connection:
         cursor = connection.execute(
             "INSERT INTO questions "
@@ -859,10 +801,7 @@ def insert_question(question: Question) -> int:
 
 
 def update_question(question: Question) -> bool:
-    """Сохраняет правку из админки и помечает вопрос edited_by_admin (seed.py его не тронет).
-
-    False — вопроса нет. Дубликат текста — IntegrityError.
-    """
+    """Сохраняет правку из админки и помечает вопрос edited_by_admin (seed.py его не тронет)."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
@@ -874,12 +813,7 @@ def update_question(question: Question) -> bool:
 
 
 def delete_question(question_id: int) -> str:
-    """Удаляет вопрос из банка.
-
-    Если вопрос уже был в чьих-то попытках, он только помечается удалённым,
-    чтобы разбор старых попыток продолжал работать. Возвращает
-    "deleted", "archived" или "missing".
-    """
+    """Удаляет вопрос из банка."""
     with connect() as connection:
         row = connection.execute(
             "SELECT (SELECT COUNT(*) FROM attempt_questions WHERE question_id = q.id) AS used "
@@ -895,13 +829,8 @@ def delete_question(question_id: int) -> str:
         return "deleted"
 
 
-# ── Вопросы учителей и проверка ──────────────────────────────────────────────
-
 def insert_teacher_question(question: Question, author_id: int, now: float) -> int:
-    """Вопрос учителя: сохраняется со статусом «на проверке» и в тесты не попадает.
-
-    Дубликат текста в предмете — IntegrityError.
-    """
+    """Вопрос учителя: сохраняется со статусом «на проверке» и в тесты не попадает."""
     with connect() as connection:
         cursor = connection.execute(
             "INSERT INTO questions "
@@ -935,10 +864,7 @@ def get_author_question(question_id: int, author_id: int) -> Question | None:
 
 
 def resubmit_author_question(question: Question, author_id: int, now: float) -> bool:
-    """Учитель исправил вопрос на проверке или отклонённый — он снова уходит на проверку.
-
-    Одобренный вопрос учитель изменить не может (False). Дубликат текста — IntegrityError.
-    """
+    """Учитель исправил вопрос на проверке или отклонённый — он снова уходит на проверку."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
@@ -1005,10 +931,7 @@ def review_question(question_id: int, status: str, comment: str, now: float) -> 
 
 
 def approve_with_changes(question: Question, comment: str, now: float) -> bool:
-    """Администратор исправляет вопрос на проверке и сразу одобряет его.
-
-    Вопрос помечается edited_by_admin. Дубликат текста — IntegrityError.
-    """
+    """Администратор исправляет вопрос на проверке и сразу одобряет его."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET subject = ?, qtype = ?, text = ?, context = ?, "
@@ -1021,10 +944,7 @@ def approve_with_changes(question: Question, comment: str, now: float) -> bool:
 
 
 def retire_untagged_questions() -> int:
-    """Помечает удалёнными вопросы банка без темы (кроме вопросов из админки и от учителей).
-
-    Возвращает, сколько вопросов убрано. Используется seed.py после полной загрузки.
-    """
+    """Помечает удалёнными вопросы банка без темы (кроме вопросов из админки и от учителей)."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE questions SET deleted = 1 WHERE topic = '' AND deleted = 0 "
@@ -1034,10 +954,7 @@ def retire_untagged_questions() -> int:
 
 
 def topic_counts(language: str | None = None) -> dict[tuple[str, str], int]:
-    """Сколько вопросов банка (одобренных, не удалённых) на каждую тему: {(предмет, тема): n}.
-
-    language — только вопросы этого языка (общие предметы — все), None — все языки.
-    """
+    """Сколько вопросов банка (одобренных, не удалённых) на каждую тему: {(предмет, тема): n}."""
     where, params = _language_filter(language)
     with connect() as connection:
         rows = connection.execute(
@@ -1048,8 +965,6 @@ def topic_counts(language: str | None = None) -> dict[tuple[str, str], int]:
 
 
 def _language_filter(language: str | None) -> tuple[str, list]:
-    """Условие «вопрос на языке ученика»: у общих предметов (иностранный язык) и у предметов
-    со своим языком (казахский/русский язык и литература) язык ученика не важен."""
     if language is None:
         return "", []
     free = config.SHARED_LANGUAGE_SUBJECTS + tuple(config.SUBJECT_OWN_LANGUAGE)
@@ -1072,10 +987,7 @@ def get_topic_results(user_id: int) -> list[sqlite3.Row]:
 
 
 def question_counts(language: str | None = None) -> dict[tuple[str, str], int]:
-    """Сколько вопросов в банке: словарь {(предмет, тип): количество}.
-
-    language — считать только вопросы на этом языке (как их увидит ученик), None — все.
-    """
+    """Сколько вопросов в банке: словарь {(предмет, тип): количество}."""
     where, params = _language_filter(language)
     with connect() as connection:
         rows = connection.execute(
@@ -1089,13 +1001,7 @@ def random_questions(
     subject: str, qtype: str | None, limit: int, user_id: int | None = None,
     language: str | None = None,
 ) -> list[QuestionRef]:
-    """Возвращает до limit случайных вопросов предмета.
-
-    Если qtype указан, выбираются только вопросы этого типа.
-    Если указан user_id, сначала идут вопросы, которые ученик ещё не видел,
-    затем те, что встречались реже всего, — так повторы появляются только
-    когда новые вопросы закончились.
-    """
+    """Возвращает до limit случайных вопросов предмета."""
     seen_order = ""
     params: list = [subject]
     if user_id is not None:
@@ -1126,8 +1032,6 @@ def random_questions(
     ]
 
 
-# ── Попытки ──────────────────────────────────────────────────────────────────
-
 _ATTEMPT_COLUMNS = (
     "id, user_id, mode, subjects_json, started_at, deadline, finished_at, "
     "status, score, max_score, shortage_json"
@@ -1135,7 +1039,6 @@ _ATTEMPT_COLUMNS = (
 
 
 def _attempt_from_row(row: sqlite3.Row) -> Attempt:
-    """Превращает строку таблицы attempts в объект Attempt."""
     return Attempt(
         id=row["id"],
         user_id=row["user_id"],
@@ -1161,10 +1064,7 @@ def create_attempt(
     shortage: list[dict],
     questions: list[tuple[int, str, list[int]]],
 ) -> int:
-    """Создаёт попытку вместе со всеми её заданиями в одной транзакции.
-
-    questions — список (id вопроса, код предмета, порядок вариантов) в нужном порядке.
-    """
+    """Создаёт попытку вместе со всеми её заданиями в одной транзакции."""
     with connect() as connection:
         cursor = connection.execute(
             "INSERT INTO attempts "
@@ -1240,11 +1140,6 @@ def get_finished_attempts(user_id: int) -> list[Attempt]:
 def _apply_option_order(
     options: list[str], correct: list[str], qtype: str, order_json: str | None
 ) -> tuple[list[str], list[str]]:
-    """Переставляет варианты в показанный ученику порядок и пересчитывает буквы ответа.
-
-    order[i] — индекс исходного варианта, который показан под буквой номер i.
-    Битый или устаревший порядок игнорируется — тогда остаётся исходный.
-    """
     order = json.loads(order_json) if order_json else None
     if not isinstance(order, list) or sorted(order) != list(range(len(options))):
         return options, correct
@@ -1253,16 +1148,12 @@ def _apply_option_order(
     shown_options = [options[original] for original in order]
     shown_correct = [new_letter.get(letter, letter) for letter in correct]
     if qtype != config.MATCHING:
-        # Для соответствия порядок букв важен (по строкам), для остальных — нет.
         shown_correct.sort()
     return shown_options, shown_correct
 
 
 def get_attempt_questions(attempt_id: int) -> list[AttemptQuestion]:
-    """Все задания попытки в порядке их следования, вместе с текстом вопросов.
-
-    Варианты ответа и правильные буквы уже приведены к порядку, который видит ученик.
-    """
+    """Все задания попытки в порядке их следования, вместе с текстом вопросов."""
     with connect() as connection:
         rows = connection.execute(
             "SELECT aq.id, aq.attempt_id, aq.question_id, aq.subject, aq.position, "
@@ -1302,10 +1193,7 @@ def get_attempt_questions(attempt_id: int) -> list[AttemptQuestion]:
 
 
 def save_answers(attempt_id: int, answers: dict[int, list[str] | None]) -> None:
-    """Сохраняет ответы раздела: {id задания попытки: ответ или None}.
-
-    Условие status = 'in_progress' не даёт изменить ответы завершённого теста.
-    """
+    """Сохраняет ответы раздела: {id задания попытки: ответ или None}."""
     with connect() as connection:
         connection.executemany(
             "UPDATE attempt_questions SET answer_json = ? "
@@ -1319,11 +1207,7 @@ def save_answers(attempt_id: int, answers: dict[int, list[str] | None]) -> None:
 
 
 def check_question(attempt_id: int, aq_id: int, answer: list[str] | None, points: int) -> bool:
-    """Тренировка: сохраняет ответ на одно задание, его баллы и отметку «проверено».
-
-    Ответ на уже проверенное задание или в завершённой попытке не меняется
-    (возвращается False) — повторная отправка формы ничего не испортит.
-    """
+    """Тренировка: сохраняет ответ на одно задание, его баллы и отметку «проверено»."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE attempt_questions SET answer_json = ?, points = ?, checked = 1 "
@@ -1351,10 +1235,7 @@ def get_subject_results(user_id: int) -> list[sqlite3.Row]:
 def complete_attempt(
     attempt_id: int, points: dict[int, int], score: int, finished_at: float
 ) -> bool:
-    """Записывает баллы за задания и завершает попытку.
-
-    Возвращает False, если попытка уже была завершена (например, в соседнем запросе).
-    """
+    """Записывает баллы за задания и завершает попытку."""
     with connect() as connection:
         cursor = connection.execute(
             "UPDATE attempts SET status = 'finished', score = ?, finished_at = ? "
@@ -1369,8 +1250,6 @@ def complete_attempt(
         )
     return True
 
-
-# ── Школы ────────────────────────────────────────────────────────────────────
 
 def get_or_create_school(city: str, name: str, key: str, now: float) -> int:
     """id школы с таким ключом; если её нет — создаёт (дубликатов не бывает: key UNIQUE)."""
@@ -1416,10 +1295,7 @@ def get_user_school(user_id: int) -> sqlite3.Row | None:
 
 
 def set_user_school(user_id: int, school_id: int | None, status: str | None) -> None:
-    """Записывает ученика в школу с заданным статусом (None, None — без школы).
-
-    Учителя так не меняются: их школу назначает главный администратор.
-    """
+    """Записывает ученика в школу с заданным статусом (None, None — без школы)."""
     with connect() as connection:
         connection.execute(
             "UPDATE users SET school_id = ?, school_status = ? WHERE id = ? AND role != 'teacher'",
@@ -1428,10 +1304,7 @@ def set_user_school(user_id: int, school_id: int | None, status: str | None) -> 
 
 
 def set_member_status(school_id: int, user_id: int, status: str | None) -> bool:
-    """Учитель подтверждает, отклоняет (rejected) или исключает (None) ученика своей школы.
-
-    False — такого ученика в этой школе нет.
-    """
+    """Учитель подтверждает, отклоняет (rejected) или исключает (None) ученика своей школы."""
     with connect() as connection:
         if status is None:
             cursor = connection.execute(
@@ -1474,11 +1347,7 @@ def revoke_role(login: str) -> bool:
 
 
 def list_school_members(school_id: int, status: str) -> list[sqlite3.Row]:
-    """Ученики школы с этим статусом и сводкой их завершённых попыток.
-
-    mocks/practices — число пробных и тренировок, avg_mock/best_mock — средний и лучший
-    балл пробного ЕНТ, avg_percent — средний процент по всем попыткам.
-    """
+    """Ученики школы с этим статусом и сводкой их завершённых попыток."""
     with connect() as connection:
         return connection.execute(
             "SELECT u.id, u.name, u.login, u.phone, u.created_at, u.last_login_at, "
@@ -1503,8 +1372,6 @@ def get_school_student(school_id: int, user_id: int) -> sqlite3.Row | None:
             (user_id, school_id),
         ).fetchone()
 
-
-# ── Задания учителя ──────────────────────────────────────────────────────────
 
 _ASSIGNMENT_COLUMNS = (
     "id, school_id, created_by, mode, target, count, for_all, created_at, deadline"
@@ -1596,7 +1463,7 @@ def get_finished_attempts_between(
     """Завершённые попытки учеников в режиме mode с after < finished_at <= until."""
     if not user_ids:
         return []
-    marks = ", ".join("?" * len(user_ids))  # в текст SQL идут только знаки «?»
+    marks = ", ".join("?" * len(user_ids))
     with connect() as connection:
         rows = connection.execute(
             f"SELECT {_ATTEMPT_COLUMNS} FROM attempts "
@@ -1656,7 +1523,7 @@ def attempt_subject_points(attempt_ids: list[int]) -> list[sqlite3.Row]:
         return []
     result: list[sqlite3.Row] = []
     with connect() as connection:
-        for start in range(0, len(attempt_ids), 500):  # ограничение числа «?» в SQLite
+        for start in range(0, len(attempt_ids), 500):
             chunk = attempt_ids[start:start + 500]
             marks = ", ".join("?" * len(chunk))
             result += connection.execute(
@@ -1667,8 +1534,6 @@ def attempt_subject_points(attempt_ids: list[int]) -> list[sqlite3.Row]:
             ).fetchall()
     return result
 
-
-# ── Уведомления ──────────────────────────────────────────────────────────────
 
 def add_notification(user_id: int, kind: str, params_json: str, link: str, now: float,
                      dedup_key: str | None = None) -> int | None:
@@ -1727,8 +1592,6 @@ def get_telegram_id(user_id: int) -> int | None:
         row = connection.execute("SELECT telegram_id FROM users WHERE id = ?", (user_id,)).fetchone()
     return row["telegram_id"] if row is not None else None
 
-
-# ── Рекламные баннеры ────────────────────────────────────────────────────────
 
 _BANNER_COLUMNS = (
     "id, title, link_url, image_type, placements, starts_on, ends_on, active, impressions, clicks, "

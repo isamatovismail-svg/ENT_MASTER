@@ -81,7 +81,6 @@ class AdminPagesTests(DatabaseTestCase):
         data = {"csrf_token": self.csrf(html), **fields}
         return browser.post(url, data)
 
-    # ── доступ ───────────────────────────────────────────────────────────────
 
     def test_access_only_for_admin(self) -> None:
         """Гость → вход, ученик → 403, админ → 200; ссылка «Админка» только у админа."""
@@ -98,7 +97,6 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertNotIn('href="/admin"', self.student.get("/dashboard")[2])
         self.assertIn('href="/admin"', self.admin.get("/dashboard")[2])
 
-        # Ученик не может отправить форму админки даже с верным csrf своей сессии.
         _, _, html, _ = self.student.get("/dashboard")
         status, _, _, _ = self.student.post("/admin/questions/new", {
             "csrf_token": self.csrf(html), "type": "single", "subject": "math", "topic": "05", "text": "x",
@@ -116,10 +114,8 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertEqual(status, 403)
         self.assertIn("Форма устарела", html)
         self.assertEqual(database.list_questions(), [])
-        # На каждой форме админки есть csrf-поле.
         self.assertIn('name="csrf_token"', self.admin.get("/admin/questions/new")[2])
 
-    # ── вопросы ──────────────────────────────────────────────────────────────
 
     def test_create_all_types_and_use_in_tests(self) -> None:
         """Вопросы всех четырёх типов добавляются через форму и сразу попадают в тесты."""
@@ -160,7 +156,6 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertEqual(saved[config.MATCHING].correct, ["B", "A"])
         self.assertEqual(saved[config.MATCHING].explanation, "Объяснение для matching.")
 
-        # Новые вопросы сразу в банке: тренировка по праву собирается из них.
         counts = database.question_counts()
         self.assertEqual(counts[("law", config.SINGLE)], 1)
         attempt_id = ent_logic.build_practice(1, "law")
@@ -213,7 +208,6 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertIn(first.text, html)
         self.assertRegex(html, r'value="A" checked')
 
-        # Смена типа на «несколько ответов»: варианты сохраняются, отметки — флажки.
         status, _, html, _ = self.admin.get(f"/admin/questions/{first.id}/edit?type=multiple")
         self.assertIn('type="checkbox" name="correct" value="A" checked', html)
 
@@ -228,7 +222,6 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertEqual((updated.qtype, updated.correct), ("multiple", ["A", "B"]))
         self.assertEqual(updated.explanation, "Новое объяснение.")
 
-        # Дубликат текста внутри предмета — понятная ошибка.
         other = next(q for q in database.list_questions("math") if q.id != first.id)
         status, _, html, _ = self.post_question(f"/admin/questions/{other.id}/edit", {
             "type": "single", "subject": "math", "topic": "05", "text": "Обновлённый вопрос про корни",
@@ -237,7 +230,6 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertEqual(status, 400)
         self.assertIn("уже есть вопрос с таким текстом", html)
 
-        # Поиск без учёта регистра и фильтр по предмету.
         _, _, html, _ = self.admin.get("/admin/questions?" + urlencode({"q": "КОРНИ"}))
         self.assertIn("Найдено: 1", html)
         _, _, html, _ = self.admin.get("/admin/questions?subject=physics")
@@ -246,7 +238,6 @@ class AdminPagesTests(DatabaseTestCase):
         _, _, html, _ = self.admin.get("/admin/questions?" + urlencode({"subject": "physics", "q": "корни"}))
         self.assertIn("Ничего не найдено", html)
 
-        # Текст вопроса экранируется.
         self.post_question("/admin/questions/new", {
             "type": "single", "subject": "math", "topic": "05", "text": "<script>alert(1)</script>",
             "opt_A": "1", "opt_B": "2", "correct": "A", "explanation": "x",
@@ -272,7 +263,6 @@ class AdminPagesTests(DatabaseTestCase):
             "opt_A": "1", "opt_B": "2", "correct": "B", "explanation": "Своё.",
         })
 
-        # Повторный seed: правки админа целы, неизменённый вопрос обновился из файла.
         database.upsert_questions("math", [
             {**original, "explanation": "Новая версия файла."},
             {**other, "explanation": "Новая версия файла."},
@@ -314,16 +304,13 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertEqual(database.question_counts(), {})
         with self.assertRaises(ent_logic.TestBuildError):
             ent_logic.build_practice(1, "chemistry")
-        # Старая попытка по-прежнему показывает разбор удалённого вопроса.
         self.assertEqual(len(database.get_attempt_questions(attempt_id)), 1)
         status, _, html, _ = self.admin.get(f"/admin/users/1/attempts/{attempt_id}")
         self.assertEqual(status, 200)
         self.assertIn(used.text, html)
-        # Удалённый вопрос нельзя открыть на редактирование.
         _, path, _, _ = self.admin.get(f"/admin/questions/{used.id}/edit")
         self.assertIn("msg=q_missing", path)
 
-    # ── обзор и пользователи ────────────────────────────────────────────────
 
     def test_dashboard_and_users(self) -> None:
         """Статистика, нехватка по норме ЕНТ, список пользователей и их попытки."""
@@ -345,13 +332,12 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertIn("норма ЕНТ", history_row)
         math_row = html.split("Математика</a>", 1)[1].split("</tr>", 1)[0]
         self.assertIn("меньше нормы", math_row)
-        self.assertIn("не хватает 37", math_row)  # 22 single + 5 + 5 + 5
+        self.assertIn("не хватает 37", math_row)
 
         _, _, html, _ = self.admin.get("/admin/users")
         self.assertIn("student@mail.kz", html)
         self.assertIn("⚙️ админ", html)
 
-        # Поиск пользователя: по части почты и по телефону в любом виде.
         test_pages.PagesTests().register_and_login(
             Browser(self.base_url), "phone@mail.kz", name="Телефон", phone="8 705 967 84 20")
         _, _, html, _ = self.admin.get("/admin/users?" + urlencode({"q": "STUDENT"}))
@@ -371,7 +357,6 @@ class AdminPagesTests(DatabaseTestCase):
         self.assertEqual(status, 200)
         self.assertIn("Итоговый балл", html)
         self.assertIn("К пользователю Ученик", html)
-        # Чужая пара «пользователь — попытка» и несуществующий пользователь — 404.
         self.assertEqual(self.admin.get(f"/admin/users/1/attempts/{attempt_id}")[0], 404)
         self.assertEqual(self.admin.get("/admin/users/999")[0], 404)
         self.assertIsNotNone(re.search(r"Пользователи: 3", self.admin.get("/admin/users")[2]))

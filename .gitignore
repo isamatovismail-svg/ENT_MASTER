@@ -1,27 +1,21 @@
-# Виртуальное окружение и кэш Python
 .venv/
 venv/
 __pycache__/
 *.pyc
 
-# Локальная база данных и её резервные копии
 *.sqlite3
 *.sqlite3-journal
 *.sqlite3.gz
 *.db
 backups/
 
-# Настройки IDE
 .idea/
 .vscode/
 
-# Секреты: токен Telegram-бота, SMTP, Google
 .env
 
-# Состояние оповещений о сбоях (notify.py)
 .alert_state.json
 
-# Служебные файлы разработки (остаются только локально)
 PLAN.md
 CLAUDE.md
 demo_accounts.py
@@ -29,8 +23,6 @@ demo_accounts.py
 *.tmp
 .DS_Store
 
-# Локальные заметки (прежний подробный README на русском и т. п.)
 docs-local/
 
-# Установочные пакеты (cloudflared и т. п.)
 *.deb

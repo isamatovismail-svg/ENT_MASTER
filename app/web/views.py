@@ -1,12 +1,4 @@
-"""Обработчики страниц: каждая функция получает Request и возвращает Response.
-
-Страницы собираются из шаблонов (templates/*.html). Мелкие повторяющиеся
-куски HTML (строки таблиц, карточки, задания) собираются здесь функцией
-fragment(), которая экранирует все подставляемые значения.
-
-Важно: Content-Security-Policy запрещает атрибут style, поэтому цвета и ширины
-задаются только классами (subj-<код предмета>, p-<процент>) и элементом <progress>.
-"""
+"""Обработчики страниц: каждая функция получает Request и возвращает Response."""
 
 import time
 from collections.abc import Callable
@@ -22,8 +14,6 @@ from app.web.render import SafeHTML, fragment, join, render
 from app.web.http import Request, Response, html_response, redirect
 from app.i18n import t
 
-# Сообщения, которые можно показать через параметр ?msg=код.
-# В URL передаётся только код, поэтому подставить свой текст через ссылку нельзя.
 MESSAGES: dict[str, tuple[str, str]] = {
     "code_sent": ("success", "Мы отправили 6-значный код на вашу почту. Проверьте и папку «Спам»."),
     "verify_needed": (
@@ -91,23 +81,18 @@ MAIL_FAILED = "Не удалось отправить письмо с кодом
 
 MODE_NAMES = i18n.Translated({ent_logic.MOCK: "Пробный ЕНТ", ent_logic.PRACTICE: "Тренировка"})
 
-# Порог «сильного» предмета в кабинете: от 70% баллов.
 STRONG_PERCENT = 70
 
 View = Callable[..., Response]
 
 
-# ── Общие помощники ──────────────────────────────────────────────────────────
-
 def _format_datetime(timestamp: float | None) -> str:
-    """Дата и время в формате «25.11.2026 14:30» (местное время)."""
     if timestamp is None:
         return "—"
     return datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y %H:%M")
 
 
 def _format_duration(seconds: int) -> str:
-    """Длительность в виде «3 ч 05 мин» или «12 мин»."""
     minutes_total = seconds // 60
     hours, minutes = divmod(minutes_total, 60)
     if hours:
@@ -118,36 +103,30 @@ def _format_duration(seconds: int) -> str:
 
 
 def _percent(score: int, max_score: int) -> int:
-    """Процент набранных баллов (целое число)."""
     return round(score * 100 / max_score) if max_score else 0
 
 
 def _percent_class(percent: int) -> str:
-    """Класс p-0 … p-100 с шагом 5 — для кольца с процентом (стили без атрибута style)."""
     return f"p-{min(100, max(0, round(percent / 5) * 5))}"
 
 
 def _safe_next(value: str) -> str:
-    """Разрешает перенаправление только на страницы этого же сайта."""
     if value.startswith("/") and not value.startswith("//") and "\\" not in value:
         return value
     return "/dashboard"
 
 
 def _csrf_field(request: Request) -> SafeHTML:
-    """Скрытое поле с csrf-токеном для POST-форм."""
     return fragment(
         '<input type="hidden" name="csrf_token" value="$token">', token=request.csrf_token
     )
 
 
 def _notice(kind: str, text: str) -> SafeHTML:
-    """Цветное уведомление (success, info, warning, error)."""
     return fragment('<div class="notice notice-$kind">$text</div>', kind=kind, text=text)
 
 
 def _errors_block(errors: list[str]) -> SafeHTML:
-    """Список ошибок формы."""
     if not errors:
         return SafeHTML("")
     items = join(fragment("<li>$error</li>", error=error) for error in errors)
@@ -157,7 +136,6 @@ def _errors_block(errors: list[str]) -> SafeHTML:
 
 
 def _icon(code: str, extra: str = "") -> SafeHTML:
-    """Цветной значок предмета с эмодзи."""
     return fragment(
         '<span class="subj-icon subj-$code$extra" aria-hidden="true">$icon</span>',
         code=code,
@@ -167,7 +145,6 @@ def _icon(code: str, extra: str = "") -> SafeHTML:
 
 
 def _bell(request: Request) -> SafeHTML:
-    """Колокольчик со счётчиком непрочитанных уведомлений."""
     assert request.user is not None
     unread = database.unread_notifications(request.user.id)
     return fragment(
@@ -179,7 +156,6 @@ def _bell(request: Request) -> SafeHTML:
 
 
 def _nav(request: Request) -> SafeHTML:
-    """Меню в шапке: у гостя, ученика, учителя и главного администратора — своё."""
     if request.user is None:
         return fragment('<a href="/login">Войти</a>'
             '<a class="btn btn-primary btn-sm" href="/register">Регистрация</a>')
@@ -189,7 +165,6 @@ def _nav(request: Request) -> SafeHTML:
         csrf=_csrf_field(request),
     )
     if request.user.is_teacher:
-        # Учителю — только его работа: ученики, задания, свои вопросы.
         return fragment(
             '<a href="/teacher">👥 Ученики</a>'
             '<a href="/teacher/assignments">📋 Задания</a>'
@@ -223,19 +198,16 @@ def request_language(request: Request, accept_language: str = "") -> str:
 
 
 def _language_cookie(lang: str) -> str:
-    """Set-Cookie с выбранным языком (для гостя; год, только этот сайт)."""
     return (f"{i18n.COOKIE_NAME}={lang}; Path=/; Max-Age={i18n.COOKIE_MAX_AGE}; SameSite=Lax"
             + ("; Secure" if config.COOKIE_SECURE else ""))
 
 
 def _current_url(request: Request) -> str:
-    """Адрес текущей страницы (для возврата после смены языка)."""
     query = {key: value for key, value in request.query.items() if key != "msg"}
     return request.path + ("?" + urlencode(query, doseq=True) if query else "")
 
 
 def _language_switch(request: Request) -> SafeHTML:
-    """Переключатель РУС / ҚАЗ в шапке."""
     current = i18n.get_language()
     back = quote(_current_url(request), safe="")
     return fragment(
@@ -280,14 +252,10 @@ def page(
 
 
 def login_required(view: View) -> View:
-    """Декоратор: пускает на страницу только вошедших пользователей.
-
-    Для POST-запросов дополнительно проверяет csrf-токен формы.
-    """
+    """Декоратор: пускает на страницу только вошедших пользователей."""
 
     @wraps(view)
     def wrapper(request: Request, **kwargs: object) -> Response:
-        """Проверяет вход и csrf, затем вызывает исходный обработчик."""
         if request.user is None:
             query = urlencode({"next": request.path, "msg": "login_required"})
             return redirect(f"/login?{query}")
@@ -303,7 +271,6 @@ def student_area(view: View) -> View:
 
     @wraps(view)
     def wrapper(request: Request, **kwargs: object) -> Response:
-        """Учитель видит только свою работу — учеников, задания и вопросы."""
         if request.user is not None and request.user.is_teacher:
             return redirect("/teacher")
         return view(request, **kwargs)
@@ -312,7 +279,6 @@ def student_area(view: View) -> View:
 
 
 def _user_id(request: Request) -> int:
-    """id вошедшего пользователя (вызывается только после login_required)."""
     assert request.user is not None
     return request.user.id
 
@@ -336,8 +302,6 @@ def profile_language(request: Request) -> Response:
     return redirect("/profile?msg=language_saved", cookies=[_language_cookie(code)])
 
 
-# ── Ошибки ───────────────────────────────────────────────────────────────────
-
 def error_page(request: Request | None, status: int, message: str) -> Response:
     """Страница ошибки с понятным текстом."""
     content = render("error.html", code=status, message=message)
@@ -358,8 +322,6 @@ def server_error() -> Response:
     """Страница 500 без технических подробностей (они записаны в лог сервера)."""
     return error_page(None, 500, t("Что-то пошло не так. Попробуйте обновить страницу чуть позже."))
 
-
-# ── Главная, регистрация, вход, выход ───────────────────────────────────────
 
 def landing(request: Request) -> Response:
     """Главная: первый экран, устройство ЕНТ и объяснение профильной пары."""
@@ -426,7 +388,6 @@ def google_button() -> SafeHTML:
 
 
 def _register_form(request: Request, errors: list[str]) -> Response:
-    """Отрисовывает страницу регистрации; введённые значения (кроме паролей) сохраняются."""
     content = render(
         "register.html",
         errors=_errors_block(errors),
@@ -476,12 +437,10 @@ def register_submit(request: Request) -> Response:
         auth.send_email_code(user_id, email, auth.VERIFY)
     except mailer.MailError:
         return _register_form(request, [t(MAIL_FAILED)])
-    # Если код уже отправляли меньше минуты назад, действует прежний код.
     return redirect(verify_url(email, "code_sent"))
 
 
 def _login_form(request: Request, errors: list[str], login: str, next_url: str) -> Response:
-    """Отрисовывает страницу входа."""
     content = render(
         "login.html", errors=_errors_block(errors), login=login, next=next_url,
         google=google_button(),
@@ -510,14 +469,11 @@ def login_submit(request: Request) -> Response:
     if auth.is_blocked_demo_admin(user.login, user.role):
         return _login_form(request, [t(DEMO_ADMIN_BLOCKED)], login, next_url)
     if not user.email_verified:
-        # Пароль верный, но почта не подтверждена: отправляем код (если не отправляли
-        # только что) и ведём на страницу ввода кода.
         try:
             auth.send_email_code(user.id, user.login, auth.VERIFY)
         except mailer.MailError:
             return _login_form(request, [t(MAIL_FAILED)], login, next_url)
         return redirect(verify_url(user.login, "verify_needed"))
-    # При входе всегда создаётся новая сессия, старая (если была) удаляется.
     if request.session_key:
         database.delete_session(request.session_key)
     return redirect(next_url, cookies=[auth.start_session(user.id)])
@@ -532,10 +488,7 @@ def logout(request: Request) -> Response:
     return redirect("/?msg=logged_out", cookies=[auth.end_session(request)])
 
 
-# ── Личный кабинет ───────────────────────────────────────────────────────────
-
 def _attempt_title(attempt: Attempt) -> str:
-    """Короткое описание попытки: режим и предметы."""
     if attempt.mode == ent_logic.MOCK:
         profile_codes = attempt.subjects[len(config.COMPULSORY_CODES):]
         profile = [config.SUBJECTS[code].name for code in profile_codes]
@@ -544,21 +497,18 @@ def _attempt_title(attempt: Attempt) -> str:
 
 
 def _attempt_icon(attempt: Attempt) -> SafeHTML:
-    """Значок попытки: у тренировки — значок предмета, у пробного ЕНТ — общий."""
     if attempt.mode == ent_logic.PRACTICE:
         return _icon(attempt.subjects[0])
     return SafeHTML('<span class="subj-icon subj-mock" aria-hidden="true">📝</span>')
 
 
 def _attempt_url(attempt: Attempt) -> str:
-    """Куда вести, чтобы продолжить незавершённую попытку."""
     if attempt.mode == ent_logic.PRACTICE:
         return f"/practice/{attempt.id}"
     return f"/attempt/{attempt.id}/{attempt.subjects[0]}"
 
 
 def _stat_card(icon: str, kind: str, title: str, value: object, unit: str, note: str) -> SafeHTML:
-    """Карточка с одним числом для кабинета."""
     return fragment(
         '<article class="stat-card stat-$kind"><span class="stat-icon" aria-hidden="true">$icon</span>'
         '<p class="stat-title">$title</p>'
@@ -569,7 +519,6 @@ def _stat_card(icon: str, kind: str, title: str, value: object, unit: str, note:
 
 
 def _strength_rows(items: list[ent_logic.SubjectStrength], empty: str) -> SafeHTML:
-    """Список предметов с полосой процента."""
     if not items:
         return fragment('<p class="muted small">$empty</p>', empty=empty)
     return fragment(
@@ -610,7 +559,6 @@ def topic_rows(items: list[ent_logic.TopicStrength], empty: str) -> SafeHTML:
 
 
 def _attempt_rows(attempts: list[Attempt]) -> SafeHTML:
-    """Компактный список попыток (кабинет)."""
     return join(
         fragment(
             '<li><a class="recent-item" href="/result/$id">$icon'
@@ -629,7 +577,6 @@ def _attempt_rows(attempts: list[Attempt]) -> SafeHTML:
 
 
 def _grade_class(percent: int) -> str:
-    """Цвет плашки с результатом: зелёный, жёлтый или красный."""
     if percent >= STRONG_PERCENT:
         return "grade-good"
     if percent >= 40:
@@ -638,7 +585,6 @@ def _grade_class(percent: int) -> str:
 
 
 def _continue_blocks(user_id: int) -> SafeHTML:
-    """Напоминания о незавершённом пробном ЕНТ и тренировке."""
     blocks = []
     mock = database.get_in_progress_attempt(user_id, ent_logic.MOCK)
     if mock is not None:
@@ -679,12 +625,10 @@ def school_status_text(row) -> SafeHTML:
 
 
 def _deadline_text(deadline: float) -> str:
-    """Срок задания: «до 30.11.2026»."""
     return t("до {date}", date=_date_only(deadline))
 
 
 def _date_only(timestamp: float) -> str:
-    """Дата «30.11.2026»."""
     return datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y")
 
 
@@ -696,7 +640,6 @@ ASSIGNMENT_STATUS = {
 
 
 def _assignment_action(request: Request, assignment) -> str:
-    """Что сделать: «Пройдите пробный ЕНТ (Математика + Информатика)» и т. п."""
     if assignment["mode"] == "mock":
         pair = schools.pair_codes(assignment["target"])
         what = " + ".join(config.SUBJECTS[c].name for c in pair) if pair else t("любая пара на ваш выбор")
@@ -706,7 +649,6 @@ def _assignment_action(request: Request, assignment) -> str:
 
 
 def _assignments_block(request: Request, user_id: int) -> SafeHTML:
-    """Активные задания учителя — наверху кабинета: что сделать, прогресс X из N, срок, кнопка."""
     items = []
     for assignment in database.list_student_assignments(user_id):
         progress = schools.student_progress(assignment, user_id)
@@ -737,7 +679,6 @@ def _assignments_block(request: Request, user_id: int) -> SafeHTML:
 
 
 def _school_block(user_id: int) -> SafeHTML:
-    """Кабинет ученика: его школа и уже выполненные или просроченные задания."""
     row = database.get_user_school(user_id)
     assignments = database.list_student_assignments(user_id)
     if row is None and not assignments:
@@ -749,7 +690,7 @@ def _school_block(user_id: int) -> SafeHTML:
     for assignment in assignments:
         progress = schools.student_progress(assignment, user_id)
         if progress is None or progress.status == "active":
-            continue  # активные задания — в отдельном блоке наверху
+            continue
         items.append(fragment(
             '<li class="assignment-item"><div><strong>$title</strong>'
             '<small class="muted">$deadline · сделано $done из $count</small></div>'
@@ -786,24 +727,11 @@ def assignment_start(request: Request, assignment_id: int) -> Response:
         except (ValueError, ent_logic.TestBuildError):
             return redirect("/practice?msg=no_questions")
         return redirect(f"/practice/{attempt_id}")
-    existing = database.get_in_progress_attempt(user_id, ent_logic.MOCK)
-    if existing is not None:
-        return redirect(f"{_attempt_url(existing)}?msg=resume")
     pair = schools.pair_codes(assignment["target"])
     if pair is None or pair not in config.PROFILE_PAIRS:
-        return redirect("/mock")  # любая пара — ученик выбирает сам
-    if config.PROFILE_PAIRS.index(pair) not in config.pairs_for(database.get_user_language(user_id)):
-        return redirect("/mock?msg=bad_pair")
-    try:
-        attempt_id = ent_logic.build_mock(user_id, config.PROFILE_PAIRS.index(pair))
-    except ent_logic.TestBuildError:
-        return redirect("/mock?msg=no_questions")
-    attempt = database.get_attempt(attempt_id, user_id)
-    assert attempt is not None
-    return redirect(_attempt_url(attempt))
+        return redirect("/mock")
+    return _launch_mock(user_id, config.PROFILE_PAIRS.index(pair))
 
-
-# ── Уведомления ──────────────────────────────────────────────────────────────
 
 @login_required
 def notifications_page(request: Request) -> Response:
@@ -856,19 +784,9 @@ def notification_open(request: Request, notification_id: int) -> Response:
     return redirect(_safe_next(row["link"]) if row["link"] else "/notifications")
 
 
-@student_area
-def dashboard(request: Request) -> Response:
-    """GET /dashboard — личный кабинет со статистикой и последними попытками."""
-    user_id = _user_id(request)
-    ent_logic.finish_expired_attempts(user_id)
-    notifications.check_due(user_id=user_id)
-
-    attempts = database.get_finished_attempts(user_id)
-    mocks = [attempt for attempt in attempts if attempt.mode == ent_logic.MOCK]
+def _stat_cards(attempts: list[Attempt], mocks: list[Attempt], best: Attempt | None,
+                last: Attempt | None) -> tuple[SafeHTML, SafeHTML, SafeHTML, SafeHTML]:
     practices = len(attempts) - len(mocks)
-    best = max(mocks, key=lambda a: (a.score, a.id)) if mocks else None
-    last = attempts[0] if attempts else None
-
     best_card = _stat_card(
         "🏆", "best", t("Лучший балл"),
         best.score if best else "—", t("из {n}", n=config.MOCK_MAX_SCORE),
@@ -894,9 +812,11 @@ def dashboard(request: Request) -> Response:
         average_card = _stat_card("⭐", "avg", t("Средний балл"), average, "%", t("среднее по тренировкам"))
     else:
         average_card = _stat_card("⭐", "avg", t("Средний балл"), "—", "", t("пока нет попыток"))
+    return best_card, last_card, total_card, average_card
 
-    best_score = best.score if best else 0
-    left = config.MOCK_MAX_SCORE - best_score
+
+def _goal_text(best: Attempt | None) -> str:
+    left = config.MOCK_MAX_SCORE - (best.score if best else 0)
     if best is None:
         goal_text = t("Пройдите пробный ЕНТ — и здесь будет видно, сколько осталось до 140.")
     elif left == 0:
@@ -907,6 +827,24 @@ def dashboard(request: Request) -> Response:
         goal_text += (
             " " + t("В вашем лучшем тесте можно было набрать {n}: банк вопросов пока неполный.", n=best.max_score)
         )
+    return goal_text
+
+
+@student_area
+def dashboard(request: Request) -> Response:
+    """GET /dashboard — личный кабинет со статистикой и последними попытками."""
+    user_id = _user_id(request)
+    ent_logic.finish_expired_attempts(user_id)
+    notifications.check_due(user_id=user_id)
+
+    attempts = database.get_finished_attempts(user_id)
+    mocks = [attempt for attempt in attempts if attempt.mode == ent_logic.MOCK]
+    best = max(mocks, key=lambda a: (a.score, a.id)) if mocks else None
+    last = attempts[0] if attempts else None
+
+    best_score = best.score if best else 0
+    best_card, last_card, total_card, average_card = _stat_cards(attempts, mocks, best, last)
+    goal_text = _goal_text(best)
 
     strengths = ent_logic.subject_strengths(user_id)
     strong = [item for item in strengths if item.percent >= STRONG_PERCENT][:3]
@@ -946,8 +884,6 @@ def dashboard(request: Request) -> Response:
     return page(request, t("Личный кабинет"), content)
 
 
-# ── Рекламные баннеры ────────────────────────────────────────────────────────
-
 def ad_click(request: Request, banner_id: int) -> Response:
     """GET /ad/<id> — переход по баннеру: учитываем клик и ведём на сайт рекламодателя."""
     link = database.count_banner_click(banner_id)
@@ -966,11 +902,8 @@ def ad_image(request: Request, banner_id: int) -> Response:
                     headers=[("Cache-Control", "public, max-age=86400")])
 
 
-# ── Профиль: школа ───────────────────────────────────────────────────────────
-
 def _profile_page(request: Request, errors: list[str], city: str = "", name: str = "",
                   status: int = 200) -> Response:
-    """Профиль: данные аккаунта и выбор школы."""
     assert request.user is not None
     row = database.get_user_school(request.user.id)
     if row is not None and row["role"] == database.ROLE_TEACHER:
@@ -1036,10 +969,7 @@ def profile_school(request: Request) -> Response:
     return redirect("/profile?msg=" + ("school_same" if same else "school_requested"))
 
 
-# ── Пробный ЕНТ: выбор пары и старт ─────────────────────────────────────────
-
 def _availability_badge(have: int, need: int) -> SafeHTML:
-    """Плашка «есть N из M заданий» — зелёная, если хватает, иначе жёлтая."""
     kind = "ok" if have >= need else "warn"
     return fragment(
         '<span class="badge badge-$kind">$have из $need</span>', kind=kind, have=have, need=need
@@ -1047,10 +977,46 @@ def _availability_badge(have: int, need: int) -> SafeHTML:
 
 
 def _avail_row(info: ent_logic.SubjectAvailability) -> SafeHTML:
-    """Строка «значок, предмет, N из M» в списке доступности банка."""
     return fragment(
         "<li>$icon<span>$name</span>$badge</li>",
         icon=_icon(info.code), name=info.name, badge=_availability_badge(info.have, info.need),
+    )
+
+
+def _pair_card(request: Request, index: int, pair: tuple[str, str], counts: dict, total: int,
+               locked: bool) -> SafeHTML:
+    infos = [ent_logic.availability(code, counts) for code in pair]
+    minutes = ent_logic.mock_duration_minutes(total)
+    complete = total >= config.MOCK_TOTAL_QUESTIONS
+    status = (
+        fragment('<p class="pair-status ok">✅ Полный тест, как на ЕНТ</p>')
+        if complete else
+        fragment(
+            '<p class="pair-status warn">В банке пока $have из $need заданий — '
+            "тест будет собран из имеющихся.</p>",
+            have=total, need=config.MOCK_TOTAL_QUESTIONS,
+        )
+    )
+    return fragment(
+        '<form class="pair-card" method="post" action="/mock/start">$csrf'
+        '<input type="hidden" name="pair" value="$index">'
+        '<div class="pair-icons">$icon1$icon2</div>'
+        "<h3>$title</h3><ul class=\"avail-list\">$subjects</ul>"
+        '<p class="pair-facts"><span>📝 <b>$total</b> заданий</span>'
+        "<span>⏱ <b>$time</b></span></p>$status"
+        '<button type="submit" class="btn btn-primary btn-block" $disabled>'
+        "Начать тест</button>"
+        "</form>",
+        csrf=_csrf_field(request),
+        index=index,
+        icon1=_icon(pair[0], "big"),
+        icon2=_icon(pair[1], "big"),
+        title=" + ".join(info.name for info in infos),
+        subjects=join(_avail_row(info) for info in infos),
+        total=total,
+        time=_format_duration(minutes * 60),
+        status=status,
+        disabled=SafeHTML("disabled" if locked else ""),
     )
 
 
@@ -1079,46 +1045,14 @@ def choose_pair(request: Request) -> Response:
         _avail_row(ent_logic.availability(code, counts)) for code in config.COMPULSORY_CODES
     )
 
-    any_incomplete = False
     cards = []
+    any_incomplete = False
     for index, pair in enumerate(config.PROFILE_PAIRS):
         if index not in allowed:
-            continue  # пара «язык обучения и литература» другого языка обучения
-        infos = [ent_logic.availability(code, counts) for code in pair]
+            continue
         total = ent_logic.pair_question_count(index, counts)
-        minutes = ent_logic.mock_duration_minutes(total)
-        complete = total >= config.MOCK_TOTAL_QUESTIONS
-        any_incomplete = any_incomplete or not complete
-        status = (
-            fragment('<p class="pair-status ok">✅ Полный тест, как на ЕНТ</p>')
-            if complete else
-            fragment(
-                '<p class="pair-status warn">В банке пока $have из $need заданий — '
-                "тест будет собран из имеющихся.</p>",
-                have=total, need=config.MOCK_TOTAL_QUESTIONS,
-            )
-        )
-        cards.append(fragment(
-            '<form class="pair-card" method="post" action="/mock/start">$csrf'
-            '<input type="hidden" name="pair" value="$index">'
-            '<div class="pair-icons">$icon1$icon2</div>'
-            "<h3>$title</h3><ul class=\"avail-list\">$subjects</ul>"
-            '<p class="pair-facts"><span>📝 <b>$total</b> заданий</span>'
-            "<span>⏱ <b>$time</b></span></p>$status"
-            '<button type="submit" class="btn btn-primary btn-block" $disabled>'
-            "Начать тест</button>"
-            "</form>",
-            csrf=_csrf_field(request),
-            index=index,
-            icon1=_icon(pair[0], "big"),
-            icon2=_icon(pair[1], "big"),
-            title=" + ".join(info.name for info in infos),
-            subjects=join(_avail_row(info) for info in infos),
-            total=total,
-            time=_format_duration(minutes * 60),
-            status=status,
-            disabled=SafeHTML("disabled" if in_progress is not None else ""),
-        ))
+        any_incomplete = any_incomplete or total < config.MOCK_TOTAL_QUESTIONS
+        cards.append(_pair_card(request, index, pair, counts, total, locked=in_progress is not None))
 
     time_note = (
         fragment(
@@ -1149,17 +1083,21 @@ def start_mock(request: Request) -> Response:
     """POST /mock/start — собирает пробный ЕНТ по выбранной паре."""
     user_id = _user_id(request)
     ent_logic.finish_expired_attempts(user_id)
+    try:
+        pair_index = int(request.form_value("pair", "-1"))
+    except ValueError:
+        return redirect("/mock?msg=bad_pair")
+    return _launch_mock(user_id, pair_index)
+
+
+def _launch_mock(user_id: int, pair_index: int) -> Response:
     existing = database.get_in_progress_attempt(user_id, ent_logic.MOCK)
     if existing is not None:
         return redirect(f"{_attempt_url(existing)}?msg=resume")
-
-    try:
-        pair_index = int(request.form_value("pair", "-1"))
-        if pair_index not in config.pairs_for(database.get_user_language(user_id)):
-            return redirect("/mock?msg=bad_pair")
-        attempt_id = ent_logic.build_mock(user_id, pair_index)
-    except ValueError:
+    if pair_index not in config.pairs_for(database.get_user_language(user_id)):
         return redirect("/mock?msg=bad_pair")
+    try:
+        attempt_id = ent_logic.build_mock(user_id, pair_index)
     except ent_logic.TestBuildError:
         return redirect("/mock?msg=no_questions")
     attempt = database.get_attempt(attempt_id, user_id)
@@ -1167,12 +1105,8 @@ def start_mock(request: Request) -> Response:
     return redirect(_attempt_url(attempt))
 
 
-# ── Вопрос: форма ответа и разбор ────────────────────────────────────────────
-
 def _option_inputs(aq: AttemptQuestion, input_type: str, allow_skip: bool) -> SafeHTML:
-    """Варианты ответа в виде radio или checkbox с отметкой уже сохранённого ответа."""
     chosen = set(aq.answer or [])
-    # В тренировке radio обязателен (пропустить можно отдельной кнопкой).
     required = SafeHTML("required" if input_type == "radio" and not allow_skip else "")
     items = []
     for letter, text in zip(config.OPTION_LETTERS, aq.options):
@@ -1187,7 +1121,6 @@ def _option_inputs(aq: AttemptQuestion, input_type: str, allow_skip: bool) -> Sa
             text=text,
         ))
     if input_type == "radio" and allow_skip:
-        # Без JavaScript отметку radio снять нельзя — поэтому есть вариант «без ответа».
         items.append(fragment(
             '<label class="option option-skip"><input type="radio" name="$name" value="" $checked>'
             '<span class="option-text">Без ответа</span></label>',
@@ -1198,7 +1131,6 @@ def _option_inputs(aq: AttemptQuestion, input_type: str, allow_skip: bool) -> Sa
 
 
 def _options_legend(aq: AttemptQuestion) -> SafeHTML:
-    """Список вариантов справа для задания на соответствие."""
     return fragment(
         '<ul class="match-options">$items</ul>',
         items=join(
@@ -1209,7 +1141,6 @@ def _options_legend(aq: AttemptQuestion) -> SafeHTML:
 
 
 def _matching_inputs(aq: AttemptQuestion, allow_skip: bool) -> SafeHTML:
-    """Задание на соответствие: список вариантов и выпадающий список для каждой строки."""
     answer = aq.answer or []
     rows = []
     for index, left_item in enumerate(aq.left):
@@ -1238,7 +1169,6 @@ def _matching_inputs(aq: AttemptQuestion, allow_skip: bool) -> SafeHTML:
 
 
 def _question_header(aq: AttemptQuestion, label: str) -> SafeHTML:
-    """Шапка задания: номер, тип и максимальный балл."""
     return fragment(
         '<header class="question-head"><span class="q-number">$label</span>'
         '<span class="badge">$type · $points б.</span></header>',
@@ -1249,7 +1179,6 @@ def _question_header(aq: AttemptQuestion, label: str) -> SafeHTML:
 
 
 def _question_body(aq: AttemptQuestion) -> SafeHTML:
-    """Контекст (если есть) и текст задания."""
     context = (
         fragment('<div class="q-context">$context</div>', context=aq.context)
         if aq.context else SafeHTML("")
@@ -1258,7 +1187,6 @@ def _question_body(aq: AttemptQuestion) -> SafeHTML:
 
 
 def _question_form_block(aq: AttemptQuestion, label: str, allow_skip: bool = True) -> SafeHTML:
-    """Одно задание внутри формы (без подсветки правильного ответа)."""
     if aq.qtype == config.MATCHING:
         inputs = _matching_inputs(aq, allow_skip)
         hint = t("Сопоставьте каждую строку с вариантом.")
@@ -1280,7 +1208,6 @@ def _question_form_block(aq: AttemptQuestion, label: str, allow_skip: bool = Tru
 
 
 def _option_label(aq: AttemptQuestion, letter: str) -> str:
-    """«B) текст варианта» по букве."""
     index = config.OPTION_LETTERS.find(letter)
     if letter and 0 <= index < len(aq.options):
         return f"{letter}) {aq.options[index]}"
@@ -1288,7 +1215,6 @@ def _option_label(aq: AttemptQuestion, letter: str) -> str:
 
 
 def _review_options(aq: AttemptQuestion) -> SafeHTML:
-    """Варианты с подсветкой: правильные зелёным, ошибочно выбранные красным."""
     chosen = set(aq.answer or [])
     correct = set(aq.correct)
     items = []
@@ -1311,7 +1237,6 @@ def _review_options(aq: AttemptQuestion) -> SafeHTML:
 
 
 def _review_matching(aq: AttemptQuestion) -> SafeHTML:
-    """Соответствие: для каждой строки — мой ответ (зелёный/красный) и правильный."""
     answer = aq.answer or []
     rows = []
     for index, left_item in enumerate(aq.left):
@@ -1337,7 +1262,6 @@ def _review_matching(aq: AttemptQuestion) -> SafeHTML:
 
 
 def _explanation(aq: AttemptQuestion) -> SafeHTML:
-    """Блок «Почему так» с объяснением из банка вопросов."""
     if not aq.explanation:
         return SafeHTML("")
     return fragment(
@@ -1347,7 +1271,6 @@ def _explanation(aq: AttemptQuestion) -> SafeHTML:
 
 
 def _review_body(aq: AttemptQuestion) -> SafeHTML:
-    """Задание с подсветкой ответов и объяснением (тренировка и разбор результата)."""
     marks = _review_matching(aq) if aq.qtype == config.MATCHING else _review_options(aq)
     empty = (
         fragment('<p class="no-answer">Вы не ответили на это задание.</p>')
@@ -1358,8 +1281,6 @@ def _review_body(aq: AttemptQuestion) -> SafeHTML:
         body=_question_body(aq), empty=empty, marks=marks, explain=_explanation(aq),
     )
 
-
-# ── Тренировка ───────────────────────────────────────────────────────────────
 
 @student_area
 def choose_practice(request: Request) -> Response:
@@ -1417,7 +1338,6 @@ def start_practice(request: Request) -> Response:
 
 
 def _practice_attempt(request: Request, attempt_id: int) -> Attempt | None:
-    """Тренировка пользователя по id (чужая или пробный ЕНТ — None)."""
     attempt = database.get_attempt(attempt_id, _user_id(request))
     if attempt is None or attempt.mode != ent_logic.PRACTICE:
         return None
@@ -1425,7 +1345,6 @@ def _practice_attempt(request: Request, attempt_id: int) -> Attempt | None:
 
 
 def _practice_head(attempt: Attempt, questions: list[AttemptQuestion], current: int) -> SafeHTML:
-    """Шапка тренировки: предмет, номер вопроса, баллы и «шаги» с результатами."""
     code = attempt.subjects[0]
     steps = []
     for aq in questions:
@@ -1469,7 +1388,6 @@ def practice_question(request: Request, attempt_id: int) -> Response:
     questions = database.get_attempt_questions(attempt.id)
     current = next((aq for aq in questions if not aq.checked), None)
     if current is None:
-        # Все задания проверены — показываем разбор последнего с кнопкой «Итог».
         return redirect(f"/practice/{attempt.id}/review/{questions[-1].position}")
 
     content = render(
@@ -1503,7 +1421,6 @@ def practice_answer(request: Request, attempt_id: int) -> Response:
     if aq is None:
         return redirect(f"/practice/{attempt.id}")
     if not aq.checked:
-        # «Пропустить» — засчитывается как задание без ответа.
         form = {} if request.form_value("skip") else request.form
         ent_logic.check_practice_answer(attempt, aq, form)
     return redirect(f"/practice/{attempt.id}/review/{aq.position}")
@@ -1562,16 +1479,9 @@ def practice_review(request: Request, attempt_id: int, number: int) -> Response:
     return page(request, t("Разбор — вопрос {n}", n=aq.position), content)
 
 
-# ── Прохождение пробного ЕНТ ─────────────────────────────────────────────────
-
 def _load_active_attempt(
     request: Request, attempt_id: int
 ) -> tuple[Attempt | None, Response | None]:
-    """Загружает попытку для прохождения.
-
-    Возвращает (попытка, None) или (None, готовый ответ): 404, если попытка чужая,
-    или перенаправление на результат, если тест завершён или время вышло.
-    """
     attempt = database.get_attempt(attempt_id, _user_id(request))
     if attempt is None:
         return None, not_found(request)
@@ -1583,8 +1493,14 @@ def _load_active_attempt(
     return attempt, None
 
 
+def _load_mock_attempt(request: Request, attempt_id: int) -> tuple[Attempt | None, Response | None]:
+    attempt, early = _load_active_attempt(request, attempt_id)
+    if early is None and attempt.mode == ent_logic.PRACTICE:
+        early = redirect(_attempt_url(attempt))
+    return attempt, early
+
+
 def _timer(attempt: Attempt) -> SafeHTML:
-    """Блок с оставшимся временем (его считает сервер при каждом запросе)."""
     if attempt.deadline is None:
         return fragment('<div class="timer timer-free">Тренировка — без ограничения по времени.</div>')
     left = ent_logic.remaining_seconds(attempt)
@@ -1605,7 +1521,6 @@ def _timer(attempt: Attempt) -> SafeHTML:
 
 
 def _section_tabs(attempt: Attempt, questions: list[AttemptQuestion], current: str) -> SafeHTML:
-    """Вкладки разделов — это кнопки формы: переход сначала сохраняет ответы."""
     tabs = []
     for code in attempt.subjects:
         subject_questions = [aq for aq in questions if aq.subject == code]
@@ -1626,7 +1541,6 @@ def _section_tabs(attempt: Attempt, questions: list[AttemptQuestion], current: s
 
 
 def _section_buttons(attempt: Attempt, current: str) -> SafeHTML:
-    """Кнопки внизу раздела: назад, сохранить, далее, завершить."""
     index = attempt.subjects.index(current)
     buttons = []
     if index > 0:
@@ -1653,7 +1567,6 @@ def _section_buttons(attempt: Attempt, current: str) -> SafeHTML:
 
 
 def _shortage_note(attempt: Attempt, subject: str | None = None) -> SafeHTML:
-    """Предупреждение, если банк вопросов не позволил собрать полный тест."""
     items = [item for item in attempt.shortage if subject is None or item["subject"] == subject]
     if not items:
         return SafeHTML("")
@@ -1671,12 +1584,9 @@ def _shortage_note(attempt: Attempt, subject: str | None = None) -> SafeHTML:
 @login_required
 def section_page(request: Request, attempt_id: int, subject: str) -> Response:
     """GET /attempt/<id>/<предмет> — раздел пробного ЕНТ в виде одной HTML-формы."""
-    attempt, early = _load_active_attempt(request, attempt_id)
-    if attempt is None:
-        assert early is not None
+    attempt, early = _load_mock_attempt(request, attempt_id)
+    if early is not None:
         return early
-    if attempt.mode == ent_logic.PRACTICE:
-        return redirect(_attempt_url(attempt))
     if subject not in attempt.subjects:
         return not_found(request)
 
@@ -1711,20 +1621,13 @@ def section_page(request: Request, attempt_id: int, subject: str) -> Response:
 
 @login_required
 def section_submit(request: Request, attempt_id: int, subject: str) -> Response:
-    """POST /attempt/<id>/<предмет> — сохраняет ответы раздела, затем выполняет действие.
-
-    Ответы сохраняются ВСЕГДА до перехода: по вкладке, «Далее», «Назад» или «Завершить».
-    """
-    attempt, early = _load_active_attempt(request, attempt_id)
-    if attempt is None:
-        assert early is not None
+    """POST /attempt/<id>/<предмет> — сохраняет ответы раздела, затем выполняет действие."""
+    attempt, early = _load_mock_attempt(request, attempt_id)
+    if early is not None:
         return early
-    if attempt.mode == ent_logic.PRACTICE:
-        return redirect(_attempt_url(attempt))
     if subject not in attempt.subjects:
         return not_found(request)
 
-    # Поле section подтверждает, что форма относится именно к этому разделу.
     if request.form_value("section") == subject:
         questions = database.get_attempt_questions(attempt.id)
         section = [aq for aq in questions if aq.subject == subject]
@@ -1742,12 +1645,9 @@ def section_submit(request: Request, attempt_id: int, subject: str) -> Response:
 @login_required
 def finish_confirm(request: Request, attempt_id: int) -> Response:
     """GET /attempt/<id>/finish — страница подтверждения завершения теста."""
-    attempt, early = _load_active_attempt(request, attempt_id)
-    if attempt is None:
-        assert early is not None
+    attempt, early = _load_mock_attempt(request, attempt_id)
+    if early is not None:
         return early
-    if attempt.mode == ent_logic.PRACTICE:
-        return redirect(_attempt_url(attempt))
 
     questions = database.get_attempt_questions(attempt.id)
     rows = []
@@ -1792,10 +1692,7 @@ def finish_submit(request: Request, attempt_id: int) -> Response:
     return redirect(f"/result/{attempt.id}")
 
 
-# ── Результат и история ──────────────────────────────────────────────────────
-
 def _review_item(aq: AttemptQuestion) -> SafeHTML:
-    """Разбор одного задания на странице результата."""
     state = ent_logic.question_state(aq)
     return fragment(
         '<article class="review-item review-$state">'
@@ -1811,10 +1708,7 @@ def _review_item(aq: AttemptQuestion) -> SafeHTML:
 
 
 def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
-    """Страница результата завершённой попытки (общая для ученика и админки).
-
-    actions — кнопки внизу страницы: у ученика свои, у администратора — свои.
-    """
+    """Страница результата завершённой попытки (общая для ученика и админки)."""
     questions = database.get_attempt_questions(attempt.id)
     scores = ent_logic.subject_scores(attempt, questions)
     is_mock = attempt.mode == ent_logic.MOCK

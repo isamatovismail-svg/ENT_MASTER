@@ -60,7 +60,7 @@ class HttpsAttemptTests(DatabaseTestCase):
             with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
                 sock.sendall(b"\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03" + b"\x00" * 40 + b"\r\n")
                 reply = sock.recv(1024)
-        self.assertEqual(reply, b"")  # соединение просто закрыто, без «400 Bad request version»
+        self.assertEqual(reply, b"")
         text = "\n".join(logs.output)
         self.assertIn("http://localhost", text)
         self.assertNotIn("Bad request version", text)
@@ -111,7 +111,6 @@ class ShareModeTests(DatabaseTestCase):
         database.set_user_role("boss@school.kz", database.ROLE_ADMIN)
         auth.create_account("Второй", "second@school.kz", "Very-Long-Unique-9431")
         database.set_user_role("second@school.kz", database.ROLE_ADMIN)
-        # Демо-админ пропускается: в режиме показа он всё равно не может войти.
         self.assertEqual(auth.weak_admin_logins(), ["boss@school.kz"])
 
 
@@ -127,7 +126,6 @@ class BehindTunnelTests(DatabaseTestCase):
         self.server = create_server("127.0.0.1", 0)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.browser = Browser(f"http://127.0.0.1:{self.server.server_address[1]}")
-        # Так запрос приходит от cloudflared.
         self.browser.opener.addheaders = [
             ("X-Forwarded-Proto", "https"), ("Cf-Visitor", '{"scheme":"https"}'),
             ("Host", "quiet-river-1234.trycloudflare.com"),
@@ -147,10 +145,9 @@ class BehindTunnelTests(DatabaseTestCase):
     def test_student_login_cookies_redirects_and_csrf(self) -> None:
         status, path, html, _ = self._login("student@" + config.DEMO_EMAIL_DOMAIN)
         self.assertEqual(status, 200)
-        self.assertEqual(path, "/dashboard")  # редирект относительный — работает за туннелем
+        self.assertEqual(path, "/dashboard")
         cookie = next(c for c in self.browser.cookies if c.name == config.SESSION_COOKIE_NAME)
         self.assertTrue(cookie.has_nonstandard_attr("HttpOnly"))
-        # Ссылки на страницах относительные: никаких http://localhost в HTML.
         self.assertNotIn("localhost", html)
         self.assertNotIn("127.0.0.1", html)
         token = CSRF_RE.search(html).group(1)

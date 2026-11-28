@@ -1,11 +1,4 @@
-"""Этап 10: проверка казахского перевода вопросов (data/questions/kk/*.json).
-
-Перевод сверяется с русским оригиналом вопрос за вопросом (порядок одинаковый):
-- тот же тип, тема и правильный ответ (буква / набор букв / буквы соответствия);
-- столько же вариантов и строк соответствия, варианты не повторяются;
-- числа и формулы не изменились: варианты без слов совпадают символ в символ,
-  а числа и латинские формулы в тексте, контексте, вариантах и строках — те же.
-"""
+"""Этап 10: проверка казахского перевода вопросов (data/questions/kk/*.json)."""
 
 import json
 import re
@@ -18,7 +11,6 @@ from app.core.question_bank import validate_question
 KK_DIR = config.QUESTIONS_DIR / "kk"
 CYRILLIC = re.compile("[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]")
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
-# Формула: латинская буква и всё, что к ней приклеено (x², f(x), log₃, H₂SO₄, sin).
 FORMULA = re.compile(r"[A-Za-z][A-Za-z0-9²³⁴⁵⁶⁷⁸⁹⁰¹ⁿ₀₁₂₃₄₅₆₇₈₉′()^]*")
 
 
@@ -27,7 +19,6 @@ def _numbers(*parts: str) -> Counter:
 
 
 def _clean(token: str) -> str:
-    """Скобка, закрывающая окружающий текст, — не часть формулы: «(система AB0)» → «AB0»."""
     while token.endswith(")") and token.count("(") < token.count(")"):
         token = token[:-1]
     return token
@@ -50,12 +41,11 @@ def pairs() -> list[tuple[str, dict, dict]]:
 
 
 class KazakhTranslationTests(unittest.TestCase):
-
     def test_files_translated(self) -> None:
         names = {p.name for p in KK_DIR.glob("*.json")}
         for subject in config.SUBJECTS:
             if subject in config.SUBJECT_OWN_LANGUAGE or subject in config.SHARED_LANGUAGE_SUBJECTS:
-                self.assertNotIn(f"{subject}.json", names)  # свой язык / общий — не переводятся
+                self.assertNotIn(f"{subject}.json", names)
             else:
                 self.assertIn(f"{subject}.json", names)
 

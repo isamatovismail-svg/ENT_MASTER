@@ -1,16 +1,4 @@
-"""Вход через Google: OAuth 2.0, Authorization Code Flow — только urllib.
-
-1. authorization_url(state) — куда отправить пользователя (state защищает от подделки
-   ответа: он сохраняется в cookie и сверяется в callback).
-2. Google возвращает пользователя на GOOGLE_REDIRECT_URI с ?code=…&state=….
-3. exchange_code(code) меняет code на токены на https://oauth2.googleapis.com/token
-   и возвращает данные пользователя из id_token (после проверки aud, iss, exp).
-
-id_token получен напрямую от Google по HTTPS (а не через браузер), поэтому, как
-разрешает спецификация OpenID Connect, его подпись можно не проверять — достаточно
-проверить, кому он выдан (aud), кем (iss) и не истёк ли он (exp).
-Тесты подменяют функцию post_form, чтобы не ходить в сеть.
-"""
+"""Вход через Google: OAuth 2.0, Authorization Code Flow — только urllib."""
 
 import base64
 import json
@@ -76,7 +64,6 @@ def post_form(url: str, fields: dict[str, str]) -> dict:
 
 
 def _decode_segment(segment: str) -> dict:
-    """Раскодирует часть JWT (base64url без «=» в конце) в словарь."""
     padded = segment + "=" * (-len(segment) % 4)
     try:
         data = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))

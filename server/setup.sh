@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Первоначальная установка ENT MASTER на сервер Oracle Cloud (Ubuntu 24.04, Always Free).
-#
-# Запуск на сервере (из папки с кодом проекта или с адресом git-репозитория):
-#   sudo bash server/setup.sh ent-master.kz                      — код уже лежит в /opt/ent-master
-#   sudo bash server/setup.sh ent-master.kz https://github.com/…  — склонировать код из git
-#
-# Что делает скрипт (повторный запуск безопасен):
-#   1. ставит python3, git, caddy;
-#   2. открывает порты 80 и 443 во встроенном файрволе Ubuntu-образа Oracle (iptables);
-#   3. создаёт системного пользователя ent и папки /opt/ent-master, /var/backups/ent-master;
-#   4. создаёт .env (если его нет) с SITE_URL, COOKIE_SECURE=1 и папкой копий;
-#   5. загружает банк вопросов (seed.py);
-#   6. включает службы systemd: сайт, бот (если есть токен), ежедневную копию базы
-#      (с отправкой в Telegram), проверку сайта каждые 5 минут, оповещения о сбоях;
-#   7. настраивает Caddy: HTTPS-сертификат для домена и прокси на 127.0.0.1:8000.
 set -euo pipefail
 
 DOMAIN="${1:-}"
@@ -32,7 +17,7 @@ if [[ -z "$DOMAIN" ]]; then
 fi
 
 echo "== 1. Пакеты"
-export DEBIAN_FRONTEND=noninteractive  # без вопросов от iptables-persistent и других пакетов
+export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q python3 git caddy netfilter-persistent iptables-persistent
 python3 - <<'PY'
@@ -42,9 +27,6 @@ if sys.version_info < (3, 11):
 PY
 
 echo "== 2. Файрвол сервера: порты 80 и 443"
-# В образах Ubuntu от Oracle входящие соединения закрыты правилом REJECT в iptables.
-# Разрешающие правила вставляем перед ним. Порты нужно открыть ещё и в Security List
-# облачной сети (VCN) — это делается в консоли Oracle Cloud, см. README.
 for port in 80 443; do
   if ! iptables -C INPUT -p tcp -m state --state NEW --dport "$port" -j ACCEPT 2>/dev/null; then
     position=$(iptables -L INPUT --line-numbers | awk '/REJECT/ {print $1; exit}')
@@ -70,25 +52,20 @@ echo "== 4. Настройки .env"
 ENV_FILE="$APP_DIR/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<ENV
-# Настройки ENT MASTER на сервере. Секреты храните только здесь (файл не попадает в git).
 SITE_URL=https://$DOMAIN
 COOKIE_SECURE=1
 BACKUP_DIR=$BACKUP_DIR
 BACKUP_KEEP=14
 
-# Telegram-бот. Токен нужен и для оповещений о сбоях и отправки резервных копий:
 # TELEGRAM_BOT_TOKEN=
-# Кому слать оповещения и копии базы (ваш chat id; пусто — администраторам с привязанным Telegram):
 # ADMIN_TELEGRAM_CHAT_ID=
 
-# Почта для кодов подтверждения (Gmail, пароль приложения):
 # SMTP_HOST=smtp.gmail.com
 # SMTP_PORT=465
 # SMTP_USER=
 # SMTP_PASSWORD=
 # MAIL_FROM=
 
-# Вход через Google (redirect URI: https://$DOMAIN/auth/google/callback):
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
 # GOOGLE_REDIRECT_URI=https://$DOMAIN/auth/google/callback

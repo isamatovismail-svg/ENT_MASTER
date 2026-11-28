@@ -1,8 +1,4 @@
-"""Сбор всех строк интерфейса, которым нужен перевод (для проверки словаря в tests/test_i18n.py).
-
-Источники: HTML-шаблоны templates/*.html, фрагменты fragment("…") и строки t("…") в коде,
-а также русские строковые константы модулей интерфейса (названия, сообщения, подписи).
-"""
+"""Сбор всех строк интерфейса, которым нужен перевод (для проверки словаря в tests/test_i18n.py)."""
 
 import ast
 import re
@@ -11,8 +7,6 @@ from pathlib import Path
 from app import config
 from app import i18n
 
-# Модули, тексты которых видит пользователь. Остальные (database, alerts, server, mailer …)
-# пишут только в лог или администратору сервера.
 UI_MODULES = (
     "app/config.py", "app/web/account_views.py", "app/web/admin_views.py", "app/core/ads.py",
     "app/core/auth.py", "app/core/ent_logic.py", "app/core/google_auth.py", "app/core/notifications.py",
@@ -20,16 +14,12 @@ UI_MODULES = (
     "app/core/student_stats.py", "app/web/teacher_views.py", "app/telegram_bot.py",
     "app/web/telegram_views.py", "app/web/views.py",
 )
-# Темы казахского языка и литературы в спецификации НЦТ уже на казахском — их не переводим.
 KAZAKH_SUBJECTS = ("kazakh_language", "kazakh_literature")
-# Строки, которые не показываются как текст интерфейса (служебные слова для сравнения школ,
-# имя по умолчанию, хранящееся в базе, и т. п.).
 IGNORED = {
     "школа", "сош", "средняя", "общеобразовательная", "мектеп", "мектебі", "мектебi", "жом",
     "г", "город", "қ", "қаласы", "Тіл / Язык",
     "Русский", "Қазақ тілі", "РУС", "ҚАЗ", "е", "ё",
     r"(?:школа|сош|мектеп)?\s*№?\s*(\d+)",
-    # Ошибки обмена с Google пишутся в лог; пользователь видит общее «не удалось войти через Google».
     "Google не вернул id_token", "Google не сообщил почту", "Google ответил ошибкой {code}",
     "id_token выдан другому приложению", "id_token выдан не Google", "Нет кода авторизации",
     "Повреждённый id_token", "Почта в Google не подтверждена", "Срок действия id_token истёк",

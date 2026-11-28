@@ -10,12 +10,9 @@ G = 10
 
 
 def _q(rng, text, value, unit, wrong, expl, context=""):
-    """Числовой вопрос с единицей измерения."""
     return single(rng, text, f"{num(value)} {unit}",
                   number_distractors(rng, value, wrong, f" {unit}"), expl, context=context)
 
-
-# ── Один ответ ───────────────────────────────────────────────────────────────
 
 @topic("01")
 def speed(rng):
@@ -224,7 +221,6 @@ def free_fall(rng):
 
 @topic("15")
 def period(rng):
-    # Числа подбираются так, чтобы ответ был «круглым»: сначала ответ, потом условие.
     if rng.random() < 0.5:
         per = rng.choice([0.1, 0.2, 0.25, 0.5, 0.8, 1, 1.2, 1.5, 2, 2.5, 3, 4, 5])
         n = rng.randint(5, 100)
@@ -245,8 +241,6 @@ def period(rng):
               [t / n, n * t, freq * 2, freq + 1],
               f"Частота — число колебаний за секунду: ν = N / t = {n} / {t} = {num(freq)} Гц.")
 
-
-# ── По контексту ─────────────────────────────────────────────────────────────
 
 @topic("02")
 def car_context(rng):
@@ -282,7 +276,6 @@ def car_context(rng):
 
 @topic("11")
 def circuit_context(rng):
-    # Подбираем сопротивления, при которых ток выражается не более чем двумя знаками после запятой.
     for _ in range(50):
         u = rng.choice([6, 9, 12, 24, 36, 220])
         r1, r2 = rng.randint(2, 40), rng.randint(2, 40)
@@ -304,8 +297,6 @@ def circuit_context(rng):
               f"Ток в цепи I = {u} / ({r1} + {r2}) = {num(i)} А. Напряжение U₁ = I·R₁ = {num(i)}·{r1} = {num(u1)} В.",
               context)
 
-
-# ── Соответствие ─────────────────────────────────────────────────────────────
 
 _UNITS = [("Сила", "Ньютон"), ("Работа", "Джоуль"), ("Мощность", "Ватт"), ("Давление", "Паскаль"),
           ("Сила тока", "Ампер"), ("Напряжение", "Вольт"), ("Сопротивление", "Ом"), ("Частота", "Герц"),
@@ -338,8 +329,6 @@ def formulas_matching(rng):
     expl = f"{pairs[0][0]}: {pairs[0][1]}. {pairs[1][0]}: {pairs[1][1]}."
     return matching(rng, text, pairs, extra, expl)
 
-
-# ── Несколько ответов ────────────────────────────────────────────────────────
 
 _VECTORS = ["Скорость", "Сила", "Ускорение", "Импульс", "Перемещение", "Напряжённость электрического поля",
             "Магнитная индукция"]
@@ -379,7 +368,6 @@ def si_base_multiple(rng):
 def bigger_force_multiple(rng):
     masses = rng.sample(range(1, 80), 6)
     forces = {m: m * G for m in masses}
-    # Порог выбирается между массами так, чтобы подходило от 1 до 3 тел.
     heavy = sorted(masses, reverse=True)
     k = rng.randint(1, 3)
     target = rng.randint(heavy[k] * G, heavy[k - 1] * G - 1)
@@ -391,8 +379,6 @@ def bigger_force_multiple(rng):
             f"Подходят: {', '.join(f'{m} кг' for m in sorted(right))}.")
     return multiple(rng, text, [f"{m} кг" for m in right], [f"{m} кг" for m in wrong], expl)
 
-
-# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
 
 @topic("03")
 def lever(rng: random.Random) -> dict:
@@ -454,11 +440,11 @@ def gas_law(rng: random.Random) -> dict:
 
 @topic("09")
 def mechanical_stress(rng: random.Random) -> dict:
-    force = rng.randint(1, 40)       # кН
-    area = rng.choice([1, 2, 4, 5])  # см²
+    force = rng.randint(1, 40)
+    area = rng.choice([1, 2, 4, 5])
     if (force * 10) % area:
         raise SkipQuestion
-    sigma = force * 10 // area       # МПа: 1 кН / 1 см² = 10 МПа
+    sigma = force * 10 // area
     text = (f"Стержень с площадью поперечного сечения {area} см² растягивают силой {force} кН. "
             "Каково механическое напряжение в стержне?")
     explanation = (f"σ = F / S = {force}·10³ Н / ({area}·10⁻⁴ м²) = {num(sigma)}·10⁶ Па = {num(sigma)} МПа.")
@@ -468,8 +454,8 @@ def mechanical_stress(rng: random.Random) -> dict:
 
 @topic("10")
 def capacitor(rng: random.Random) -> dict:
-    c = rng.choice([2, 4, 5, 10, 20, 50])   # мкФ
-    u = rng.randrange(10, 201, 10)          # В
+    c = rng.choice([2, 4, 5, 10, 20, 50])
+    u = rng.randrange(10, 201, 10)
     if rng.random() < 0.5:
         q = c * u
         return single(rng, f"Конденсатор ёмкостью {c} мкФ зарядили до напряжения {u} В. Каков его заряд?",
@@ -513,8 +499,8 @@ def ampere_force(rng: random.Random) -> dict:
 @topic("14")
 def induction_emf(rng: random.Random) -> dict:
     turns = rng.choice([1, 10, 20, 50, 100])
-    dt = rng.choice([1, 2, 4, 5, 10])                  # мс
-    dphi = dt * rng.randint(1, 20)                     # мВб
+    dt = rng.choice([1, 2, 4, 5, 10])
+    dphi = dt * rng.randint(1, 20)
     emf = turns * dphi // dt
     text = (f"Магнитный поток через катушку из {turns} {plural(turns, 'витка', 'витков', 'витков')} "
             f"равномерно изменился на {dphi} мВб за {dt} мс. Какая ЭДС индукции возникла в катушке?")
@@ -540,7 +526,7 @@ def transformer(rng: random.Random) -> dict:
 
 @topic("18")
 def radio_wavelength(rng: random.Random) -> dict:
-    freq = rng.choice([1, 2, 3, 5, 6, 10, 12, 15, 20, 25, 30, 50, 60, 75, 100, 150, 300])  # МГц
+    freq = rng.choice([1, 2, 3, 5, 6, 10, 12, 15, 20, 25, 30, 50, 60, 75, 100, 150, 300])
     length = 300 // freq
     text = f"Радиостанция работает на частоте {freq} МГц. Какова длина излучаемой электромагнитной волны?"
     explanation = (f"λ = c/ν = 3·10⁸ м/с / ({freq}·10⁶ Гц) = {num(length)} м.")
@@ -561,7 +547,7 @@ def grating_period(rng: random.Random) -> dict:
 @topic("20")
 def lens_power(rng: random.Random) -> dict:
     if rng.random() < 0.5:
-        focus = rng.choice([10, 20, 25, 40, 50, 100, 200])  # см
+        focus = rng.choice([10, 20, 25, 40, 50, 100, 200])
         power = 100 / focus
         return single(rng, f"Фокусное расстояние собирающей линзы {focus} см. Какова её оптическая сила?",
                       f"{num(power)} дптр", number_distractors(rng, power, [focus, focus / 100, power * 2], " дптр"),

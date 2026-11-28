@@ -1,14 +1,8 @@
-"""Страницы аккаунта: подтверждение почты кодом, восстановление пароля, вход через Google.
-
-Все формы здесь — для гостей (как вход и регистрация), поэтому csrf-токена сессии
-у них нет. Подобрать код нельзя: после EMAIL_CODE_MAX_ATTEMPTS неверных вводов код
-перестаёт действовать, а новый можно запросить не чаще раза в минуту.
-"""
+"""Страницы аккаунта: подтверждение почты кодом, восстановление пароля, вход через Google."""
 
 import hmac
 import logging
 import secrets
-from http.cookies import SimpleCookie
 from urllib.parse import urlencode
 
 from app import config
@@ -22,21 +16,16 @@ logger = logging.getLogger(__name__)
 
 
 def _wait_error(seconds: int) -> str:
-    """Сообщение «код можно запросить через N секунд»."""
     return t("Новый код можно запросить через {seconds} с. Пока используйте код из последнего письма.", seconds=seconds)
 
 
 def _login_now(request: Request, user_id: int, location: str) -> Response:
-    """Создаёт новую сессию (старая, если была, удаляется) и перенаправляет."""
     if request.session_key:
         database.delete_session(request.session_key)
     return redirect(location, cookies=[auth.start_session(user_id)])
 
 
-# ── Подтверждение почты ──────────────────────────────────────────────────────
-
 def _verify_form(request: Request, email: str, errors: list[str], status: int = 200) -> Response:
-    """Страница ввода кода из письма."""
     content = render(
         "verify.html",
         errors=views._errors_block(errors),
@@ -84,10 +73,7 @@ def verify_resend(request: Request) -> Response:
     return redirect(views.verify_url(email, "code_sent"))
 
 
-# ── Восстановление пароля ────────────────────────────────────────────────────
-
 def _forgot_form(request: Request, email: str, errors: list[str], status: int = 200) -> Response:
-    """Страница «Забыли пароль?»: ввод почты."""
     content = render("forgot.html", errors=views._errors_block(errors), email=email)
     return views.page(request, t("Восстановление пароля"), content, status)
 
@@ -98,19 +84,13 @@ def forgot_page(request: Request) -> Response:
 
 
 def forgot_submit(request: Request) -> Response:
-    """POST /forgot — отправка кода на почту.
-
-    Ответ одинаковый, есть ли такой аккаунт или нет: по нему нельзя узнать,
-    кто зарегистрирован на сайте.
-    """
+    """POST /forgot — отправка кода на почту."""
     email = auth.normalize_email(request.form_value("email"))
     if not auth.EMAIL_RE.match(email):
         return _forgot_form(request, email, [t("Введите почту, указанную при регистрации.")], 400)
     user = auth.find_email_user(email)
     if user is not None:
         try:
-            # Если код отправляли меньше минуты назад, действует прежний код
-            # (ответ тот же, чтобы не выдавать, что аккаунт существует).
             auth.send_email_code(user["id"], email, auth.RESET)
         except mailer.MailError:
             return _forgot_form(request, email, [views.MAIL_FAILED], 503)
@@ -118,7 +98,6 @@ def forgot_submit(request: Request) -> Response:
 
 
 def _reset_form(request: Request, email: str, errors: list[str], status: int = 200) -> Response:
-    """Страница ввода кода и нового пароля."""
     content = render(
         "reset.html",
         errors=views._errors_block(errors),
@@ -150,20 +129,8 @@ def reset_submit(request: Request) -> Response:
     return _login_now(request, user_id, "/dashboard?msg=password_changed")
 
 
-# ── Вход через Google ────────────────────────────────────────────────────────
-
 def _state_cookie(value: str, max_age: int) -> str:
-    """Cookie со state для OAuth: HttpOnly, SameSite=Lax (Google возвращает GET-переходом)."""
-    cookie = SimpleCookie()
-    cookie[config.OAUTH_STATE_COOKIE_NAME] = value
-    morsel = cookie[config.OAUTH_STATE_COOKIE_NAME]
-    morsel["path"] = "/auth/google"
-    morsel["max-age"] = max_age
-    morsel["httponly"] = True
-    morsel["samesite"] = "Lax"
-    if config.COOKIE_SECURE:
-        morsel["secure"] = True  # на сервере с HTTPS cookie не уходит по незащищённому http
-    return morsel.OutputString()
+    return auth.cookie_header(config.OAUTH_STATE_COOKIE_NAME, value, max_age, path="/auth/google")
 
 
 def google_start(request: Request) -> Response:
@@ -183,7 +150,6 @@ def google_callback(request: Request) -> Response:
     if not google_auth.enabled():
         return redirect("/login?msg=google_off")
     if request.query_value("error"):
-        # Пользователь нажал «Отмена» на странице Google.
         return redirect("/login", cookies=[clear_state])
     expected = request.cookies.get(config.OAUTH_STATE_COOKIE_NAME, "")
     state = request.query_value("state")

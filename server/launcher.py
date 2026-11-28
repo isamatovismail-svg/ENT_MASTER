@@ -17,11 +17,10 @@ SITE_LABEL = "[САЙТ]"
 BOT_LABEL = "[БОТ] "
 TUNNEL_LABEL = "[ТУННЕЛЬ]"
 RUN_LABEL = "[RUN] "
-STOP_TIMEOUT_SECONDS = 5      # сколько ждать аккуратной остановки процесса
+STOP_TIMEOUT_SECONDS = 5
 SITE_START_TIMEOUT_SECONDS = 15
 TUNNEL_START_TIMEOUT_SECONDS = 60
 
-# Публичный адрес Quick Tunnel и строка, после которой туннель реально принимает запросы.
 TUNNEL_URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 TUNNEL_READY_MARK = "Registered tunnel connection"
 CLOUDFLARED_INSTALL_HINT = (
@@ -40,12 +39,10 @@ def log(label: str, text: str) -> None:
         print(f"{label} {text}", flush=True)
 
 
-PR_SET_PDEATHSIG = 1  # prctl: какой сигнал получит процесс, когда умрёт его родитель
+PR_SET_PDEATHSIG = 1
 
 
 def _die_with_parent() -> None:
-    """(Linux) Дочерний процесс получит SIGTERM, если run.py завершится аварийно (kill -9),
-    — сайт, бот и туннель не останутся висеть без хозяина."""
     try:
         ctypes.CDLL(None, use_errno=True).prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
     except (OSError, AttributeError):
@@ -64,8 +61,6 @@ def _popen(command: list[str], env: dict[str, str]) -> subprocess.Popen:
         encoding="utf-8",
         errors="replace",
         bufsize=1,
-        # Своя группа процессов: Ctrl+C получает только run.py и сам по очереди
-        # останавливает сайт, бота и туннель, а не все сразу и вперемешку.
         start_new_session=(os.name == "posix"),
         preexec_fn=_die_with_parent if sys.platform.startswith("linux") else None,
     )
@@ -90,7 +85,7 @@ class Tunnel:
 
     def __init__(self, binary: str, local_url: str) -> None:
         self.url = ""
-        self.ready = threading.Event()   # туннель зарегистрирован и принимает запросы
+        self.ready = threading.Event()
         self.process = _popen(
             [binary, "tunnel", "--no-autoupdate", "--grace-period", "1s", "--url", local_url],
             {**os.environ},
@@ -98,7 +93,6 @@ class Tunnel:
         threading.Thread(target=self._pump, daemon=True).start()
 
     def _pump(self) -> None:
-        """Ищет в выводе cloudflared публичную ссылку; печатает только ошибки (остальное — шум)."""
         for line in self.process.stdout:
             line = line.rstrip("\n")
             found = TUNNEL_URL_RE.search(line)
@@ -108,7 +102,7 @@ class Tunnel:
                 self.ready.set()
             if " ERR " in line:
                 log(TUNNEL_LABEL, line)
-        self.ready.set()  # процесс завершился — не ждём дальше
+        self.ready.set()
 
     def wait(self, timeout: float) -> str:
         """Публичная ссылка или '' (cloudflared не смог подключиться к Cloudflare)."""
@@ -128,7 +122,7 @@ def stop(process: subprocess.Popen, label: str) -> None:
         process.kill()
         process.wait()
     except ProcessLookupError:
-        pass  # процесс уже успел завершиться сам
+        pass
 
 
 def wait_for_site(process: subprocess.Popen) -> bool:
@@ -174,11 +168,11 @@ def share_banner(url: str) -> str:
 def warn_weak_admin_passwords() -> None:
     """Предупреждает, если пароль главного администратора угадывается (проверка в фоне)."""
     try:
-        from app.core import auth, database  # импорт здесь: run.py работает и без базы
+        from app.core import auth, database
 
         database.init_db()
         weak = auth.weak_admin_logins()
-    except Exception as error:  # noqa: BLE001 — проверка не должна мешать запуску
+    except Exception as error:
         log(RUN_LABEL, f"Не удалось проверить пароли администраторов: {error}")
         return
     for login in weak:
@@ -191,10 +185,6 @@ def _raise_keyboard_interrupt(signum, frame) -> None:
 
 
 def _ignore_further_interrupts() -> None:
-    """Игнорирует повторный Ctrl+C, чтобы остановка дошла до конца.
-
-    Второй Ctrl+C может прилететь прямо во время этой функции — тогда просто повторяем.
-    """
     while True:
         try:
             signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -210,16 +200,29 @@ def shutdown(processes: list[tuple[subprocess.Popen, str]]) -> None:
     for process, label in reversed(processes):
         try:
             stop(process, label)
-        except KeyboardInterrupt:  # сигнал, пришедший до SIG_IGN
+        except KeyboardInterrupt:
             process.kill()
+
+
+def open_tunnel(processes: list[tuple[subprocess.Popen, str]]) -> Tunnel | None:
+    """Открывает Quick Tunnel и ждёт публичную ссылку; None — cloudflared нет или он не подключился."""
+    binary = shutil.which("cloudflared")
+    if binary is None:
+        log(RUN_LABEL, CLOUDFLARED_INSTALL_HINT)
+        return None
+    log(RUN_LABEL, "Открываю туннель Cloudflare (до минуты)…")
+    tunnel = Tunnel(binary, config.LOCAL_URL)
+    processes.append((tunnel.process, TUNNEL_LABEL))
+    if not tunnel.wait(TUNNEL_START_TIMEOUT_SECONDS):
+        log(RUN_LABEL, "Не удалось открыть туннель (нет интернета или Cloudflare недоступен). "
+                       "Попробуйте ещё раз или запустите без --share.")
+        return None
+    return tunnel
 
 
 def run_all(share: bool = False) -> int:
     """Запускает сайт, бота (если есть токен) и туннель (share); ждёт Ctrl+C и останавливает всё."""
-    # Ctrl+C работает, даже если run.py запущен с игнорируемым SIGINT (например, через &):
-    # обработчик ставится до запуска процессов, и после exec у них SIGINT снова обычный.
     signal.signal(signal.SIGINT, signal.default_int_handler)
-    # Кнопка «Стоп» в PyCharm и kill присылают SIGTERM — обрабатываем как Ctrl+C.
     signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
 
     processes: list[tuple[subprocess.Popen, str]] = []
@@ -231,20 +234,10 @@ def run_all(share: bool = False) -> int:
         return 1
     try:
         if share:
-            binary = shutil.which("cloudflared")
-            if binary is None:
-                log(RUN_LABEL, CLOUDFLARED_INSTALL_HINT)
+            tunnel = open_tunnel(processes)
+            if tunnel is None:
                 return 1
-            log(RUN_LABEL, "Открываю туннель Cloudflare (до минуты)…")
-            tunnel = Tunnel(binary, config.LOCAL_URL)
-            processes.append((tunnel.process, TUNNEL_LABEL))
-            public_url = tunnel.wait(TUNNEL_START_TIMEOUT_SECONDS)
-            if not public_url:
-                log(RUN_LABEL, "Не удалось открыть туннель (нет интернета или Cloudflare недоступен). "
-                               "Попробуйте ещё раз или запустите без --share.")
-                return 1
-            # Сайт и бот используют публичную ссылку в письмах и ссылках из бота.
-            child_env = {"SHARE_MODE": "1", "SITE_URL": public_url}
+            child_env = {"SHARE_MODE": "1", "SITE_URL": tunnel.url}
 
         site = start("site", SITE_LABEL, child_env)
         processes.append((site, SITE_LABEL))
@@ -286,6 +279,5 @@ def run_all(share: bool = False) -> int:
         return 0
     finally:
         shutdown(processes)
-        time.sleep(0.1)  # дать потокам допечатать последние строки
+        time.sleep(0.1)
         log(RUN_LABEL, "Всё остановлено.")
-

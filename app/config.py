@@ -1,8 +1,4 @@
-"""Все настройки ENT MASTER и структура ЕНТ в одном месте.
-
-Если меняется формат экзамена (число заданий, баллы, время, пары предметов),
-править нужно только этот файл — остальной код берёт данные отсюда.
-"""
+"""Все настройки ENT MASTER и структура ЕНТ в одном месте."""
 
 import os
 from dataclasses import dataclass
@@ -10,7 +6,6 @@ from pathlib import Path
 
 from app.i18n import Translated, t
 
-# ── Пути и сервер ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = BASE_DIR / "app" / "web"
 HOST = "127.0.0.1"
@@ -23,11 +18,7 @@ ENV_PATH = BASE_DIR / ".env"
 
 
 def load_env(path: Path) -> dict[str, str]:
-    """Читает файл .env (строки КЛЮЧ=значение) и возвращает словарь.
-
-    Пустые строки и строки с # пропускаются, кавычки вокруг значения снимаются.
-    Файла может не быть — тогда словарь пустой.
-    """
+    """Читает файл .env (строки КЛЮЧ=значение) и возвращает словарь."""
     values: dict[str, str] = {}
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -46,91 +37,64 @@ def load_env(path: Path) -> dict[str, str]:
     return values
 
 
-# Переменные окружения важнее файла .env.
 _ENV = {**load_env(ENV_PATH), **os.environ}
 
-# ── Запуск на сервере ────────────────────────────────────────────────────────
-# Локально всё работает без настроек. На сервере сайт слушает 127.0.0.1:8000 за HTTPS-прокси
-# (Caddy), а в .env задаются COOKIE_SECURE=1 и при желании другой путь к базе.
 HOST = _ENV.get("HOST", HOST).strip() or HOST
 PORT = int(_ENV.get("PORT", str(PORT)).strip() or PORT)
 if _ENV.get("DATABASE_PATH", "").strip():
     DATABASE_PATH = Path(_ENV["DATABASE_PATH"].strip())
-# 1 — cookie только по HTTPS (флаг Secure). Включать, когда сайт открыт через https://.
 COOKIE_SECURE = _ENV.get("COOKIE_SECURE", "").strip() == "1"
-# Резервные копии базы (python backup.py): папка и сколько последних копий хранить.
 BACKUP_DIR = Path(_ENV.get("BACKUP_DIR", "").strip() or BASE_DIR / "backups")
 BACKUP_KEEP = int(_ENV.get("BACKUP_KEEP", "14").strip() or 14)
-# Адрес для браузера на этом компьютере. Ссылку печатаем именно с localhost, а не 127.0.0.1:
-# в Chrome для http://127.0.0.1:8000 мог остаться закэшированный редирект на https от другого
-# проекта на том же порту (Django с SECURE_SSL_REDIRECT) — тогда браузер показывает ERR_SSL_PROTOCOL_ERROR.
 LOCAL_URL = f"http://localhost:{PORT}" if HOST in ("127.0.0.1", "localhost", "0.0.0.0", "::", "::1") \
     else f"http://{HOST}:{PORT}"
 
-# Режим показа через интернет (python run.py --share): сайт открыт по временной ссылке
-# Cloudflare Quick Tunnel. run.py сам задаёт SHARE_MODE=1 и SITE_URL сайту и боту.
 SHARE_MODE = _ENV.get("SHARE_MODE", "").strip() == "1"
-# Демо-аккаунты (demo_accounts.py) — на этом домене. В режиме показа демо-админ войти не может:
-# его пароль известен всем, кто видел демо, а через туннель сайт открыт всему интернету.
 DEMO_EMAIL_DOMAIN = "entmaster.demo"
 
-# ── Безопасность ─────────────────────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ent_session"
-SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60  # сессия живёт неделю
-PBKDF2_ITERATIONS = 200_000                   # чем больше, тем дороже подбор пароля
+SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60
+PBKDF2_ITERATIONS = 200_000
 PASSWORD_MIN_LENGTH = 8
-MAX_REQUEST_BODY_BYTES = 2_000_000            # защита от слишком больших POST-запросов
-BANNER_MAX_BYTES = 1_000_000                  # картинка рекламного баннера — не больше 1 МБ
+MAX_REQUEST_BODY_BYTES = 2_000_000
+BANNER_MAX_BYTES = 1_000_000
 
-# ── Почта: коды подтверждения и восстановления пароля ────────────────────────
-EMAIL_CODE_MINUTES = 15          # код из письма действует 15 минут
-EMAIL_CODE_MAX_ATTEMPTS = 5      # после 5 неверных вводов нужен новый код
-EMAIL_CODE_RESEND_SECONDS = 60   # новый код — не чаще раза в минуту
-# SMTP (например, Gmail: smtp.gmail.com, порт 465, SSL, пароль приложения).
-# Если не настроен — письма печатаются в консоль (режим разработки).
+EMAIL_CODE_MINUTES = 15
+EMAIL_CODE_MAX_ATTEMPTS = 5
+EMAIL_CODE_RESEND_SECONDS = 60
 SMTP_HOST = _ENV.get("SMTP_HOST", "").strip()
 SMTP_PORT = int(_ENV.get("SMTP_PORT", "465").strip() or 465)
 SMTP_USER = _ENV.get("SMTP_USER", "").strip()
 SMTP_PASSWORD = _ENV.get("SMTP_PASSWORD", "").strip()
 MAIL_FROM = _ENV.get("MAIL_FROM", "").strip() or SMTP_USER
 
-# ── Вход через Google (OAuth 2.0) ────────────────────────────────────────────
 GOOGLE_CLIENT_ID = _ENV.get("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = _ENV.get("GOOGLE_CLIENT_SECRET", "").strip()
 GOOGLE_REDIRECT_URI = _ENV.get("GOOGLE_REDIRECT_URI", "").strip()
 OAUTH_STATE_COOKIE_NAME = "ent_oauth_state"
 OAUTH_STATE_LIFETIME_SECONDS = 10 * 60
 
-# ── Telegram-бот ─────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = _ENV.get("TELEGRAM_BOT_TOKEN", "").strip()
-# Адрес сайта для ссылок из бота (без / в конце).
 SITE_URL = _ENV.get("SITE_URL", f"http://localhost:{PORT}").strip().rstrip("/")
-TELEGRAM_LOGIN_TOKEN_MINUTES = 10   # одноразовая ссылка входа действует 10 минут
-TELEGRAM_POLL_TIMEOUT = 30          # long polling: сколько секунд Telegram держит запрос
-# Кому бот присылает оповещения о сбоях и резервные копии базы: chat id через запятую.
-# Пусто — всем главным администраторам, у которых к аккаунту привязан Telegram.
+TELEGRAM_LOGIN_TOKEN_MINUTES = 10
+TELEGRAM_POLL_TIMEOUT = 30
 ADMIN_TELEGRAM_CHAT_IDS = [int(x) for x in _ENV.get("ADMIN_TELEGRAM_CHAT_ID", "").replace(" ", "").split(",")
                            if x.lstrip("-").isdigit()]
-# Проверка «сайт отвечает» (python notify.py healthcheck, на сервере — каждые 5 минут).
 HEALTHCHECK_URL = _ENV.get("HEALTHCHECK_URL", "").strip() or f"http://{HOST}:{PORT}/"
-# Файл состояния оповещений: чтобы не присылать одно и то же много раз подряд.
 ALERT_STATE_PATH = Path(_ENV.get("ALERT_STATE_PATH", "").strip() or BASE_DIR / ".alert_state.json")
-ALERT_COOLDOWN_SECONDS = 10 * 60    # одинаковое оповещение — не чаще раза в 10 минут
-TELEGRAM_FILE_LIMIT_BYTES = 50 * 1024 * 1024  # Bot API принимает файлы до 50 МБ
+ALERT_COOLDOWN_SECONDS = 10 * 60
+TELEGRAM_FILE_LIMIT_BYTES = 50 * 1024 * 1024
 
-# ── Режимы тестирования ──────────────────────────────────────────────────────
-MOCK_DURATION_MINUTES = 240   # пробный ЕНТ — 4 часа на полные 120 заданий
-PRACTICE_QUESTION_COUNT = 10  # тренировка — 10 случайных заданий по одному на странице
+MOCK_DURATION_MINUTES = 240
+PRACTICE_QUESTION_COUNT = 10
 
-# ── Типы заданий и баллы ─────────────────────────────────────────────────────
-SINGLE = "single"        # один правильный ответ
-CONTEXT = "context"      # задание по тексту/контексту, один правильный ответ
-MATCHING = "matching"    # задание на соответствие
-MULTIPLE = "multiple"    # один или несколько правильных ответов
+SINGLE = "single"
+CONTEXT = "context"
+MATCHING = "matching"
+MULTIPLE = "multiple"
 
 QUESTION_TYPES = (SINGLE, CONTEXT, MATCHING, MULTIPLE)
 
-# Translated: подпись отдаётся на языке текущего запроса (app/i18n.py).
 QUESTION_TYPE_NAMES = Translated({
     SINGLE: "Один ответ",
     CONTEXT: "По контексту",
@@ -138,11 +102,8 @@ QUESTION_TYPE_NAMES = Translated({
     MULTIPLE: "Несколько ответов",
 })
 
-# Максимальный балл за одно задание каждого типа.
-# Для соответствия и нескольких ответов: 2 балла без ошибок, 1 балл при одной ошибке.
 QUESTION_POINTS = {SINGLE: 1, CONTEXT: 1, MATCHING: 2, MULTIPLE: 2}
 
-# Буквы вариантов ответа (A, B, C, ...).
 OPTION_LETTERS = "ABCDEFGH"
 
 
@@ -151,10 +112,10 @@ class SubjectInfo:
     """Описание предмета ЕНТ: код, название и квота заданий по типам."""
 
     code: str
-    title: str                          # название по-русски (ключ словаря переводов)
-    icon: str                           # эмодзи-иконка предмета (цвет задан в style.css)
+    title: str
+    icon: str
     compulsory: bool
-    quota: tuple[tuple[str, int], ...]  # пары (тип задания, количество)
+    quota: tuple[tuple[str, int], ...]
 
     @property
     def name(self) -> str:
@@ -172,22 +133,17 @@ class SubjectInfo:
         return sum(count * QUESTION_POINTS[qtype] for qtype, count in self.quota)
 
 
-# Профильный предмет: 25 одиночных + 5 по контексту + 5 соответствий + 5 множественных
-# = 40 заданий, 25 + 5 + 10 + 10 = 50 баллов.
 PROFILE_QUOTA = ((SINGLE, 25), (CONTEXT, 5), (MATCHING, 5), (MULTIPLE, 5))
 
 
 def _profile(code: str, name: str, icon: str) -> SubjectInfo:
-    """Создаёт описание профильного предмета со стандартной квотой."""
     return SubjectInfo(code, name, icon, False, PROFILE_QUOTA)
 
 
 _ALL_SUBJECTS = (
-    # Обязательные предметы
     SubjectInfo("kz_history", "История Казахстана", "🏛️", True, ((SINGLE, 20),)),
     SubjectInfo("math_literacy", "Математическая грамотность", "🧮", True, ((SINGLE, 10),)),
     SubjectInfo("reading_literacy", "Грамотность чтения", "📖", True, ((CONTEXT, 10),)),
-    # Профильные предметы
     _profile("math", "Математика", "📐"),
     _profile("physics", "Физика", "⚛️"),
     _profile("informatics", "Информатика", "💻"),
@@ -207,7 +163,6 @@ SUBJECTS: dict[str, SubjectInfo] = {subject.code: subject for subject in _ALL_SU
 
 COMPULSORY_CODES: tuple[str, ...] = tuple(s.code for s in _ALL_SUBJECTS if s.compulsory)
 
-# Разрешённые пары профильных предметов.
 PROFILE_PAIRS: tuple[tuple[str, str], ...] = (
     ("math", "physics"),
     ("math", "informatics"),
@@ -222,18 +177,12 @@ PROFILE_PAIRS: tuple[tuple[str, str], ...] = (
     ("foreign_language", "world_history"),
 )
 
-# ── Языки обучения ───────────────────────────────────────────────────────────
-# Вопросы бывают на русском (ru) и казахском (kk); ученик получает вопросы на своём языке обучения.
 LANGUAGES = ("ru", "kk")
-# Общие предметы: одни и те же вопросы для всех (иностранный язык — на английском).
 SHARED_LANGUAGE_SUBJECTS: tuple[str, ...] = ("foreign_language",)
-# Предметы со своим языком: вопросы всегда на языке предмета, независимо от языка ученика.
 SUBJECT_OWN_LANGUAGE = {
     "kazakh_language": "kk", "kazakh_literature": "kk",
     "russian_language": "ru", "russian_literature": "ru",
 }
-# Профильная пара «язык обучения и литература» (egov.kz, правила ЕНТ): казахская — для казахского
-# языка обучения, русская — для русского. Остальные пары одинаковы для обоих языков.
 LANGUAGE_ONLY_PAIRS = {
     ("kazakh_language", "kazakh_literature"): "kk",
     ("russian_language", "russian_literature"): "ru",
@@ -253,8 +202,6 @@ def question_language(subject: str, language: str) -> str:
     return SUBJECT_OWN_LANGUAGE.get(subject, language)
 
 
-# Итоговые числа пробного ЕНТ считаются из квот, а не пишутся вручную:
-# 20 + 10 + 10 + 40 + 40 = 120 заданий, 20 + 10 + 10 + 50 + 50 = 140 баллов.
 _PROFILE_EXAMPLE = SUBJECTS[PROFILE_PAIRS[0][0]]
 MOCK_TOTAL_QUESTIONS = (
     sum(SUBJECTS[c].question_count for c in COMPULSORY_CODES)

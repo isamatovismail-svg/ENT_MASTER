@@ -26,7 +26,7 @@ class Request:
     cookies: dict[str, str] = field(default_factory=dict)
     user: User | None = None
     csrf_token: str = ""
-    session_key: str = ""  # хеш токена текущей сессии
+    session_key: str = ""
 
     def form_value(self, name: str, default: str = "") -> str:
         """Первое значение поля формы (или default, если поля нет)."""
@@ -55,10 +55,7 @@ def html_response(content: str, status: int = 200) -> Response:
 
 
 def redirect(location: str, cookies: list[str] | None = None) -> Response:
-    """Перенаправление 303 (браузер повторит запрос методом GET).
-
-    cookies — готовые значения заголовков Set-Cookie.
-    """
+    """Перенаправление 303 (браузер повторит запрос методом GET)."""
     headers = [("Location", location)]
     headers.extend(("Set-Cookie", cookie) for cookie in cookies or [])
     return Response(status=303, headers=headers)

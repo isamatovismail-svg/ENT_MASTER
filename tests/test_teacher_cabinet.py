@@ -55,9 +55,7 @@ class CabinetServerTestCase(DatabaseTestCase):
 
 
 class AssignmentReachesStudentTests(CabinetServerTestCase):
-    """Ошибка из этапа 8: учитель выдал ученику задание «математика и информатика»,
-    а ученик его не получил — со ссылки задания он попадал на общий выбор пары и проходил
-    «математика + физика» (первую в списке), задание не засчитывалось, уведомлений не было."""
+    """Ученик получает выданное задание по паре «математика и информатика» и оно засчитывается."""
 
     def test_mock_math_informatics_assignment_end_to_end(self) -> None:
         self.fill_full_bank([*config.COMPULSORY_CODES, *MATH_INFORMATICS])
@@ -71,7 +69,6 @@ class AssignmentReachesStudentTests(CabinetServerTestCase):
         self.assertIn("Задание выдано", html)
         assignment_id = int(path.split("/assignments/")[1].split("?")[0])
 
-        # Ученик получил уведомление (колокольчик) и видит задание наверху кабинета.
         student, html = self.login("student@mail.kz")
         self.assertIn('class="bell-count">1<', html)
         top = html.index("Задания учителя")
@@ -80,10 +77,8 @@ class AssignmentReachesStudentTests(CabinetServerTestCase):
         self.assertIn("0 из 2", html)
         _, _, page, _ = student.get("/notifications")
         self.assertIn("Новое задание: Пробный ЕНТ × 2: Математика + Информатика", page)
-        # Другой ученик задание не получил.
         self.assertEqual(database.unread_notifications(self.other_id), 0)
 
-        # Кнопка «Начать» запускает именно математику + информатику.
         status, path, _, _ = student.post(f"/assignments/{assignment_id}/start", {"csrf_token": csrf(html)})
         self.assertEqual(status, 200)
         attempt = database.get_in_progress_attempt(self.student_id, ent_logic.MOCK)
@@ -93,14 +88,12 @@ class AssignmentReachesStudentTests(CabinetServerTestCase):
         _, _, html, _ = student.get("/dashboard")
         self.assertIn("1 из 2", html)
 
-        # Второй раз — задание выполнено, учителю приходит уведомление.
         student.post(f"/assignments/{assignment_id}/start", {"csrf_token": csrf(html)})
         ent_logic.finish_attempt(database.get_in_progress_attempt(self.student_id, ent_logic.MOCK))
         _, _, html, _ = teacher.get(f"/teacher/{self.school}/assignments/{assignment_id}")
         self.assertIn("выполнено", html)
         _, _, html, _ = teacher.get("/notifications")
         self.assertIn("Ученик Демо выполнил(а) задание «Пробный ЕНТ × 2: Математика + Информатика»", html)
-        # Повторное завершение не дублирует уведомление.
         notifications.attempt_finished(self.student_id)
         self.assertEqual(database.unread_notifications(self.teacher_id), 1)
 
@@ -177,11 +170,9 @@ class StudentsTableTests(CabinetServerTestCase):
         self.add_questions("physics", config.SINGLE, 15)
         now = time.time()
         today_noon = datetime.combine(date.today(), datetime.min.time()).timestamp() + 1
-        # Ученик Демо: сегодня 2 тренировки (физика слабая), вчера 1; результат падает.
         self.finished(self.student_id, "math", 9, today_noon - 86400 + 3600)
         self.finished(self.student_id, "math", 8, min(now - 60, today_noon + 120))
         self.finished(self.student_id, "physics", 2, min(now - 30, today_noon + 240))
-        # Арман: занимался давно (40 дней назад) — «нужна помощь».
         self.finished(self.other_id, "math", 10, now - 40 * 86400)
 
         rows = {r.user_id: r for r in student_stats.school_overview(self.school, "all", now)}
@@ -195,12 +186,11 @@ class StudentsTableTests(CabinetServerTestCase):
         self.assertTrue(rows[self.other_id].needs_help)
 
         week = {r.user_id: r for r in student_stats.school_overview(self.school, "7d", now)}
-        self.assertIsNone(week[self.other_id].average)  # за 7 дней Арман ничего не решал
+        self.assertIsNone(week[self.other_id].average)
         self.assertEqual(student_stats.school_overview(self.school, "yesterday", now)[0].attempts
                          + student_stats.school_overview(self.school, "yesterday", now)[1].attempts, 1)
 
         teacher, html = self.login("teacher@mail.kz")
-        # По умолчанию сверху тот, кому нужна помощь.
         self.assertLess(html.index("Арман Другой"), html.index("Ученик Демо"))
         self.assertIn("нужна помощь", html)
         self.assertIn("Физика 20%", html)
@@ -209,7 +199,6 @@ class StudentsTableTests(CabinetServerTestCase):
         _, _, html, _ = teacher.get(f"/teacher/{self.school}?period=today&sort=best&dir=desc")
         self.assertIn('chip chip-active" href="?period=today', html)
 
-        # Карточка ученика: лента по дням.
         _, _, html, _ = teacher.get(f"/teacher/{self.school}/students/{self.student_id}")
         self.assertIn("Лента по дням", html)
         self.assertIn("Сегодня", html)
@@ -244,7 +233,7 @@ class NotificationTests(CabinetServerTestCase):
         notifications.notify(self.student_id, notifications.ASSIGNMENT_NEW,
                              {"mode": "practice", "target": "math", "count": 1, "deadline": time.time()})
         _, _, html, _ = student.get("/notifications")
-        self.assertEqual(student.post("/notifications/read", {})[0], 403)  # без csrf
+        self.assertEqual(student.post("/notifications/read", {})[0], 403)
         student.post("/notifications/read", {"csrf_token": csrf(html)})
         self.assertEqual(database.unread_notifications(self.student_id), 0)
 
@@ -255,7 +244,6 @@ class NotificationTests(CabinetServerTestCase):
         self.assertEqual(self.telegram.messages[-1]["chat_id"], 777)
         self.assertIn("Новое задание", self.telegram.messages[-1]["text"])
         self.assertIn(f"{config.SITE_URL}/dashboard", self.telegram.messages[-1]["text"])
-        # Telegram недоступен — задание всё равно выдаётся, уведомление на сайте есть.
         self.telegram.fail = True
         teacher, _ = self.login("teacher@mail.kz")
         _, _, html, _ = teacher.get(f"/teacher/{self.school}/assignments/new")
@@ -270,12 +258,11 @@ class NotificationTests(CabinetServerTestCase):
         now = time.time()
         assignment_id = database.create_assignment(
             self.school, self.teacher_id, "practice", "math", 1, now - 3 * 86400, now + 20 * 3600, None)
-        self.assertEqual(notifications.check_due(now), 2)  # оба ученика ещё не сделали
-        self.assertEqual(notifications.check_due(now), 0)  # повторно — ничего
+        self.assertEqual(notifications.check_due(now), 2)
+        self.assertEqual(notifications.check_due(now), 0)
         texts = [n.text for n in notifications.for_user(self.student_id)]
         self.assertIn("меньше суток", texts[0])
         self.assertIn("сделано 0 из 1", texts[0])
-        # Срок дальше суток или задание уже выдано «впритык» — без напоминания.
         database.create_assignment(self.school, self.teacher_id, "practice", "physics", 1, now - 86400,
                                    now + 3 * 86400, None)
         database.create_assignment(self.school, self.teacher_id, "practice", "chemistry", 1, now - 3600,
@@ -301,7 +288,6 @@ class AdsTests(CabinetServerTestCase):
         self.assertNotIn("ad-banner", html)
         self.assertNotIn("ad-banner", admin.get("/")[2])
         self.assertNotIn("ad-banner", admin.get("/history")[2])
-        # Во время теста баннера нет.
         self.add_questions("math", config.SINGLE, 12)
         attempt_id = ent_logic.build_practice(self.student_id, "math")
         self.assertNotIn("ad-banner", student.get(f"/practice/{attempt_id}")[2])

@@ -1,7 +1,4 @@
-"""Тесты оповещений главному администратору в Telegram и отправки резервных копий.
-
-В сеть ничего не уходит: вместо Bot API — заглушка FakeSender, вместо urlopen — фальшивый opener.
-"""
+"""Тесты оповещений главному администратору в Telegram и отправки резервных копий."""
 
 import io
 import json
@@ -101,7 +98,6 @@ class ServiceAlertTests(AlertTestCase):
             self.assertFalse(alerts.service_stopped(unit, "signal", "killed", "KILL", self.api,
                                                     now=1000 + minute * 60))
         self.assertEqual(len(self.api.messages), 1)
-        # Другая служба — своё оповещение, не блокируется сайтом.
         self.assertTrue(alerts.service_stopped("ent-master-bot.service", "signal", "killed", "KILL",
                                                self.api, now=1100))
         self.assertIn("упал Telegram-бот", self.api.messages[-1][1])
@@ -151,7 +147,7 @@ class HealthcheckTests(AlertTestCase):
             server.server_close()
             thread.join()
 
-        dead = url  # сервер остановлен — порт больше не отвечает
+        dead = url
         self.assertEqual(alerts.healthcheck(dead, self.api), "down")
         self.assertEqual(self.api.messages, [])
         self.assertEqual(alerts.healthcheck(dead, self.api), "down")

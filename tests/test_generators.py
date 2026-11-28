@@ -14,7 +14,6 @@ from tests.base import DatabaseTestCase
 
 
 def _correct_values(question: dict) -> list[str]:
-    """Тексты правильных вариантов вопроса."""
     return [question["options"][config.OPTION_LETTERS.index(letter)] for letter in question["correct"]]
 
 
@@ -78,7 +77,6 @@ class GeneratorTests(unittest.TestCase):
                             if qtype == config.MULTIPLE:
                                 self.assertEqual(len(options), 6)
                                 self.assertTrue(1 <= len(question["correct"]) <= 3)
-                            # Объяснение не ссылается на буквы — варианты перемешиваются.
                             self.assertNotRegex(question["explanation"], r"(вариант|ответ) [A-H]\b")
                     self.assertGreater(made, 50, function.__name__)
 
@@ -120,10 +118,8 @@ class SeedAndSelectionTests(DatabaseTestCase):
                 self.assertGreaterEqual(counts[(subject, qtype)], need * 3, subject)
         self.assertGreaterEqual(counts[("math_literacy", config.SINGLE)], 300)
         self.assertGreaterEqual(counts[("kz_history", config.SINGLE)], 150)
-        # Полный пробный ЕНТ (120 заданий) собирается для каждой пары профильных предметов.
         for index, pair in enumerate(config.PROFILE_PAIRS):
             self.assertEqual(ent_logic.pair_question_count(index, counts), config.MOCK_TOTAL_QUESTIONS, pair)
-        # Повторный запуск не создаёт дубликатов.
         seed.seed()
         self.assertEqual(database.question_counts(), counts)
 
@@ -131,7 +127,7 @@ class SeedAndSelectionTests(DatabaseTestCase):
         self.add_questions("physics", config.SINGLE, 30)
         user_id = auth.create_account("Асель", "asel@mail.kz", "password1")
         seen: set[int] = set()
-        for _ in range(3):  # 3 тренировки по 10 заданий = все 30 вопросов без повторов
+        for _ in range(3):
             attempt_id = ent_logic.build_practice(user_id, "physics")
             ids = {aq.question_id for aq in database.get_attempt_questions(attempt_id)}
             self.assertEqual(len(ids), config.PRACTICE_QUESTION_COUNT)

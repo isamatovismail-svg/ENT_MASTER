@@ -24,7 +24,6 @@ def based(value: int, base: int) -> str:
 
 
 def _to_base_steps(value: int, base: int) -> str:
-    """Перевод делением с остатком, кратко."""
     steps = []
     v = value
     while v:
@@ -32,8 +31,6 @@ def _to_base_steps(value: int, base: int) -> str:
         v //= base
     return "; ".join(steps)
 
-
-# ── Один ответ ───────────────────────────────────────────────────────────────
 
 @topic("04")
 def to_decimal(rng):
@@ -162,7 +159,6 @@ _OPS = {"∧": lambda a, b: a and b, "∨": lambda a, b: a or b}
 
 
 def _expression(rng) -> tuple[str, callable]:
-    """Случайное логическое выражение от A, B, C и функция для его вычисления."""
     op1, op2 = rng.choice(list(_OPS)), rng.choice(list(_OPS))
     neg = rng.choice(["A", "B", "C"])
     names = ["A", "B", "C"]
@@ -207,7 +203,7 @@ def truth_value(rng):
         raise SkipQuestion
     good = rng.choice(true_rows)
     bad = rng.sample(false_rows, 3)
-    show = lambda r: f"A = {r[0]}, B = {r[1]}, C = {r[2]}"  # noqa: E731
+    show = lambda r: f"A = {r[0]}, B = {r[1]}, C = {r[2]}"
     q = f"При каком наборе значений выражение {text} истинно?"
     expl = (f"Подставляем каждый набор (1 — истина, 0 — ложь), сначала выполняем отрицание, затем действие "
             f"в скобках. Истинно только при {show(good)}; на остальных наборах выражение ложно.")
@@ -215,7 +211,6 @@ def truth_value(rng):
 
 
 def _python_snippet(rng) -> tuple[str, str, list[str], str]:
-    """(код, правильный вывод, неправильные, объяснение)."""
     kind = rng.choice(["divmod", "range_sum", "slice", "len", "power", "list_index", "max_min", "str_mult"])
     if kind == "divmod":
         a, b = rng.randint(10, 99), rng.randint(2, 9)
@@ -278,8 +273,6 @@ def python_output(rng):
     return single(rng, f"Что выведет программа на Python: {code}", value, wrong, expl)
 
 
-# ── По контексту ─────────────────────────────────────────────────────────────
-
 @topic("03")
 def photo_context(rng):
     w, h = rng.choice([(1024, 768), (800, 600), (640, 480), (1280, 1024), (1920, 1080)])
@@ -329,8 +322,6 @@ def loop_context(rng):
                   expl, context=context)
 
 
-# ── Соответствие ─────────────────────────────────────────────────────────────
-
 @topic("04")
 def bases_matching(rng):
     values = rng.sample(range(5, 64), 4)
@@ -364,8 +355,6 @@ def terms_matching(rng):
     expl = f"{a[0]} — {a[1]}. {b[0]} — {b[1]}."
     return matching(rng, text, [a, b], [p[1] for p in picked[2:]], expl)
 
-
-# ── Несколько ответов ────────────────────────────────────────────────────────
 
 @topic("04")
 def bigger_multiple(rng):
@@ -412,8 +401,6 @@ def even_binary_multiple(rng):
     expl = "Двоичное число чётное, если оно оканчивается на 0. Чётные: " + ", ".join(based(v, 2) for v in right) + "."
     return multiple(rng, text, [based(v, 2) for v in right], [based(v, 2) for v in wrong], expl)
 
-
-# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
 
 _WORDS = ["informatika", "python", "algoritm", "kompyuter", "astana", "programma", "baiterek", "massiv",
           "funksiya", "rekursiya", "sortirovka", "stroka"]

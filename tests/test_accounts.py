@@ -1,8 +1,4 @@
-"""Тесты этапа 2: подтверждение почты кодом, восстановление пароля, вход через Google.
-
-Письма не отправляются: DatabaseTestCase подменяет отправителя на FakeMailer.
-В Google тесты тоже не ходят: подменяется google_auth.post_form.
-"""
+"""Тесты этапа 2: подтверждение почты кодом, восстановление пароля, вход через Google."""
 
 import base64
 import json
@@ -204,11 +200,7 @@ class GoogleTests(DatabaseTestCase):
                 google_auth.exchange_code("auth-code")
 
     def test_google_user_accounts(self) -> None:
-        """Новый пользователь создаётся, существующий находится по почте.
-
-        Неподтверждённая регистрация на ту же почту получает случайный пароль:
-        его мог задать чужой человек.
-        """
+        """Новый пользователь создаётся, существующий находится по почте."""
         new_id = auth.google_user("new@gmail.com", "Айдана", "Серикова")
         self.assertEqual(database.get_user(new_id)["name"], "Айдана Серикова")
         self.assertEqual(auth.google_user("NEW@gmail.com", "", ""), new_id)
@@ -258,7 +250,6 @@ class AccountPagesTests(DatabaseTestCase):
         self.assertIn("Отправить код ещё раз", html)
         code = self.mail.last_code("erlan@mail.kz")
 
-        # Без подтверждения войти нельзя — ведём на ввод кода.
         status, path, html, _ = browser.post(
             "/login", {"login": "87015554433", "password": "password123"}
         )
@@ -280,7 +271,6 @@ class AccountPagesTests(DatabaseTestCase):
         self.assertIn("Почта подтверждена", html)
         self.assertIn("Ерлан Абаев", html)
 
-        # Повторное подтверждение и повторная регистрация на ту же почту.
         status, path, _, _ = Browser(self.base_url).post(
             "/verify", {"email": "erlan@mail.kz", "code": code}
         )
@@ -292,7 +282,6 @@ class AccountPagesTests(DatabaseTestCase):
         self.assertEqual(status, 400)
         self.assertIn("уже зарегистрирован", html)
 
-        # Вход по телефону после подтверждения.
         status, path, _, _ = Browser(self.base_url).post(
             "/login", {"login": "+7 (701) 555-44-33", "password": "password123"}
         )
@@ -315,7 +304,6 @@ class AccountPagesTests(DatabaseTestCase):
         browser = Browser(self.base_url)
         self.assertIn('href="/forgot"', browser.get("/login")[2])
 
-        # Неизвестная почта — тот же ответ, но письма нет.
         status, path, html, _ = browser.post("/forgot", {"email": "nobody@mail.kz"})
         self.assertEqual(path, "/reset?email=nobody%40mail.kz&msg=reset_sent")
         sent_before = len(self.mail.messages)
@@ -368,12 +356,10 @@ class AccountPagesTests(DatabaseTestCase):
 
             with mock.patch.object(google_auth, "post_form",
                                    return_value={"id_token": make_id_token()}) as post:
-                # Чужой state (подделка ответа) — отказ, в Google не обращаемся.
                 status, _, _, headers = browser.get("/auth/google/callback?code=x&state=forged")
                 self.assertEqual(headers["Location"], "/login?msg=google_failed")
                 post.assert_not_called()
 
-                # Пользователь нажал «Отмена».
                 _, _, _, headers = browser.get("/auth/google/callback?error=access_denied")
                 self.assertEqual(headers["Location"], "/login")
 
@@ -391,7 +377,6 @@ class AccountPagesTests(DatabaseTestCase):
             user = database.get_user_credentials("google.user@gmail.com")
             self.assertEqual(user["email_verified"], 1)
 
-            # Ошибка Google при обмене кода — понятное сообщение, не падение.
             other = Browser(self.base_url, follow_redirects=False)
             _, _, _, headers = other.get("/auth/google")
             state = urllib.parse.parse_qs(urllib.parse.urlsplit(headers["Location"]).query)["state"][0]

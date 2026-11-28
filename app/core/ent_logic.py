@@ -1,14 +1,4 @@
-"""Логика ЕНТ: сборка теста, разбор ответов из формы и подсчёт баллов.
-
-Правила подсчёта (config.QUESTION_POINTS):
-- один ответ / по контексту: 1 балл за верный ответ;
-- соответствие и несколько ответов: 2 балла без ошибок, 1 балл при одной ошибке,
-  0 баллов при двух и более ошибках.
-
-Порядок заданий внутри предмета и порядок вариантов ответа случайные. Порядок
-вариантов запоминается для каждого задания попытки (database.option_order_json),
-поэтому вся логика ниже работает с буквами в том порядке, который видит ученик.
-"""
+"""Логика ЕНТ: сборка теста, разбор ответов из формы и подсчёт баллов."""
 
 import math
 import random
@@ -56,13 +46,11 @@ class SubjectScore:
     code: str
     name: str
     score: int
-    max_score: int          # максимум по заданиям, которые реально были в тесте
-    nominal_max_score: int  # максимум по официальной структуре ЕНТ
+    max_score: int
+    nominal_max_score: int
     answered: int
     total: int
 
-
-# ── Баллы ────────────────────────────────────────────────────────────────────
 
 def question_max_points(qtype: str) -> int:
     """Максимальный балл за задание данного типа."""
@@ -70,7 +58,6 @@ def question_max_points(qtype: str) -> int:
 
 
 def _two_point_score(mistakes: int) -> int:
-    """Балл за двухбалльное задание: 0 ошибок — 2, одна ошибка — 1, иначе 0."""
     if mistakes == 0:
         return 2
     if mistakes == 1:
@@ -94,11 +81,9 @@ def score_answer(qtype: str, correct: list[str], answer: list[str] | None) -> in
     if qtype in (config.SINGLE, config.CONTEXT):
         return 1 if answer == correct else 0
     if qtype == config.MULTIPLE:
-        # Ошибка — это лишний выбранный вариант или пропущенный верный.
         mistakes = len(set(answer) ^ set(correct))
         return _two_point_score(mistakes)
     if qtype == config.MATCHING:
-        # Ошибка — каждая строка, сопоставленная неверно или не сопоставленная.
         mistakes = sum(
             1 for index, letter in enumerate(correct)
             if index >= len(answer) or answer[index] != letter
@@ -107,19 +92,13 @@ def score_answer(qtype: str, correct: list[str], answer: list[str] | None) -> in
     return 0
 
 
-# ── Разбор ответов из HTML-формы ─────────────────────────────────────────────
-
 def field_name(aq: AttemptQuestion) -> str:
     """Имя поля формы для задания (у соответствия к нему добавляется _номер строки)."""
     return f"q{aq.id}"
 
 
 def parse_answer(aq: AttemptQuestion, form: dict[str, list[str]]) -> list[str] | None:
-    """Достаёт ответ на задание из данных формы. None — ответа нет.
-
-    Значения, которых нет среди допустимых букв, отбрасываются,
-    поэтому подделанная форма не может сломать подсчёт.
-    """
+    """Достаёт ответ на задание из данных формы. None — ответа нет."""
     letters = config.OPTION_LETTERS[: len(aq.options)]
     name = field_name(aq)
 
@@ -148,8 +127,6 @@ def parse_section_answers(
     return {aq.id: parse_answer(aq, form) for aq in questions}
 
 
-# ── Банк вопросов и сборка теста ─────────────────────────────────────────────
-
 def availability(subject_code: str, counts: dict[tuple[str, str], int]) -> SubjectAvailability:
     """Сколько заданий предмета можно взять из банка с учётом квот по типам."""
     subject = config.SUBJECTS[subject_code]
@@ -165,10 +142,7 @@ def mock_subjects(pair_index: int) -> list[str]:
 
 
 def mock_duration_minutes(question_count: int) -> int:
-    """Время пробного ЕНТ: 240 минут × (заданий в тесте / 120), с округлением вверх.
-
-    Полный тест получает все 240 минут, неполный — пропорционально меньше.
-    """
+    """Время пробного ЕНТ: 240 минут × (заданий в тесте / 120), с округлением вверх."""
     minutes = config.MOCK_DURATION_MINUTES * question_count / config.MOCK_TOTAL_QUESTIONS
     return min(config.MOCK_DURATION_MINUTES, math.ceil(minutes))
 
@@ -179,7 +153,6 @@ def pair_question_count(pair_index: int, counts: dict[tuple[str, str], int]) -> 
 
 
 def _shuffled(items: list) -> list:
-    """Новый список с теми же элементами в случайном порядке."""
     result = list(items)
     random.shuffle(result)
     return result
@@ -188,7 +161,6 @@ def _shuffled(items: list) -> list:
 def _with_option_order(
     refs: list[database.QuestionRef], subject: str
 ) -> list[tuple[int, str, list[int]]]:
-    """Задания в случайном порядке, у каждого — случайный порядок вариантов ответа."""
     return [
         (ref.id, subject, _shuffled(list(range(ref.option_count))))
         for ref in _shuffled(refs)
@@ -196,17 +168,11 @@ def _with_option_order(
 
 
 def build_mock(user_id: int, pair_index: int, now: float | None = None) -> int:
-    """Собирает пробный ЕНТ по квотам и возвращает id попытки.
-
-    Если в банке не хватает заданий какого-то типа, берётся всё, что есть,
-    нехватка записывается в попытку, а время сокращается пропорционально.
-    Предметы идут разделами по порядку, задания внутри предмета перемешаны.
-    """
+    """Собирает пробный ЕНТ по квотам и возвращает id попытки."""
     now = time.time() if now is None else now
     subjects = mock_subjects(pair_index)
     language = database.get_user_language(user_id)
     if pair_index not in config.pairs_for(language):
-        # Пара «язык обучения и литература» — только для своего языка обучения.
         raise TestBuildError(t("Эта пара профильных предметов недоступна для вашего языка обучения."))
     chosen: list[tuple[int, str, list[int]]] = []
     shortage: list[dict] = []
@@ -255,16 +221,11 @@ def build_practice(user_id: int, subject_code: str, now: float | None = None) ->
 def check_practice_answer(
     attempt: Attempt, aq: AttemptQuestion, form: dict[str, list[str]]
 ) -> bool:
-    """Тренировка: оценивает ответ на одно задание и сохраняет его вместе с баллами.
-
-    Возвращает False, если задание уже было проверено раньше.
-    """
+    """Тренировка: оценивает ответ на одно задание и сохраняет его вместе с баллами."""
     answer = parse_answer(aq, form)
     points = score_answer(aq.qtype, aq.correct, answer)
     return database.check_question(attempt.id, aq.id, answer, points)
 
-
-# ── Время и завершение ───────────────────────────────────────────────────────
 
 def is_expired(attempt: Attempt, now: float | None = None) -> bool:
     """True, если у незавершённой попытки вышло время."""
@@ -292,10 +253,7 @@ def remaining_seconds(attempt: Attempt, now: float | None = None) -> int:
 
 
 def finish_attempt(attempt: Attempt, now: float | None = None) -> None:
-    """Оценивает все задания попытки и помечает её завершённой.
-
-    Если время уже вышло, временем окончания считается дедлайн, а не момент запроса.
-    """
+    """Оценивает все задания попытки и помечает её завершённой."""
     now = time.time() if now is None else now
     finished_at = min(now, attempt.deadline) if attempt.deadline is not None else now
     points = {
@@ -303,7 +261,7 @@ def finish_attempt(attempt: Attempt, now: float | None = None) -> None:
         for aq in database.get_attempt_questions(attempt.id)
     }
     database.complete_attempt(attempt.id, points, sum(points.values()), finished_at)
-    from app.core import notifications  # импорт здесь: notifications → schools → database
+    from app.core import notifications
 
     notifications.attempt_finished(attempt.user_id, now)
 
@@ -337,21 +295,24 @@ def subject_scores(attempt: Attempt, questions: list[AttemptQuestion]) -> list[S
     return result
 
 
-def subject_strengths(user_id: int) -> list[SubjectStrength]:
-    """Процент набранных баллов по каждому предмету во всех завершённых попытках.
-
-    Список отсортирован от сильного предмета к слабому.
-    """
+def subject_totals(rows) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Сумма баллов, максимум и число заданий по предметам из строк (subject, qtype, points, n)."""
     points: dict[str, int] = {}
     maximum: dict[str, int] = {}
     count: dict[str, int] = {}
-    for row in database.get_subject_results(user_id):
+    for row in rows:
         code = row["subject"]
         if code not in config.SUBJECTS or row["qtype"] not in config.QUESTION_POINTS:
             continue
         points[code] = points.get(code, 0) + (row["points"] or 0)
         maximum[code] = maximum.get(code, 0) + row["n"] * question_max_points(row["qtype"])
         count[code] = count.get(code, 0) + row["n"]
+    return points, maximum, count
+
+
+def subject_strengths(user_id: int) -> list[SubjectStrength]:
+    """Процент набранных баллов по каждому предмету во всех завершённых попытках."""
+    points, maximum, count = subject_totals(database.get_subject_results(user_id))
     result = [
         SubjectStrength(
             code=code,
@@ -372,12 +333,11 @@ class TopicStrength:
 
     subject: str
     topic: str
-    label: str      # «05. Линейные, квадратные…»
+    label: str
     percent: int
-    questions: int  # сколько заданий по теме решено
+    questions: int
 
 
-# Слабой тема считается при результате ниже этого порога и хотя бы MIN_TOPIC_QUESTIONS заданиях.
 WEAK_TOPIC_PERCENT = 60
 MIN_TOPIC_QUESTIONS = 3
 

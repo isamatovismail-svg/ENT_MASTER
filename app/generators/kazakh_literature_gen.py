@@ -4,8 +4,6 @@ from app.generators.common import quiz
 from app.generators.facts import Fact, build, set_topics
 from app.generators.literature import author_categories, author_facts, character_facts, hero_context
 
-# Шығармалар — НЦТ спецификациясынан (2026 жылдан, «оқыту қазақ тілінде емес»):
-# (автор, шығарма, app/topics.py бойынша тақырып нөмірі). Бағдарламадан тыс шығармалар қосылмайды.
 PROGRAM = [
     ("Абай Құнанбайұлы", "Сағаттың шықылдағы емес ермек", "04"),
     ("Абай Құнанбайұлы", "Базарға қарап тұрсам әркім барар", "04"),
@@ -109,7 +107,7 @@ TERMS = [
 
 FACTS = (author_facts(WORKS, "«{work}» шығармасының авторы кім?", WORK_TOPICS)
          + character_facts(CHARACTERS, "«{work}» шығармасының басты кейіпкері кім?", WORK_TOPICS)
-         + set_topics(TERMS, lambda fact: "31"))  # терминдер — көркем мәтінмен жұмыс
+         + set_topics(TERMS, lambda fact: "31"))
 
 TITLES = {"автор": "автор мен шығарма", "герой": "кейіпкер мен шығарма", "термин": "термин мен оның мағынасы"}
 WHAT = {"автор": "{name} қай шығарманың авторы?", "герой": "{name} — қай шығарманың кейіпкері?",
@@ -118,7 +116,6 @@ WHAT = {"автор": "{name} қай шығарманың авторы?", "ге�
 CATEGORIES = author_categories(WORKS, "{author} жазған шығармаларды таңдаңыз",
                                "{author} шығармаларын білу керек.", WORK_TOPICS)
 
-# Ежелгі әдебиет және халық ауыз әдебиеті (спецификацияның 01–03 тақырыптары).
 EXTRA_QUIZZES = [
     quiz([
         ("«Күлтегін» жыры қандай жазумен тасқа қашалған?", "көне түркі (руна) жазуымен",

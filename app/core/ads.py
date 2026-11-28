@@ -1,11 +1,4 @@
-"""Свои рекламные баннеры без JavaScript: картинка + ссылка, места показа и даты.
-
-Сервисы вроде AdSense требуют JavaScript, а CSP сайта запрещает скрипты, поэтому баннеры
-свои: администратор загружает картинку (PNG, JPEG, GIF или WebP до 1 МБ, без SVG — в SVG
-можно спрятать скрипт), указывает ссылку, места показа и даты. Картинка отдаётся с этого же
-сайта (/ad/<id>/image), переход идёт через /ad/<id> — так считаются показы и клики.
-На страницах самого теста реклама не показывается.
-"""
+"""Свои рекламные баннеры без JavaScript: картинка + ссылка, места показа и даты."""
 
 import random
 from dataclasses import dataclass
@@ -18,7 +11,6 @@ from app.web.render import SafeHTML, fragment
 from app import i18n
 from app.i18n import t
 
-# Места показа: код → название в админке.
 PLACEMENTS = i18n.Translated({
     "landing": "Главная страница",
     "dashboard": "Личный кабинет",
@@ -29,7 +21,6 @@ PLACEMENTS = i18n.Translated({
 TITLE_MAX_LENGTH = 120
 LINK_MAX_LENGTH = 500
 
-# Сигнатуры файлов: тип картинки определяется по содержимому, а не по имени файла.
 _SIGNATURES = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
@@ -126,11 +117,7 @@ def shows_ads(user) -> bool:
 
 
 def banner_block(placement: str, user=None, rng: random.Random | None = None) -> SafeHTML:
-    """Баннер для места показа (случайный из подходящих) или пустая строка. Учитывает показ.
-
-    user — кто смотрит страницу (None — гость): учителям и администраторам баннер не показывается.
-    Страницы теста баннер не вызывают вовсе.
-    """
+    """Баннер для места показа (случайный из подходящих) или пустая строка. Учитывает показ."""
     if not shows_ads(user):
         return SafeHTML("")
     candidates = database.active_banners(placement, date.today().isoformat())

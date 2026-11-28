@@ -14,7 +14,7 @@ CODE_RE = re.compile(r"\b(\d{6})\b")
 class FakeMailer:
     """Отправитель писем для тестов: письма складываются в список, в сеть ничего не уходит."""
 
-    active: "FakeMailer | None" = None  # текущий (для помощников, у которых нет self.mail)
+    active: "FakeMailer | None" = None
 
     def __init__(self) -> None:
         """Пустой ящик; fail = True — имитировать сбой SMTP."""
@@ -64,7 +64,6 @@ class DatabaseTestCase(unittest.TestCase):
         self.mail = FakeMailer()
         FakeMailer.active = self.mail
         mailer.set_sender(self.mail)
-        # Уведомления никогда не уходят в настоящий Telegram (в .env может быть токен).
         self.telegram = FakeTelegram()
         notifications.set_sender(self.telegram)
 

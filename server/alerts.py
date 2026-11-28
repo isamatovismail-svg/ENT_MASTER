@@ -1,14 +1,4 @@
-"""Оповещения главному администратору в Telegram: сбои сайта и бота, резервные копии базы.
-
-Сообщения уходят напрямую через Bot API по токену из .env, а не через процесс бота,
-поэтому оповещение придёт, даже если упал сам бот. Получатели — ADMIN_TELEGRAM_CHAT_ID
-из .env или (если он не задан) главные администраторы с привязанным Telegram.
-
-Одинаковые оповещения не повторяются чаще ALERT_COOLDOWN_SECONDS (при «падает и тут же
-перезапускается» придёт одно сообщение и счётчик повторов). Состояние хранится в маленьком
-JSON-файле ALERT_STATE_PATH. Любая ошибка отправки только пишется в лог: оповещения
-не должны ломать сайт, бота или резервное копирование.
-"""
+"""Оповещения главному администратору в Telegram: сбои сайта и бота, резервные копии базы."""
 
 import json
 import logging
@@ -25,13 +15,11 @@ from app.telegram_bot import TelegramAPI, TelegramError
 
 logger = logging.getLogger(__name__)
 
-# Понятные названия служб systemd.
 SERVICE_NAMES = {
     "ent-master-site.service": "сайт",
     "ent-master-bot.service": "Telegram-бот",
     "ent-master-backup.service": "резервная копия базы",
 }
-# Сколько проверок подряд должно не пройти, чтобы сообщить «сайт не отвечает» (защита от случайностей).
 HEALTH_FAILURES_TO_ALERT = 2
 
 
@@ -51,13 +39,12 @@ def recipients() -> list[int]:
         return list(config.ADMIN_TELEGRAM_CHAT_IDS)
     try:
         return database.admin_telegram_ids()
-    except Exception:  # noqa: BLE001 — база может быть недоступна как раз во время сбоя
+    except Exception:
         logger.exception("Не удалось прочитать администраторов из базы")
         return []
 
 
 def _api(api: Sender | None) -> Sender | None:
-    """Клиент Bot API (None — токен не задан)."""
     if api is not None:
         return api
     if not config.TELEGRAM_BOT_TOKEN:
@@ -85,8 +72,6 @@ def send(text: str, api: Sender | None = None) -> int:
     return sent
 
 
-# ── Состояние (защита от повторов) ───────────────────────────────────────────
-
 def _load_state(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -106,10 +91,7 @@ def _save_state(path: Path, state: dict) -> None:
 
 def send_once(key: str, text: str, api: Sender | None = None, now: float | None = None,
               state_path: Path | None = None) -> bool:
-    """Отправляет оповещение, если такое же (key) не отправлялось последние ALERT_COOLDOWN_SECONDS.
-
-    Пропущенные повторы считаются и упоминаются в следующем сообщении.
-    """
+    """Отправляет оповещение, если такое же (key) не отправлялось последние ALERT_COOLDOWN_SECONDS."""
     now = time.time() if now is None else now
     path = state_path or config.ALERT_STATE_PATH
     state = _load_state(path)
@@ -136,8 +118,6 @@ def _host() -> str:
 def _when(now: float | None = None) -> str:
     return time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(now))
 
-
-# ── События ──────────────────────────────────────────────────────────────────
 
 def service_stopped(unit: str, result: str, exit_code: str = "", exit_status: str = "",
                     api: Sender | None = None, now: float | None = None,
@@ -182,10 +162,7 @@ def check_site(url: str | None = None, timeout: float = 10) -> str:
 
 def healthcheck(url: str | None = None, api: Sender | None = None, now: float | None = None,
                 state_path: Path | None = None) -> str:
-    """Проверяет сайт; сообщает о сбое после нескольких неудач подряд и о восстановлении.
-
-    Возвращает: "ok", "down" (сайт не отвечает) или "recovered".
-    """
+    """Проверяет сайт; сообщает о сбое после нескольких неудач подряд и о восстановлении."""
     path = state_path or config.ALERT_STATE_PATH
     problem = check_site(url)
     state = _load_state(path)

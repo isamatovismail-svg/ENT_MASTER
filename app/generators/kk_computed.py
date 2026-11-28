@@ -1,8 +1,4 @@
-"""Расчётные шаблоны на казахском языке: математика, физика, химия, информатика.
-
-Ответы вычисляются в коде, как и в русских шаблонах; тексты — по-казахски, термины —
-как в казахских учебниках. Каждый шаблон помечен темой спецификации НЦТ (@topic).
-"""
+"""Расчётные шаблоны на казахском языке: математика, физика, химия, информатика."""
 
 import random
 from fractions import Fraction
@@ -13,12 +9,8 @@ from app.generators.common import (
 from app.generators.math_gen import nonzero, poly, sup
 
 def _with_list(rng: random.Random, text: str, right: list[str], wrong: list[str], explanation: str) -> dict:
-    """«Выберите все…» с перечнем вариантов в тексте: так тексты разных заданий различаются."""
     names = sorted(right + wrong)
     return multiple(rng, f"{text[:-1]} ({', '.join(names)})?", right, wrong, explanation)
-
-
-# ── Математика ───────────────────────────────────────────────────────────────
 
 
 @topic("05")
@@ -223,8 +215,6 @@ MATH = {
     "multiple": [m_multiple_primes, m_multiple_abs],
 }
 
-# ── Физика ───────────────────────────────────────────────────────────────────
-
 
 @topic("02")
 def p_newton(rng: random.Random) -> dict:
@@ -365,9 +355,7 @@ PHYSICS = {
     "multiple": [p_multiple_vectors, p_multiple_charged],
 }
 
-# ── Химия ────────────────────────────────────────────────────────────────────
 
-# (формула, молярная масса, казахское название)
 SUBSTANCES = [("H₂O", 18, "су"), ("CO₂", 44, "көмірқышқыл газы"), ("NaCl", 58.5, "натрий хлориді"),
               ("H₂SO₄", 98, "күкірт қышқылы"), ("NaOH", 40, "натрий гидроксиді"), ("HCl", 36.5, "тұз қышқылы"),
               ("CaCO₃", 100, "кальций карбонаты"), ("O₂", 32, "оттек"), ("CH₄", 16, "метан"),
@@ -479,8 +467,6 @@ CHEMISTRY = {
     "matching": [c_match_symbols, c_match_classes],
     "multiple": [c_multiple_metals, c_multiple_acids],
 }
-
-# ── Информатика ──────────────────────────────────────────────────────────────
 
 
 @topic("04")
@@ -611,8 +597,6 @@ INFORMATICS = {
     "matching": [i_match_devices, i_match_binary],
     "multiple": [i_multiple_languages, i_multiple_even],
 }
-
-# ── Математикалық сауаттылық ─────────────────────────────────────────────────
 
 
 @topic("03")

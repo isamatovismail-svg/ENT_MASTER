@@ -1,11 +1,4 @@
-"""Вход на сайт по одноразовой ссылке из Telegram-бота: /tg/login?token=…
-
-GET только показывает страницу и НЕ тратит токен: ссылки заранее открывают
-сервисы превью и браузеры. Вход выполняется кнопкой (POST):
-- Telegram уже привязан → «Войти»;
-- не привязан → «Создать аккаунт и войти» в один клик, «Привязать к текущему аккаунту»
-  (если на сайте уже выполнен вход) или привязка по логину и паролю.
-"""
+"""Вход на сайт по одноразовой ссылке из Telegram-бота: /tg/login?token=…"""
 
 from app.core import auth, database
 
@@ -22,7 +15,6 @@ INVALID_LINK = (
 
 def _page(request: Request, token: str, info, errors: list[str], login: str = "",
           status: int = 200) -> Response:
-    """Страница подтверждения входа через Telegram."""
     linked = database.get_user_by_telegram(info["telegram_id"])
     current = SafeHTML("")
     if request.user is not None and (linked is None or linked.id != request.user.id):
@@ -104,7 +96,6 @@ def tg_login_submit(request: Request) -> Response:
     if target is not None and auth.is_blocked_demo_admin(target["login"], target["role"]):
         return views.error_page(request, 403, views.DEMO_ADMIN_BLOCKED)
 
-    # Токен тратится только здесь — один раз, даже если форму отправят дважды.
     if not auth.use_telegram_token(token):
         return views.error_page(request, 400, t(INVALID_LINK))
     if action == "new" and not user_id:

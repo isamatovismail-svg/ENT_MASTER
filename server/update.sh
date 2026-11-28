@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Обновление ENT MASTER на сервере: свежий код (git pull или заранее скопированный rsync),
-# тесты, банк вопросов, перезапуск служб.
-#
-# Запуск на сервере: sudo bash /opt/ent-master/server/update.sh
-# Перед обновлением делается резервная копия базы.
 set -euo pipefail
 
 APP_DIR=/opt/ent-master

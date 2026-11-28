@@ -1,12 +1,4 @@
-"""Загрузка вопросов из data/questions/*.json в базу данных.
-
-Запуск: python seed.py            — вопросы из JSON + сгенерированные расчётные задачи
-        python seed.py --no-generated — только вопросы из JSON
-Каждый вопрос проверяется (тип, число вариантов, правильные ответы, объяснение).
-Ошибочные вопросы не загружаются, а список ошибок выводится в конце.
-Скрипт можно запускать повторно: вопросы обновляются, дубликаты не появляются
-(генератор при каждом запуске выдаёт одни и те же задачи).
-"""
+"""Загрузка вопросов из data/questions/*.json в базу данных."""
 
 import json
 import sys
@@ -19,10 +11,7 @@ from app.core.question_bank import validate_question
 
 
 def load_file(path: Path, language: str = "ru") -> tuple[int, list[str]]:
-    """Загружает один JSON-файл. Возвращает (сколько загружено, список ошибок).
-
-    language — язык обучения, для которого написан файл (data/questions — ru, data/questions/kk — kk).
-    """
+    """Загружает один JSON-файл. Возвращает (сколько загружено, список ошибок)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -61,7 +50,7 @@ def load_generated() -> int:
     for subject in generators.SUBJECT_TEMPLATES:
         for language in config.LANGUAGES:
             if language != "ru" and generators.templates_for(subject, language) is generators.SUBJECT_TEMPLATES[subject]:
-                continue  # у предмета одна версия (свой язык или общий иностранный)
+                continue
             for qtype in generators.templates_for(subject, language):
                 questions = generators.generate(subject, qtype, generators.DEFAULT_COUNTS[qtype], lang=language)
                 database.upsert_questions(subject, questions)
@@ -71,10 +60,7 @@ def load_generated() -> int:
 
 def seed(questions_dir: Path = config.QUESTIONS_DIR,
          with_generated: bool = True) -> tuple[int, list[str]]:
-    """Загружает все JSON-файлы из папки и (по умолчанию) сгенерированные задачи.
-
-    Возвращает (всего загружено, все ошибки).
-    """
+    """Загружает все JSON-файлы из папки и (по умолчанию) сгенерированные задачи."""
     database.init_db()
     total = 0
     all_errors: list[str] = []
@@ -91,13 +77,7 @@ def seed(questions_dir: Path = config.QUESTIONS_DIR,
 
 
 def retire_stale() -> int:
-    """Убирает из банка устаревшие вопросы: без темы спецификации, не из админки и не от учителей.
-
-    Все вопросы JSON и генераторов теперь имеют тему, поэтому вопрос без темы — это старый
-    сгенерированный вопрос, которого генераторы больше не выдают (например, по произведению
-    вне программы НЦТ). Он помечается удалённым: в тесты не попадает, а разбор старых попыток
-    сохраняется. Вызывается только после полной загрузки без ошибок.
-    """
+    """Убирает из банка устаревшие вопросы: без темы спецификации, не из админки и не от учителей."""
     retired = database.retire_untagged_questions()
     if retired:
         print(f"Убрано устаревших вопросов без темы: {retired}")

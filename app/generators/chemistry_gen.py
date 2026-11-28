@@ -22,10 +22,10 @@ CLASS_PLURAL = {OXIDE: "оксидами", ACID: "кислотами", BASE: "о
 
 @dataclass(frozen=True)
 class Substance:
-    formula: str            # с подстрочными индексами: «H₂SO₄»
+    formula: str
     name: str
-    atoms: tuple            # состав: (("H", 2), ("S", 1), ("O", 4))
-    cls: str | None = None  # класс неорганического вещества (None — не используется в вопросах о классах)
+    atoms: tuple
+    cls: str | None = None
 
     @property
     def molar_mass(self) -> float:
@@ -42,7 +42,6 @@ def S(formula: str, name: str, atoms: str, cls: str | None = None) -> Substance:
 
 
 SUBSTANCES = [
-    # Оксиды (амфотерные тоже оксиды)
     S("CO₂", "оксид углерода(IV)", "C1 O2", OXIDE), S("CaO", "оксид кальция", "Ca1 O1", OXIDE),
     S("Na₂O", "оксид натрия", "Na2 O1", OXIDE), S("Al₂O₃", "оксид алюминия", "Al2 O3", OXIDE),
     S("Fe₂O₃", "оксид железа(III)", "Fe2 O3", OXIDE), S("SO₂", "оксид серы(IV)", "S1 O2", OXIDE),
@@ -50,18 +49,15 @@ SUBSTANCES = [
     S("MgO", "оксид магния", "Mg1 O1", OXIDE), S("CuO", "оксид меди(II)", "Cu1 O1", OXIDE),
     S("SiO₂", "оксид кремния(IV)", "Si1 O2", OXIDE), S("K₂O", "оксид калия", "K2 O1", OXIDE),
     S("BaO", "оксид бария", "Ba1 O1", OXIDE), S("NO₂", "оксид азота(IV)", "N1 O2", OXIDE),
-    # Кислоты
     S("HCl", "соляная кислота", "H1 Cl1", ACID), S("H₂SO₄", "серная кислота", "H2 S1 O4", ACID),
     S("HNO₃", "азотная кислота", "H1 N1 O3", ACID), S("H₃PO₄", "фосфорная кислота", "H3 P1 O4", ACID),
     S("H₂CO₃", "угольная кислота", "H2 C1 O3", ACID), S("H₂S", "сероводородная кислота", "H2 S1", ACID),
     S("HBr", "бромоводородная кислота", "H1 Br1", ACID), S("H₂SO₃", "сернистая кислота", "H2 S1 O3", ACID),
     S("H₂SiO₃", "кремниевая кислота", "H2 Si1 O3", ACID),
-    # Основания (без амфотерных гидроксидов)
     S("NaOH", "гидроксид натрия", "Na1 O1 H1", BASE), S("KOH", "гидроксид калия", "K1 O1 H1", BASE),
     S("Ca(OH)₂", "гидроксид кальция", "Ca1 O2 H2", BASE), S("Ba(OH)₂", "гидроксид бария", "Ba1 O2 H2", BASE),
     S("Mg(OH)₂", "гидроксид магния", "Mg1 O2 H2", BASE), S("Fe(OH)₃", "гидроксид железа(III)", "Fe1 O3 H3", BASE),
     S("Cu(OH)₂", "гидроксид меди(II)", "Cu1 O2 H2", BASE), S("Fe(OH)₂", "гидроксид железа(II)", "Fe1 O2 H2", BASE),
-    # Соли
     S("NaCl", "хлорид натрия", "Na1 Cl1", SALT), S("KCl", "хлорид калия", "K1 Cl1", SALT),
     S("CaCO₃", "карбонат кальция", "Ca1 C1 O3", SALT), S("Na₂SO₄", "сульфат натрия", "Na2 S1 O4", SALT),
     S("CuSO₄", "сульфат меди(II)", "Cu1 S1 O4", SALT), S("AgNO₃", "нитрат серебра", "Ag1 N1 O3", SALT),
@@ -70,14 +66,12 @@ SUBSTANCES = [
     S("FeCl₃", "хлорид железа(III)", "Fe1 Cl3", SALT), S("Ca₃(PO₄)₂", "фосфат кальция", "Ca3 P2 O8", SALT),
     S("K₂SO₄", "сульфат калия", "K2 S1 O4", SALT), S("CaCl₂", "хлорид кальция", "Ca1 Cl2", SALT),
     S("ZnSO₄", "сульфат цинка", "Zn1 S1 O4", SALT), S("NH₄Cl", "хлорид аммония", "N1 H4 Cl1", SALT),
-    # Прочие (только для расчётов)
     S("H₂O", "вода", "H2 O1"), S("NH₃", "аммиак", "N1 H3"), S("CH₄", "метан", "C1 H4"),
     S("C₂H₆", "этан", "C2 H6"), S("C₂H₅OH", "этанол", "C2 H6 O1"), S("C₆H₁₂O₆", "глюкоза", "C6 H12 O6"),
     S("O₂", "кислород", "O2"), S("N₂", "азот", "N2"), S("Cl₂", "хлор", "Cl2"), S("H₂", "водород", "H2"),
 ]
 
 CLASSIFIED = [s for s in SUBSTANCES if s.cls]
-# Растворимые соли — только из них готовим растворы (CaCO₃, BaSO₄, Ca₃(PO₄)₂ в воде не растворяются).
 SOLUBLE_SALTS = [s for s in CLASSIFIED if s.formula in (
     "NaCl", "KCl", "Na₂SO₄", "CuSO₄", "AgNO₃", "KNO₃", "Na₂CO₃", "MgCl₂", "K₂SO₄", "CaCl₂", "ZnSO₄", "NH₄Cl")]
 GASES = [s for s in SUBSTANCES if s.formula in ("CO₂", "SO₂", "NO₂", "NH₃", "CH₄", "C₂H₆", "O₂", "N₂", "Cl₂",
@@ -85,18 +79,14 @@ GASES = [s for s in SUBSTANCES if s.formula in ("CO₂", "SO₂", "NO₂", "NH�
 
 
 def _mass_sum(sub: Substance) -> str:
-    """Запись расчёта молярной массы: 2·1 + 32 + 4·16."""
     parts = [(f"{n}·{num(AR[el], 1)}" if n > 1 else num(AR[el], 1)) for el, n in sub.atoms]
     return " + ".join(parts)
 
 
 def _mass_wrong(sub: Substance) -> list[float]:
-    """Типичные ошибки: забыли индексы, сложили номера вместо масс и т.п."""
     no_index = sum(AR[el] for el, _ in sub.atoms)
     return [no_index, sub.molar_mass + 16, sub.molar_mass - 1, sub.molar_mass * 2]
 
-
-# ── Один ответ ───────────────────────────────────────────────────────────────
 
 @topic("18")
 def molar_mass(rng):
@@ -158,7 +148,6 @@ def gas_volume(rng):
 
 
 def _avogadro(value: float) -> str:
-    """Число частиц в виде a·10ⁿ (1 ≤ a < 10)."""
     power = 23
     while value >= 10:
         value /= 10
@@ -183,7 +172,6 @@ def molecules(rng):
 @topic("18")
 def solution_fraction(rng):
     salt = rng.choice(SOLUBLE_SALTS)
-    # Подбираем массы, при которых доля выражается не более чем одним знаком после запятой.
     for _ in range(50):
         m_salt = rng.choice([5, 10, 15, 20, 25, 30, 40, 50, 60, 80])
         m_water = rng.choice([45, 70, 80, 90, 120, 150, 170, 190, 200, 240])
@@ -232,8 +220,6 @@ def element_symbol(rng):
                   f"Элемент {ELEMENT_NAMES[el]} обозначается символом {el}.")
 
 
-# ── По контексту ─────────────────────────────────────────────────────────────
-
 @topic("18")
 def solution_context(rng):
     total = rng.choice([100, 150, 200, 250, 300, 400, 500])
@@ -270,8 +256,6 @@ def reaction_context(rng):
     return single(rng, text, f"{num(m_oxide)} г", number_distractors(rng, m_oxide, wrong, " г"), expl, context=context)
 
 
-# ── Соответствие ─────────────────────────────────────────────────────────────
-
 @topic("06")
 def class_matching(rng):
     classes = rng.sample(CLASSES, 2)
@@ -304,8 +288,6 @@ def name_matching(rng):
     return matching(rng, text, [(a.formula, a.name), (b.formula, b.name)], [p.name for p in picked[2:]], expl)
 
 
-# ── Несколько ответов ────────────────────────────────────────────────────────
-
 @topic("06")
 def class_multiple(rng):
     cls = rng.choice(CLASSES)
@@ -332,11 +314,8 @@ def heavy_multiple(rng):
     return multiple(rng, text, [s.formula for s in right], [s.formula for s in wrong], expl)
 
 
-# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
-
 _SUBSCRIPT = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
 
-# (название в родительном падеже, символ, Z, массовое число основного изотопа)
 _ATOMS = [("водорода", "H", 1, 1), ("гелия", "He", 2, 4), ("лития", "Li", 3, 7), ("углерода", "C", 6, 12),
           ("азота", "N", 7, 14), ("кислорода", "O", 8, 16), ("фтора", "F", 9, 19), ("натрия", "Na", 11, 23),
           ("магния", "Mg", 12, 24), ("алюминия", "Al", 13, 27), ("фосфора", "P", 15, 31),
@@ -357,7 +336,6 @@ def atom_structure(rng):
                   explanation)
 
 
-# (формула, элемент, степень окисления)
 _OXIDATION = [("H₂SO₄", "S", 6), ("SO₂", "S", 4), ("H₂S", "S", -2), ("Na₂SO₃", "S", 4), ("HNO₃", "N", 5),
               ("NH₃", "N", -3), ("NO₂", "N", 4), ("KMnO₄", "Mn", 7), ("MnO₂", "Mn", 4),
               ("K₂Cr₂O₇", "Cr", 6), ("Fe₂O₃", "Fe", 3), ("FeO", "Fe", 2), ("H₃PO₄", "P", 5),

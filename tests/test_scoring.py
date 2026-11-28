@@ -33,15 +33,12 @@ class ScoreTests(unittest.TestCase):
         correct = ["A", "C", "E"]
         score = ent_logic.score_answer
         self.assertEqual(score(config.MULTIPLE, correct, ["A", "C", "E"]), 2)
-        # Пропущен один верный вариант — одна ошибка.
         self.assertEqual(score(config.MULTIPLE, correct, ["A", "C"]), 1)
-        # Выбран один лишний вариант — одна ошибка.
         self.assertEqual(score(config.MULTIPLE, correct, ["A", "C", "E", "F"]), 1)
-        # Один лишний и два пропущенных — три ошибки.
         self.assertEqual(score(config.MULTIPLE, correct, ["A", "B"]), 0)
         self.assertEqual(score(config.MULTIPLE, correct, ["A"]), 0)
         self.assertEqual(score(config.MULTIPLE, correct, None), 0)
-        self.assertEqual(score(config.MULTIPLE, ["A"], []), 0)  # пустой ответ — не «одна ошибка»
+        self.assertEqual(score(config.MULTIPLE, ["A"], []), 0)
 
     def test_matching(self) -> None:
         """Соответствие: 2 без ошибок, 1 при одной неверной строке, 0 при двух."""

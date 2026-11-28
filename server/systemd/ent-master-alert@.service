@@ -1,5 +1,3 @@
-# Оповещение «служба не работает» главному администратору в Telegram.
-# Вызывается через OnFailure= других служб: ent-master-alert@ent-master-site.service и т. п.
 [Unit]
 Description=ENT MASTER — оповещение о сбое %i
 

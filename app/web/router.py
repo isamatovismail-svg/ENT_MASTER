@@ -1,9 +1,4 @@
-"""Таблица маршрутов: какой URL и метод обрабатывает какая функция из views.
-
-Шаблон пути поддерживает параметры:
-- <int:name> — целое число (передаётся в функцию как int);
-- <name>     — код из латинских букв, цифр и «_» (передаётся как str).
-"""
+"""Таблица маршрутов: какой URL и метод обрабатывает какая функция из views."""
 
 import re
 from collections.abc import Callable
@@ -13,7 +8,6 @@ from app.web.http import Request, Response
 
 View = Callable[..., Response]
 
-# Порядок важен: более конкретные пути должны идти раньше общих.
 ROUTES: list[tuple[str, str, View]] = [
     ("GET", "/", views.landing),
     ("GET", "/register", views.register_page),
@@ -50,7 +44,6 @@ ROUTES: list[tuple[str, str, View]] = [
     ("GET", "/ad/<int:banner_id>/image", views.ad_image),
     ("GET", "/profile", views.profile),
     ("POST", "/profile/school", views.profile_school),
-    # Кабинет учителя (учитель своей школы и главный администратор)
     ("GET", "/lang/<code>", views.switch_language),
     ("POST", "/profile/language", views.profile_language),
     ("GET", "/notifications", views.notifications_page),
@@ -76,7 +69,6 @@ ROUTES: list[tuple[str, str, View]] = [
     ("GET", "/teacher/<int:school_id>/assignments/<int:assignment_id>", teacher_views.assignment_page),
     ("POST", "/teacher/<int:school_id>/assignments/<int:assignment_id>/delete",
      teacher_views.assignment_delete),
-    # Админ-панель (только для роли admin)
     ("GET", "/admin", admin_views.dashboard),
     ("GET", "/admin/questions", admin_views.questions),
     ("GET", "/admin/questions/new", admin_views.question_new),
@@ -105,18 +97,15 @@ _PARAM_RE = re.compile(r"<(?:(int):)?([a-z_]+)>")
 
 
 def _compile(pattern: str) -> tuple[re.Pattern[str], set[str]]:
-    """Превращает шаблон пути в регулярное выражение и список целочисленных параметров."""
     int_params: set[str] = set()
 
     def replace(match: re.Match[str]) -> str:
-        """Заменяет один <параметр> на именованную группу регулярного выражения."""
         converter, name = match.groups()
         if converter == "int":
             int_params.add(name)
             return rf"(?P<{name}>\d{{1,10}})"
         return rf"(?P<{name}>[a-z0-9_]+)"
 
-    # re.escape не трогает символы < > : _ /, поэтому метки параметров остаются на месте.
     regex = _PARAM_RE.sub(replace, re.escape(pattern))
     return re.compile(regex), int_params
 
@@ -125,10 +114,7 @@ _COMPILED = [(method, *_compile(pattern), view) for method, pattern, view in ROU
 
 
 def dispatch(request: Request) -> Response:
-    """Находит обработчик для запроса и вызывает его.
-
-    Путь найден, но метод другой — 405; путь не найден — 404.
-    """
+    """Находит обработчик для запроса и вызывает его."""
     path = request.path.rstrip("/") or "/"
     path_matched = False
     for method, regex, int_params, view in _COMPILED:

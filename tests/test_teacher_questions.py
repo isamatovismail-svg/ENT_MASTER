@@ -55,11 +55,9 @@ class TeacherQuestionDatabaseTests(DatabaseTestCase):
         question = database.get_author_question(self.question_id, self.teacher)
         self.assertEqual((question.status, question.review_comment),
                          ("rejected", "Неточная формулировка"))
-        # Повторно проверить уже проверенный вопрос нельзя.
         self.assertFalse(database.review_question(self.question_id, database.Q_APPROVED, "",
                                                   time.time()))
 
-        # Учитель исправляет — вопрос снова на проверке, комментарий сброшен.
         edited = sample("Сколько будет 2 + 3?")
         edited.id = self.question_id
         self.assertTrue(database.resubmit_author_question(edited, self.teacher, time.time()))
@@ -139,7 +137,7 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
         """Браузер, вошедший в аккаунт."""
         browser = Browser(self.base_url)
         _, path, _, _ = browser.post("/login", {"login": email, "password": "password1"})
-        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)  # учитель — в свой кабинет
+        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)
         return browser
 
     def post_form(self, browser: Browser, url: str, fields: dict):
@@ -148,13 +146,11 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
         return browser.post(url, {"csrf_token": self.csrf(html), **fields})
 
     def test_review_cycle(self) -> None:
-        """Учитель предлагает → админ отклоняет с комментарием → учитель исправляет →
-        админ исправляет и одобряет → вопрос в банке и в тестах."""
+        """Предложение → отказ с комментарием → исправление → одобрение с правками → вопрос в банке."""
         teacher = self.login("teacher@mail.kz")
         _, _, html, _ = teacher.get("/teacher/questions")
         self.assertIn("Вы ещё не предлагали вопросов", html)
 
-        # Та же форма и та же проверка, что в админке.
         status, _, html, _ = self.post_form(teacher, "/teacher/questions/new",
                                             form_fields("Вопрос без объяснения", explanation=""))
         self.assertEqual(status, 400)
@@ -167,21 +163,19 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
             database.get_user_credentials("teacher@mail.kz")["id"])[0].id
         self.assertEqual(database.question_counts(), {})
 
-        # Чужой учитель вопрос не видит и не меняет.
         other = self.login("other@mail.kz")
         self.assertEqual(other.get(f"/teacher/questions/{question_id}/edit")[0], 404)
         self.assertNotIn("Сколько будет 2 + 2?", other.get("/teacher/questions")[2])
 
-        # Админ: очередь, отклонение только с комментарием.
         admin = self.login("admin@mail.kz")
         _, _, html, _ = admin.get("/admin/review")
         self.assertIn("🔎 Проверка (1)", html)
         self.assertIn("Вопросы учителей на проверке: 1", html)
         self.assertIn("Учитель Айгуль", html)
         self.assertIn("Алматы, школа №12", html)
-        self.assertIn("✅", html)  # верный вариант отмечен
+        self.assertIn("✅", html)
         review_url = f"/admin/review/{question_id}"
-        self.assertEqual(admin.post(review_url, {"action": "reject"})[0], 403)  # нет csrf
+        self.assertEqual(admin.post(review_url, {"action": "reject"})[0], 403)
         _, path, _, _ = admin.post(review_url, {"action": "reject", "comment": " ",
                                                 "csrf_token": self.csrf(html)})
         self.assertEqual(path, "/admin/review?msg=review_comment_needed")
@@ -199,7 +193,6 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
                                        form_fields("Сколько будет 2 + 2 яблока?"))
         self.assertEqual(path, "/teacher/questions?msg=tq_resubmitted")
 
-        # Админ исправляет и одобряет.
         edit_url = f"/admin/review/{question_id}/edit"
         _, _, html, _ = admin.get(edit_url)
         self.assertIn("Сколько будет 2 + 2 яблока?", html)
@@ -215,7 +208,6 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
         self.assertEqual(teacher.get(f"/teacher/questions/{question_id}/edit")[1],
                          "/teacher/questions?msg=tq_locked")
 
-        # Одобренный вопрос попадает в тренировку любого ученика.
         student_id = database.get_user_credentials("student@mail.kz")["id"]
         attempt_id = ent_logic.build_practice(student_id, "math")
         self.assertEqual([aq.question_id for aq in database.get_attempt_questions(attempt_id)],

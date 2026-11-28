@@ -1,23 +1,14 @@
-"""Результаты учеников для кабинета учителя — без всяких заданий.
-
-Таблица школы: последняя активность, сколько пробных ЕНТ и тренировок сегодня / вчера /
-за 7 дней, последний, средний и лучший результат за выбранный период, изменение
-(растёт/падает), слабые предметы. По умолчанию сверху те, кому нужна помощь.
-
-Результат попытки — процент набранных баллов (так сравнимы пробный ЕНТ на 140 баллов
-и тренировка на 10 заданий). Для пробного ЕНТ рядом показывается и сам балл.
-"""
+"""Результаты учеников для кабинета учителя — без всяких заданий."""
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 from app import config
 from app import i18n
-from app.core import database
+from app.core import database, ent_logic
 from app.core.database import Attempt
 from app.core.ent_logic import MOCK, question_max_points
 
-# Периоды фильтра: код → подпись.
 PERIODS = i18n.Translated({
     "today": "Сегодня",
     "yesterday": "Вчера",
@@ -27,13 +18,13 @@ PERIODS = i18n.Translated({
 })
 DEFAULT_PERIOD = "30d"
 
-WEAK_SUBJECT_PERCENT = 60   # предмет слабый, если за период набрано меньше 60 % баллов
-MIN_SUBJECT_QUESTIONS = 3   # … и решено хотя бы 3 задания
-LOW_RESULT_PERCENT = 50     # средний результат ниже — «нужна помощь»
-INACTIVE_DAYS = 7           # не занимался неделю — «нужна помощь»
-TREND_WINDOW = 3            # изменение: среднее последних 3 попыток против 3 предыдущих
-TREND_MIN_CHANGE = 3        # изменение меньше 3 % — «без изменений»
-HELP_THRESHOLD = 3          # с такого «балла тревоги» ученик помечается «нужна помощь»
+WEAK_SUBJECT_PERCENT = 60
+MIN_SUBJECT_QUESTIONS = 3
+LOW_RESULT_PERCENT = 50
+INACTIVE_DAYS = 7
+TREND_WINDOW = 3
+TREND_MIN_CHANGE = 3
+HELP_THRESHOLD = 3
 
 
 def percent(score: int, max_score: int) -> int:
@@ -77,15 +68,15 @@ class StudentRow:
     name: str
     login: str
     last_activity: float | None
-    today: tuple[int, int]       # (пробных ЕНТ, тренировок)
+    today: tuple[int, int]
     yesterday: tuple[int, int]
     week: tuple[int, int]
-    attempts: int                # попыток за выбранный период
-    last: int | None             # результат последней попытки периода, %
-    last_mock_score: int | None  # балл, если последняя попытка — пробный ЕНТ
+    attempts: int
+    last: int | None
+    last_mock_score: int | None
     average: int | None
     best: int | None
-    trend: int | None            # изменение в процентах (None — мало попыток)
+    trend: int | None
     weak: list[SubjectResult] = field(default_factory=list)
     help_score: int = 0
 
@@ -96,16 +87,7 @@ class StudentRow:
 
 def subject_results(rows) -> list[SubjectResult]:
     """Проценты по предметам из строк attempt_subject_points (от слабого к сильному)."""
-    points: dict[str, int] = {}
-    maximum: dict[str, int] = {}
-    count: dict[str, int] = {}
-    for row in rows:
-        code = row["subject"]
-        if code not in config.SUBJECTS or row["qtype"] not in config.QUESTION_POINTS:
-            continue
-        points[code] = points.get(code, 0) + (row["points"] or 0)
-        maximum[code] = maximum.get(code, 0) + row["n"] * question_max_points(row["qtype"])
-        count[code] = count.get(code, 0) + row["n"]
+    points, maximum, count = ent_logic.subject_totals(rows)
     result = [SubjectResult(c, percent(points[c], maximum[c]), count[c]) for c in points]
     result.sort(key=lambda item: (item.percent, -item.questions, item.code))
     return result
@@ -127,7 +109,6 @@ def _trend(results: list[int]) -> int | None:
 
 
 def _help_score(row: StudentRow, now: float) -> int:
-    """«Балл тревоги»: давно не занимался, низкий результат, падает, есть слабые предметы."""
     score = 0
     if row.last_activity is None or now - row.last_activity > INACTIVE_DAYS * 86400:
         score += 3
@@ -199,7 +180,6 @@ def school_overview(school_id: int, period: str = DEFAULT_PERIOD, now: float | N
     return result
 
 
-# Сортировка таблицы: код столбца → ключ. None в числовых столбцах уходит в конец.
 def _num(value: int | float | None) -> float:
     return float("-inf") if value is None else float(value)
 
@@ -218,8 +198,6 @@ SORT_KEYS = {
     "weak": lambda r: len(r.weak),
 }
 DEFAULT_SORT = "help"
-# Направление по умолчанию при клике на столбец: имя — по алфавиту, «нужна помощь» и
-# слабые предметы — сначала больше, числа — сначала больше.
 DEFAULT_DESC = {"name": False}
 
 
@@ -231,15 +209,13 @@ def sort_rows(rows: list[StudentRow], key: str, descending: bool) -> list[Studen
     return sorted(by_name, key=SORT_KEYS[key], reverse=descending)
 
 
-# ── Лента ученика по дням ────────────────────────────────────────────────────
-
 @dataclass
 class TimelineItem:
     """Одна попытка в ленте: что делал, когда, сколько баллов и по каким предметам."""
 
     attempt: Attempt
     percent: int
-    subjects: list[tuple[str, int, int]]  # (код предмета, баллы, максимум)
+    subjects: list[tuple[str, int, int]]
 
 
 def timeline(user_id: int, limit_days: int = 60) -> list[tuple[date, list[TimelineItem]]]:

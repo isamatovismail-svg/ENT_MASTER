@@ -99,7 +99,6 @@ class ApiTests(DatabaseTestCase):
         requests = []
 
         def opener(request, timeout):
-            """Возвращает заранее заданный ответ вместо сети."""
             requests.append((request, timeout))
             body = json.loads(request.data)
             if body.get("fail"):
@@ -116,7 +115,7 @@ class ApiTests(DatabaseTestCase):
         self.assertEqual(request.full_url, "https://api.telegram.org/botTOKEN/sendMessage")
         self.assertEqual(request.get_header("Content-type"), "application/json")
         api.call("getUpdates", timeout=30)
-        self.assertEqual(requests[-1][1], 45)  # long polling ждёт дольше обычного
+        self.assertEqual(requests[-1][1], 45)
         with self.assertRaises(TelegramError) as caught:
             api.call("sendMessage", fail=True)
         self.assertEqual((str(caught.exception), caught.exception.code), ("chat not found", 400))
@@ -183,7 +182,6 @@ class BotTests(DatabaseTestCase):
         self.assertEqual([b["text"] for b in buttons(menu)],
                          ["🔐 Войти на сайт", "🎯 Тренировка", "📊 Мои результаты"])
 
-        # В группах бот молчит.
         before = len(self.api.calls)
         self.bot.handle_update(message_update("/start", chat_type="group"))
         self.assertEqual(len(self.api.calls), before)
@@ -193,7 +191,6 @@ class BotTests(DatabaseTestCase):
         match = re.search(r"(http\S+/tg/login\?token=(\S+))", text)
         self.assertIsNotNone(match, text)
         self.assertIsNotNone(auth.peek_telegram_token(match.group(2)))
-        # localhost Telegram в кнопках не принимает — ссылка только в тексте.
         self.assertEqual(buttons(self.api.last()), [])
         self.assertEqual(self.api.last()["link_preview_options"], {"is_disabled": True})
 
@@ -221,7 +218,7 @@ class BotTests(DatabaseTestCase):
         self.press("train")
         subject_buttons = [b["callback_data"] for b in buttons(self.api.last())]
         self.assertIn("subj:math", subject_buttons)
-        self.assertNotIn("subj:physics", subject_buttons)  # по физике вопросов нет
+        self.assertNotIn("subj:physics", subject_buttons)
 
         self.press("subj:math")
         attempt = database.get_in_progress_attempt(user_id, ent_logic.PRACTICE)
@@ -244,13 +241,12 @@ class BotTests(DatabaseTestCase):
                 feedback = self.api.last()["text"]
                 self.assertIn("✅ Верно!", feedback)
             elif aq.qtype == config.MULTIPLE:
-                # Отмечаем один вариант — клавиатура обновляется с ✅.
                 first = aq.correct[0]
                 self.press(f"t:{prefix}:{first}")
                 markup = self.api.edits("editMessageReplyMarkup")[-1]["reply_markup"]
                 texts = [b["text"] for row in markup["inline_keyboard"] for b in row]
                 self.assertIn(f"✅ {first}", texts)
-                self.press(f"a:{prefix}:{first}")  # пропущены два верных → 0 баллов
+                self.press(f"a:{prefix}:{first}")
                 feedback = self.api.last()["text"]
                 self.assertIn("❌ Неверно", feedback)
                 self.assertIn("Правильный ответ", feedback)
@@ -261,10 +257,8 @@ class BotTests(DatabaseTestCase):
                 self.press(f"m:{prefix}:{''.join(aq.correct)}")
                 self.assertIn("✅ Верно!", self.api.last()["text"])
             self.assertIn("💡 Почему так: Объяснение к заданию", self.api.last()["text"])
-            # Кнопки у вопроса убираются после ответа.
             self.assertEqual(self.api.edits("editMessageReplyMarkup")[-1]["reply_markup"],
                              {"inline_keyboard": []})
-            # Повторное нажатие ничего не меняет.
             self.press(f"a:{prefix}:-")
             self.assertEqual(self.callback_notice(), "Вы уже ответили на этот вопрос")
 
@@ -285,7 +279,6 @@ class BotTests(DatabaseTestCase):
         self.assertIn(f"3/{finished.max_score}", results)
         self.assertIn("Пробный ЕНТ ещё не проходили", results)
 
-        # Ответ в завершённой тренировке не принимается.
         self.press(f"a:{attempt.id}:{questions[0].id}:A")
         self.assertEqual(self.callback_notice(), "Тренировка уже завершена")
 
@@ -303,12 +296,10 @@ class BotTests(DatabaseTestCase):
         self.assertIn("▶️ Продолжить: Математика (1/3)",
                       [b["text"] for b in buttons(self.api.last())])
 
-        # Другой пользователь Telegram не может отвечать в чужой тренировке.
         stranger = 555
         auth.create_telegram_user(stranger, "Чужой")
         self.bot.handle_update(callback_update(f"next:{attempt.id}", telegram_id=stranger))
         self.assertEqual(self.callback_notice(), "Эта тренировка не найдена")
-        # Подделанные кнопки не ломают бота.
         for data in ("a:x:y:z", f"a:{attempt.id}:999:A", f"a:{attempt.id}:{first.id}:Z", "zzz"):
             self.press(data)
             self.assertIn(self.callback_notice(), ("Кнопка устарела", "Вы уже ответили на этот вопрос"))
@@ -342,7 +333,7 @@ class TelegramLoginPagesTests(DatabaseTestCase):
         """GET не тратит токен; «Создать аккаунт» входит; токен второй раз не работает."""
         browser = Browser(self.base_url)
         token = self.token()
-        for _ in range(2):  # превью ссылок и повторное открытие не тратят токен
+        for _ in range(2):
             status, _, html, _ = browser.get(f"/tg/login?token={token}")
             self.assertEqual(status, 200)
         self.assertIn("Аружан Т.", html)
@@ -363,7 +354,6 @@ class TelegramLoginPagesTests(DatabaseTestCase):
         self.assertEqual(other.get(f"/tg/login?token={token}")[0], 400)
         self.assertEqual(other.get("/tg/login?token=garbage")[0], 400)
 
-        # Следующая ссылка для того же Telegram — просто «Войти» в тот же аккаунт.
         token = self.token()
         _, _, html, _ = other.get(f"/tg/login?token={token}")
         self.assertIn("привязан к аккаунту", html)
@@ -384,7 +374,6 @@ class TelegramLoginPagesTests(DatabaseTestCase):
         self.assertIn("Неверная почта/телефон или пароль", html)
         self.assertIn('value="aru@mail.kz"', html)
 
-        # Аккаунт с неподтверждённой почтой привязать нельзя.
         auth.register_user("Боря", "Новый", "new@mail.kz", "", "password123", "password123")
         status, _, html, _ = browser.post("/tg/login", {
             "token": token, "action": "link", "login": "new@mail.kz", "password": "password123",
@@ -420,7 +409,6 @@ class TelegramLoginPagesTests(DatabaseTestCase):
             row = connection.execute("SELECT telegram_id FROM users WHERE id = ?", (auto_id,))
             self.assertIsNone(row.fetchone()["telegram_id"])
 
-        # Авто-аккаунт не потерян: новый вход «Создать аккаунт» вернётся к нему, а не упадёт.
         database.bind_telegram(database.get_user_credentials("aru@mail.kz")["id"], 999)
         self.assertEqual(auth.create_telegram_user(TG_ID, "Авто"), auto_id)
 

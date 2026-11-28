@@ -1,12 +1,4 @@
-"""Общие инструменты генераторов вопросов.
-
-Генератор — функция, которая получает random.Random и возвращает один вопрос
-в формате data/questions/*.json. Правильный ответ всегда вычисляется кодом,
-поэтому в сгенерированных расчётных задачах не бывает ошибок в ответах.
-
-Важно: объяснения никогда не ссылаются на буквы вариантов — при выдаче
-ученику варианты перемешиваются.
-"""
+"""Общие инструменты генераторов вопросов."""
 
 import random
 import re
@@ -14,7 +6,7 @@ from fractions import Fraction
 
 from app import config
 
-MINUS = "−"  # типографский минус, как в остальных вопросах банка
+MINUS = "−"
 
 
 class SkipQuestion(Exception):
@@ -22,11 +14,7 @@ class SkipQuestion(Exception):
 
 
 def topic(code: str):
-    """Декоратор: тема спецификации НЦТ (номер из app/topics.py), к которой относится шаблон.
-
-    @topic("05")
-    def linear_equation(rng): ...
-    """
+    """Декоратор: тема спецификации НЦТ (номер из app/topics.py), к которой относится шаблон."""
 
     def mark(function):
         function.topic = code
@@ -36,10 +24,7 @@ def topic(code: str):
 
 
 def num(value: float | int | Fraction, digits: int = 2) -> str:
-    """Число по-русски: десятичная запятая, пробелы между тысячами, знак «−».
-
-    num(1234.5) → «1 234,5», num(-3) → «−3», num(Fraction(1, 2)) → «1/2».
-    """
+    """Число по-русски: десятичная запятая, пробелы между тысячами, знак «−»."""
     if isinstance(value, Fraction):
         if value.denominator == 1:
             return num(value.numerator)
@@ -103,14 +88,9 @@ def unique_strings(correct: str, candidates: list[str], need: int) -> list[str]:
 
 def number_distractors(rng: random.Random, correct: float, typical: list[float],
                        unit: str = "", need: int = 3, digits: int = 2) -> list[str]:
-    """Неправильные числовые варианты.
-
-    Сначала берутся «типичные ошибки» (их передаёт шаблон), затем — числа рядом
-    с правильным ответом, чтобы варианты выглядели правдоподобно.
-    """
-    fmt = lambda x: num(x, digits) + unit  # noqa: E731
+    """Неправильные числовые варианты."""
+    fmt = lambda x: num(x, digits) + unit
     if float(correct).is_integer():
-        # Дробный вариант среди целых сразу выдаёт себя — отбрасываем такие «ошибки».
         typical = [x for x in typical if float(x).is_integer()]
     pool = [fmt(x) for x in typical]
     step = max(1, abs(correct) * 0.1) if isinstance(correct, float) and correct != int(correct) else 1
@@ -122,7 +102,6 @@ def number_distractors(rng: random.Random, correct: float, typical: list[float],
 
 def _shuffle_with_letters(rng: random.Random, options: list[str],
                           correct_values: list[str]) -> tuple[list[str], list[str]]:
-    """Перемешивает варианты и возвращает (варианты, буквы правильных в порядке correct_values)."""
     order = options[:]
     rng.shuffle(order)
     letters = [config.OPTION_LETTERS[order.index(value)] for value in correct_values]
@@ -187,10 +166,7 @@ def matching(rng: random.Random, text: str, pairs: list[tuple[str, str]],
 
 
 def quiz(items: list[tuple[str, str, list[str], str]], code: str):
-    """Шаблон из готовых вопросов «текст — ответ — неверные варианты — объяснение» одной темы.
-
-    Нужен для тем, где ответ — факт, а не расчёт. Варианты перемешиваются при каждом выборе.
-    """
+    """Шаблон из готовых вопросов «текст — ответ — неверные варианты — объяснение» одной темы."""
 
     @topic(code)
     def ask(rng: random.Random) -> dict:

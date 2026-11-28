@@ -1,10 +1,4 @@
-"""Регистрация, вход, выход, хеширование паролей и сессии.
-
-Пароль никогда не хранится в открытом виде: в базе лежат соль и результат
-hashlib.pbkdf2_hmac (тысячи повторов SHA-256), что делает подбор очень медленным.
-Сессия — случайный токен (secrets) в cookie с флагами HttpOnly и SameSite=Lax.
-В базе хранится только SHA-256 от токена: утечка базы не даёт войти в чужой аккаунт.
-"""
+"""Регистрация, вход, выход, хеширование паролей и сессии."""
 
 import hashlib
 import hmac
@@ -24,14 +18,13 @@ from app.web.http import Request
 from app.i18n import t
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
-# Похоже на телефон: только цифры, «+», пробелы, скобки и дефисы.
 PHONE_LIKE_RE = re.compile(r"^\+?[\d\s\-()]+$")
 PHONE_ERROR = (
     "Номер телефона указан неверно: после кода страны (+7 или 8) должно быть 10 цифр. "
     "Пример: +7 705 123 45 67"
 )
 NAME_MAX_LENGTH = 60
-TELEGRAM_NAME_FALLBACK = "Ученик"  # имя, если Telegram или Google его не сообщили
+TELEGRAM_NAME_FALLBACK = "Ученик"
 
 
 class ValidationError(Exception):
@@ -43,13 +36,8 @@ class ValidationError(Exception):
         self.errors = errors
 
 
-# ── Пароли ───────────────────────────────────────────────────────────────────
-
 def hash_password(password: str, salt_hex: str | None = None) -> tuple[str, str]:
-    """Хеширует пароль с солью. Возвращает (хеш, соль) в шестнадцатеричном виде.
-
-    Если соль не передана, создаётся новая случайная соль (16 байт).
-    """
+    """Хеширует пароль с солью. Возвращает (хеш, соль) в шестнадцатеричном виде."""
     if salt_hex is None:
         salt_hex = secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac(
@@ -64,15 +52,8 @@ def verify_password(password: str, salt_hex: str, expected_hash: str) -> bool:
     return hmac.compare_digest(actual_hash, expected_hash)
 
 
-# ── Проверка формы регистрации ───────────────────────────────────────────────
-
 def normalize_phone(raw: str) -> str:
-    """Приводит казахстанский номер к виду +7XXXXXXXXXX или выбрасывает ValueError.
-
-    Принимаются «8 705 967 84 20», «+7 (705) 967-84-20», «87059678420»,
-    «77059678420» и «7059678420»: пробелы, скобки и дефисы убираются,
-    код страны (+7, 7 или 8) отбрасывается, остаться должно ровно 10 цифр.
-    """
+    """Приводит казахстанский номер к виду +7XXXXXXXXXX или выбрасывает ValueError."""
     value = raw.strip()
     if not PHONE_LIKE_RE.match(value) or "+" in value[1:]:
         raise ValueError(t(PHONE_ERROR))
@@ -89,12 +70,7 @@ def normalize_phone(raw: str) -> str:
 
 
 def normalize_login(raw: str) -> str:
-    """Приводит логин к единому виду.
-
-    Почта — в нижний регистр, телефон — к виду +7XXXXXXXXXX (normalize_phone).
-    Если телефон набран с ошибкой, из него только убираются пробелы, дефисы и скобки —
-    такой логин просто не найдётся. Остальное (например, tg123) не меняется.
-    """
+    """Приводит логин к единому виду."""
     value = raw.strip()
     if "@" in value:
         return value.lower()
@@ -107,12 +83,10 @@ def normalize_login(raw: str) -> str:
 
 
 def _clean_text(raw: str) -> str:
-    """Убирает лишние пробелы."""
     return " ".join(raw.split())
 
 
 def _check_password(password: str, password2: str, errors: list[str]) -> None:
-    """Проверяет длину пароля и повтор, дописывает ошибки в errors."""
     if len(password) < config.PASSWORD_MIN_LENGTH:
         errors.append(t("Пароль должен быть не короче {n} символов.", n=config.PASSWORD_MIN_LENGTH))
     elif password != password2:
@@ -136,11 +110,11 @@ def find_email_user(email: str) -> sqlite3.Row | None:
 class Registration:
     """Проверенные поля формы регистрации."""
 
-    name: str              # «Имя Фамилия»
+    name: str
     email: str
     phone: str | None
-    pending_user_id: int   # неподтверждённый аккаунт с той же почтой (0 — нет)
-    school: tuple[str, str] | None = None  # (город, школа) или None — без школы
+    pending_user_id: int
+    school: tuple[str, str] | None = None
 
 
 def validate_registration(
@@ -201,12 +175,7 @@ def register_user(
     first_name: str, last_name: str, email: str, phone: str, password: str, password2: str,
     school_city: str = "", school_name: str = "", language: str = i18n.RU,
 ) -> int:
-    """Создаёт неподтверждённый аккаунт и возвращает его id (или выбрасывает ValidationError).
-
-    Войти в аккаунт можно только после ввода кода из письма (send_email_code + verify_email).
-    Если на эту почту уже начинали регистрацию и не подтвердили её, прежние данные
-    заменяются новыми: без кода из письма такой аккаунт всё равно бесполезен.
-    """
+    """Создаёт неподтверждённый аккаунт и возвращает его id (или выбрасывает ValidationError)."""
     form = validate_registration(first_name, last_name, email, phone, password, password2,
                                  school_city, school_name)
     password_hash, salt = hash_password(password)
@@ -219,18 +188,16 @@ def register_user(
             user_id = database.create_user(form.name, form.email, password_hash, salt,
                                            time.time(), phone=form.phone, email_verified=False)
     except sqlite3.IntegrityError as error:
-        # Почту или телефон могли занять между проверкой и записью (два запроса одновременно).
         raise ValidationError(
             [t("Пользователь с такой почтой или телефоном уже зарегистрирован.")]
         ) from error
     database.set_user_language(user_id, i18n.normalize(language))
-    # Школа: заявка ждёт подтверждения учителя (или «без школы»).
     if form.school is None:
         database.set_user_school(user_id, None, None)
     else:
         school_id = schools.find_or_create_school(*form.school)
         database.set_user_school(user_id, school_id, database.SCHOOL_PENDING)
-        from app.core import notifications  # импорт здесь: notifications → schools → auth не нужен
+        from app.core import notifications
 
         notifications.school_request(school_id, form.name, user_id)
     return user_id
@@ -250,15 +217,9 @@ def is_blocked_demo_admin(login: str, role: str) -> bool:
 
 
 def authenticate(login: str, password: str) -> User | None:
-    """Проверяет логин и пароль. Возвращает пользователя или None.
-
-    Если почта ещё не подтверждена, у пользователя email_verified = False — вход
-    в этом случае не выполняется, а ученика отправляют вводить код.
-    """
+    """Проверяет логин и пароль. Возвращает пользователя или None."""
     row = database.get_user_credentials(normalize_login(login))
     if row is None:
-        # Считаем хеш и для несуществующего логина, чтобы по времени ответа
-        # нельзя было понять, зарегистрирован ли такой пользователь.
         verify_password(password, "00" * 16, "0" * 64)
         return None
     if not verify_password(password, row["salt"], row["password_hash"]):
@@ -267,8 +228,6 @@ def authenticate(login: str, password: str) -> User | None:
                 language=row["language"])
 
 
-# Пароли, которые подбирают первыми. Пароль хранится только как хеш, поэтому «слабость»
-# проверяем так: не подходит ли к хешу один из этих паролей (или сам логин).
 WEAK_PASSWORDS = (
     "12345678", "123456789", "1234567890", "87654321", "11111111", "00000000",
     "password", "password1", "qwerty123", "qwertyui", "1q2w3e4r", "iloveyou",
@@ -277,10 +236,7 @@ WEAK_PASSWORDS = (
 
 
 def weak_admin_logins(skip_demo: bool = True) -> list[str]:
-    """Логины главных администраторов, чей пароль угадывается по списку WEAK_PASSWORDS.
-
-    Демо-админы пропускаются: в режиме показа они всё равно не могут войти.
-    """
+    """Логины главных администраторов, чей пароль угадывается по списку WEAK_PASSWORDS."""
     weak = []
     for row in database.admin_credentials():
         login = row["login"]
@@ -292,10 +248,8 @@ def weak_admin_logins(skip_demo: bool = True) -> list[str]:
     return weak
 
 
-# ── Коды из писем ────────────────────────────────────────────────────────────
-
-VERIFY = "verify"  # подтверждение почты после регистрации
-RESET = "reset"    # восстановление пароля
+VERIFY = "verify"
+RESET = "reset"
 
 _MAIL_TEXTS = {
     VERIFY: (
@@ -320,7 +274,6 @@ CODE_ERRORS = {
 
 
 def _code_hash(user_id: int, purpose: str, code: str) -> str:
-    """SHA-256 от кода (вместе с id и видом кода) — только он хранится в базе."""
     return hashlib.sha256(f"{purpose}:{user_id}:{code}".encode("utf-8")).hexdigest()
 
 
@@ -334,18 +287,14 @@ def resend_wait_seconds(user_id: int, purpose: str) -> int:
 
 
 def send_email_code(user_id: int, email: str, purpose: str) -> int:
-    """Отправляет на почту новый 6-значный код.
-
-    Возвращает 0, если письмо отправлено, или сколько секунд ещё ждать
-    (новый код — не чаще раза в минуту). Ошибка отправки — mailer.MailError.
-    """
+    """Отправляет на почту новый 6-значный код."""
     wait = resend_wait_seconds(user_id, purpose)
     if wait:
         return wait
     code = f"{secrets.randbelow(10 ** 6):06d}"
     subject, body = _MAIL_TEXTS[purpose]
     minutes = config.EMAIL_CODE_MINUTES
-    with i18n.use(database.get_user_language(user_id)):  # письмо — на языке пользователя
+    with i18n.use(database.get_user_language(user_id)):
         subject = t(subject, code=code)
         body = t(body, code=code, minutes=minutes) + f"\n\nENT MASTER: {config.SITE_URL}"
     mailer.send(email, subject, body)
@@ -356,10 +305,7 @@ def send_email_code(user_id: int, email: str, purpose: str) -> int:
 
 
 def check_email_code(user_id: int, purpose: str, code: str) -> str | None:
-    """Проверяет код. None — код верный (и больше не действует), иначе текст ошибки.
-
-    После EMAIL_CODE_MAX_ATTEMPTS неверных вводов код перестаёт действовать.
-    """
+    """Проверяет код. None — код верный (и больше не действует), иначе текст ошибки."""
     code = re.sub(r"\s", "", code)
     row = database.get_email_code(user_id, purpose)
     if row is None:
@@ -379,10 +325,7 @@ def check_email_code(user_id: int, purpose: str, code: str) -> str | None:
 
 
 def verify_email(email: str, code: str) -> int:
-    """Подтверждает почту кодом из письма и возвращает id пользователя.
-
-    Ошибка (неверный код, аккаунта нет или он уже подтверждён) — ValidationError.
-    """
+    """Подтверждает почту кодом из письма и возвращает id пользователя."""
     user = find_email_user(email)
     if user is None or user["email_verified"]:
         raise ValidationError([CODE_ERRORS["missing"]])
@@ -394,10 +337,7 @@ def verify_email(email: str, code: str) -> int:
 
 
 def reset_password(email: str, code: str, password: str, password2: str) -> int:
-    """Меняет пароль по коду из письма и возвращает id пользователя.
-
-    Все прежние сессии завершаются. Раз код пришёл на почту, она считается подтверждённой.
-    """
+    """Меняет пароль по коду из письма и возвращает id пользователя."""
     errors: list[str] = []
     _check_password(password, password2, errors)
     if errors:
@@ -415,15 +355,8 @@ def reset_password(email: str, code: str, password: str, password2: str) -> int:
     return int(user["id"])
 
 
-# ── Вход через Google ────────────────────────────────────────────────────────
-
 def google_user(email: str, first_name: str, last_name: str) -> int:
-    """Аккаунт для входа через Google: найденный по почте или новый. Возвращает id.
-
-    Google уже подтвердил почту. Если на неё была начата, но не подтверждена
-    регистрация, пароль из той регистрации сбрасывается на случайный: его мог
-    задать кто-то чужой, кто вписал эту почту.
-    """
+    """Аккаунт для входа через Google: найденный по почте или новый. Возвращает id."""
     email = normalize_email(email)
     existing = find_email_user(email)
     if existing is not None:
@@ -439,30 +372,26 @@ def google_user(email: str, first_name: str, last_name: str) -> int:
         database.set_user_language(user_id, i18n.get_language())
         return user_id
     except sqlite3.IntegrityError:
-        # Тот же аккаунт создал параллельный запрос.
         row = find_email_user(email)
         assert row is not None
         return int(row["id"])
 
 
-# ── Сессии ───────────────────────────────────────────────────────────────────
-
 def _token_hash(token: str) -> str:
-    """SHA-256 от токена сессии — именно он хранится в базе."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _cookie_header(value: str, max_age: int) -> str:
-    """Формирует заголовок Set-Cookie для сессии с флагами HttpOnly и SameSite=Lax."""
+def cookie_header(name: str, value: str, max_age: int, path: str = "/") -> str:
+    """Значение Set-Cookie: HttpOnly, SameSite=Lax и Secure, если сайт за HTTPS."""
     cookie = SimpleCookie()
-    cookie[config.SESSION_COOKIE_NAME] = value
-    morsel = cookie[config.SESSION_COOKIE_NAME]
-    morsel["path"] = "/"
+    cookie[name] = value
+    morsel = cookie[name]
+    morsel["path"] = path
     morsel["max-age"] = max_age
     morsel["httponly"] = True
     morsel["samesite"] = "Lax"
     if config.COOKIE_SECURE:
-        morsel["secure"] = True  # на сервере с HTTPS cookie не уходит по незащищённому http
+        morsel["secure"] = True
     return morsel.OutputString()
 
 
@@ -475,14 +404,14 @@ def start_session(user_id: int) -> str:
         _token_hash(token), user_id, secrets.token_urlsafe(32),
         now + config.SESSION_LIFETIME_SECONDS, now=now,
     )
-    return _cookie_header(token, config.SESSION_LIFETIME_SECONDS)
+    return cookie_header(config.SESSION_COOKIE_NAME, token, config.SESSION_LIFETIME_SECONDS)
 
 
 def end_session(request: Request) -> str:
     """Удаляет текущую сессию и возвращает Set-Cookie, стирающий cookie в браузере."""
     if request.session_key:
         database.delete_session(request.session_key)
-    return _cookie_header("", 0)
+    return cookie_header(config.SESSION_COOKIE_NAME, "", 0)
 
 
 def attach_user(request: Request) -> None:
@@ -496,7 +425,7 @@ def attach_user(request: Request) -> None:
         return
     user, csrf_token = found
     if is_blocked_demo_admin(user.login, user.role):
-        return  # старая сессия демо-админа в режиме показа не действует
+        return
     request.user, request.csrf_token = user, csrf_token
     request.session_key = key
 
@@ -506,8 +435,6 @@ def check_csrf(request: Request) -> bool:
     sent = request.form_value("csrf_token")
     return bool(request.csrf_token) and hmac.compare_digest(sent, request.csrf_token)
 
-
-# ── Вход через Telegram-бота ─────────────────────────────────────────────────
 
 def telegram_login_url(telegram_id: int, telegram_name: str) -> str:
     """Создаёт одноразовую ссылку входа на сайт (действует TELEGRAM_LOGIN_TOKEN_MINUTES минут)."""
@@ -535,11 +462,7 @@ def use_telegram_token(token: str) -> bool:
 
 
 def create_telegram_user(telegram_id: int, name: str) -> int:
-    """Регистрирует пользователя, который входит только через Telegram.
-
-    Логин — tg<telegram_id>, пароль — случайный и никому не известный:
-    войти в такой аккаунт можно только по ссылке из бота.
-    """
+    """Регистрирует пользователя, который входит только через Telegram."""
     login = f"tg{telegram_id}"
     password_hash, salt = hash_password(secrets.token_urlsafe(32))
     clean_name = " ".join(name.split())[:NAME_MAX_LENGTH] or TELEGRAM_NAME_FALLBACK
@@ -547,8 +470,6 @@ def create_telegram_user(telegram_id: int, name: str) -> int:
         user_id = database.create_user(clean_name, login, password_hash, salt, time.time())
         database.set_user_language(user_id, i18n.get_language())
     except sqlite3.IntegrityError:
-        # Такой аккаунт уже создавался раньше (а Telegram потом привязали к другому) —
-        # возвращаемся к нему.
         row = database.get_user_credentials(login)
         assert row is not None
         user_id = row["id"]

@@ -1,10 +1,4 @@
-"""Запуск ENT MASTER: сайт и Telegram-бот одной командой.
-
-    python run.py           — сайт и бот, сайт на http://localhost:8000
-    python run.py --share   — то же + временная публичная ссылка https://….trycloudflare.com
-    python run.py site      — только сайт (так его запускает systemd на сервере)
-    python run.py bot       — только Telegram-бот
-"""
+"""Запуск ENT MASTER: сайт и Telegram-бот одной командой."""
 
 import argparse
 import sys

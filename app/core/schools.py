@@ -1,11 +1,4 @@
-"""Школы и задания учителя: проверка ввода, поиск школы без дубликатов, подсчёт выполнения.
-
-Школа — это город + номер или название. Чтобы «Школа №12», «СОШ 12» и «12» в одном
-городе считались одной школой, из названия убираются «№», кавычки и слова вроде
-«школа»/«СОШ», а город и название приводятся к нижнему регистру (это ключ school.key).
-
-Задание засчитывается по попыткам, ЗАВЕРШЁННЫМ после выдачи задания и не позже срока.
-"""
+"""Школы и задания учителя: проверка ввода, поиск школы без дубликатов, подсчёт выполнения."""
 
 import re
 import time
@@ -21,7 +14,6 @@ CITY_MAX_LENGTH = 60
 SCHOOL_MAX_LENGTH = 100
 ASSIGNMENT_MAX_COUNT = 20
 
-# Слова, которые не отличают одну школу от другой: «Школа №12» = «СОШ 12» = «12».
 _NOISE_WORDS = {
     "школа", "сош", "средняя", "общеобразовательная", "мектеп", "мектебі", "мектебi",
     "жом", "school", "г", "город", "қ", "қаласы",
@@ -39,12 +31,10 @@ class SchoolError(Exception):
 
 
 def _clean(raw: str) -> str:
-    """Убирает лишние пробелы."""
     return " ".join(raw.split())
 
 
 def _normalized(raw: str) -> str:
-    """Нижний регистр, без знаков препинания и слов вроде «школа»."""
     words = _PUNCTUATION_RE.sub(" ", raw.casefold().replace(t("ё"), t("е"))).split()
     meaningful = [word for word in words if word not in _NOISE_WORDS]
     return " ".join(meaningful or words)
@@ -87,11 +77,7 @@ def find_or_create_school(city: str, name: str) -> int:
 
 
 def join_school(user_id: int, city: str, name: str) -> int | None:
-    """Ученик выбирает школу: заявка ждёт подтверждения учителя.
-
-    Пустые поля — «без школы» (ученик выходит из школы). Повторный выбор той же школы,
-    где ученик уже подтверждён, ничего не меняет. Возвращает id школы или None.
-    """
+    """Ученик выбирает школу: заявка ждёт подтверждения учителя."""
     school = validate_school(city, name)
     if school is None:
         database.set_user_school(user_id, None, None)
@@ -103,14 +89,12 @@ def join_school(user_id: int, city: str, name: str) -> int | None:
     ):
         return school_id
     database.set_user_school(user_id, school_id, database.SCHOOL_PENDING)
-    from app.core import notifications  # импорт здесь: notifications сам использует этот модуль
+    from app.core import notifications
 
     user = database.get_user(user_id)
     notifications.school_request(school_id, user["name"] if user is not None else "", user_id)
     return school_id
 
-
-# ── Задания ──────────────────────────────────────────────────────────────────
 
 @dataclass
 class AssignmentProgress:
@@ -119,15 +103,15 @@ class AssignmentProgress:
     user_id: int
     name: str
     login: str
-    done: int          # сколько засчитанных попыток (не больше нужного числа)
-    scores: list[str]  # баллы засчитанных попыток: «86/140»
-    status: str        # done / overdue / active
+    done: int
+    scores: list[str]
+    status: str
 
 
 def pair_codes(target: str) -> tuple[str, str] | None:
     """Пара из поля target пробного ЕНТ («math,physics») или None — любая пара."""
     codes = tuple(code for code in target.split(",") if code)
-    return codes if len(codes) == 2 else None  # type: ignore[return-value]
+    return codes if len(codes) == 2 else None
 
 
 def assignment_title(mode: str, target: str, count: int) -> str:

@@ -1,10 +1,4 @@
-"""Отправка писем: коды подтверждения почты и восстановления пароля.
-
-Отправитель выбирается по настройкам: если в .env заданы SMTP_HOST, SMTP_USER
-и SMTP_PASSWORD — письмо уходит через smtplib (SSL, для Gmail порт 465),
-иначе (режим разработки) письмо просто печатается в консоль сервера.
-Тесты подменяют отправителя через set_sender(), как FakeAPI у бота.
-"""
+"""Отправка писем: коды подтверждения почты и восстановления пароля."""
 
 import logging
 import smtplib
@@ -66,7 +60,6 @@ class ConsoleSender:
 
 
 def _default_sender() -> Sender:
-    """SMTP, если он настроен в .env, иначе вывод в консоль."""
     if config.SMTP_HOST and config.SMTP_USER and config.SMTP_PASSWORD:
         return SMTPSender(config.SMTP_HOST, config.SMTP_PORT, config.SMTP_USER,
                           config.SMTP_PASSWORD, config.MAIL_FROM)

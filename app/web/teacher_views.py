@@ -1,11 +1,4 @@
-"""Кабинет учителя (/teacher): ученики школы, заявки, карточка ученика, задания.
-
-Доступ: учитель — только к СВОЕЙ школе, главный администратор — к любой.
-Это проверяется в каждом запросе декоратором school_access (как user_id у попыток):
-school_id из адреса сверяется со школой учителя в базе, а ученик и задание
-дополнительно ищутся только внутри этой школы. Результаты видны только
-у подтверждённых учеников.
-"""
+"""Кабинет учителя (/teacher): ученики школы, заявки, карточка ученика, задания."""
 
 import sqlite3
 import time
@@ -27,7 +20,6 @@ FORBIDDEN = "Кабинет учителя доступен только учи�
 
 
 def _teacher_school_id(request: Request) -> int | None:
-    """Школа, которой управляет вошедший учитель (None — он не учитель)."""
     assert request.user is not None
     if not request.user.is_teacher:
         return None
@@ -40,7 +32,6 @@ def school_access(view: View) -> View:
 
     @wraps(view)
     def wrapper(request: Request, school_id: int, **kwargs: object) -> Response:
-        """Пускает учителя этой школы и главного администратора."""
         assert request.user is not None
         if not request.user.is_admin and _teacher_school_id(request) != school_id:
             return views.error_page(request, 403, t(FORBIDDEN))
@@ -53,11 +44,6 @@ def school_access(view: View) -> View:
 
 
 def _page(request: Request, school, title: str, content: SafeHTML, status: int = 200) -> Response:
-    """Страница кабинета учителя: название школы + содержимое.
-
-    Учителю разделы — в главном меню сайта; главному администратору (у него в меню их нет) —
-    вкладки школы и ссылка «Все школы».
-    """
     is_admin = request.user is not None and request.user.is_admin
     head = fragment(
         '<nav class="admin-menu" aria-label="Кабинет учителя">'
@@ -74,11 +60,8 @@ def _page(request: Request, school, title: str, content: SafeHTML, status: int =
 
 
 def _date(timestamp: float | None) -> str:
-    """Дата и время или «—»."""
     return views._format_datetime(timestamp)
 
-
-# ── Вход в кабинет ───────────────────────────────────────────────────────────
 
 @views.login_required
 def teacher_home(request: Request) -> Response:
@@ -128,10 +111,7 @@ def teacher_assignments_home(request: Request) -> Response:
     return redirect(f"/teacher/{school_id}/assignments")
 
 
-# ── Ученики и заявки ─────────────────────────────────────────────────────────
-
 def _requests_block(request: Request, school_id: int) -> SafeHTML:
-    """Заявки учеников в школу: подтвердить или отклонить."""
     pending = database.list_school_members(school_id, database.SCHOOL_PENDING)
     if not pending:
         return SafeHTML("")
@@ -158,7 +138,6 @@ def _requests_block(request: Request, school_id: int) -> SafeHTML:
 
 
 def _activity_text(timestamp: float | None, now: float) -> str:
-    """«сегодня 14:30», «вчера», «5 дн. назад» или «не заходил»."""
     if timestamp is None:
         return t("не заходил")
     moment = datetime.fromtimestamp(timestamp)
@@ -172,7 +151,6 @@ def _activity_text(timestamp: float | None, now: float) -> str:
 
 
 def _counts_cell(counts: tuple[int, int]) -> SafeHTML:
-    """«📝 1 · 🎯 3» — пробные ЕНТ и тренировки."""
     mocks, practices = counts
     if not mocks and not practices:
         return SafeHTML('<span class="muted">—</span>')
@@ -206,7 +184,6 @@ def _weak_cell(weak: list) -> SafeHTML:
     )
 
 
-# Столбцы таблицы учеников: (код сортировки, заголовок).
 STUDENT_COLUMNS = (
     ("name", "Ученик"), ("activity", "Активность"), ("today", "Сегодня"), ("yesterday", "Вчера"),
     ("week", "7 дней"), ("last", "Последний"), ("average", "Средний"), ("best", "Лучший"),
@@ -215,7 +192,6 @@ STUDENT_COLUMNS = (
 
 
 def _students_table(school_id: int, period: str, sort: str, descending: bool) -> SafeHTML:
-    """Таблица всех учеников школы с сортировкой по любому столбцу."""
     now = time.time()
     rows = student_stats.sort_rows(student_stats.school_overview(school_id, period, now), sort, descending)
     if not rows:
@@ -257,7 +233,6 @@ def _students_table(school_id: int, period: str, sort: str, descending: bool) ->
 
 
 def _period_filter(period: str, sort: str, descending: bool) -> SafeHTML:
-    """Переключатель периода: сегодня, вчера, 7 дней, 30 дней, всё время."""
     return fragment(
         '<nav class="period-filter" aria-label="Период">$links</nav>',
         links=join(
@@ -350,13 +325,10 @@ def member_action(request: Request, school, user_id: int) -> Response:
     return redirect(f"/teacher/{school['id']}?msg={message}")
 
 
-# ── Карточка ученика ─────────────────────────────────────────────────────────
-
 WEEKDAYS = ("понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье")
 
 
 def _day_title(day: date, today: date) -> str:
-    """«Сегодня», «Вчера» или «25.11.2026, среда»."""
     if day == today:
         return t("Сегодня")
     if (today - day).days == 1:
@@ -365,7 +337,6 @@ def _day_title(day: date, today: date) -> str:
 
 
 def _timeline_block(school_id: int, user_id: int) -> SafeHTML:
-    """Лента ученика по дням: что делал, баллы, по каким предметам."""
     days = student_stats.timeline(user_id)
     if not days:
         return fragment('<div class="card empty">Ученик ещё не завершил ни одного теста.</div>')
@@ -442,10 +413,7 @@ def student_attempt(request: Request, school, user_id: int, attempt_id: int) -> 
     return _page(request, school, t("Разбор попытки"), views.result_content(attempt, actions))
 
 
-# ── Задания ──────────────────────────────────────────────────────────────────
-
 def _assignment_form(request: Request, school, errors: list[str], status: int = 200) -> Response:
-    """Форма нового задания (значения сохраняются при ошибке)."""
     form = request.form_value
     mode = form("mode", "mock")
     chosen = set(request.form.get("students", []))
@@ -560,8 +528,6 @@ def assignment_delete(request: Request, school, assignment_id: int) -> Response:
     return redirect(f"/teacher/{school['id']}/assignments?msg=assignment_deleted")
 
 
-# ── Мои вопросы: учитель предлагает вопросы в общий банк ─────────────────────
-
 QUESTION_STATUS = {
     database.Q_PENDING: '<span class="badge badge-warn">⏳ на проверке</span>',
     database.Q_APPROVED: '<span class="badge badge-ok">✅ одобрен</span>',
@@ -574,7 +540,6 @@ def teacher_only(view: View) -> View:
 
     @wraps(view)
     def wrapper(request: Request, **kwargs: object) -> Response:
-        """Пускает только учителя со школой."""
         school_id = _teacher_school_id(request)
         school = database.get_school(school_id) if school_id is not None else None
         if school is None:
@@ -633,7 +598,6 @@ def my_questions(request: Request, school) -> Response:
 
 def _question_page(request: Request, school, form, url: str, title: str, errors: list[str],
                    status: int = 200, note: SafeHTML | None = None) -> Response:
-    """Форма вопроса учителя (та же, что в админке)."""
     content = question_form.form_content(
         request, form, url, url, title, errors, note,
         back_url="/teacher/questions", back_label=t("← К моим вопросам"),

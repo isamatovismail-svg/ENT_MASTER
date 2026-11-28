@@ -1,9 +1,4 @@
-"""Форма вопроса банка — общая для админки и кабинета учителя.
-
-Без JavaScript: тип вопроса выбирается ссылкой (форма перезагружается), для каждого
-типа свои поля. Проверка содержимого — validate_question из question_bank.py
-(та же, что у seed.py).
-"""
+"""Форма вопроса банка — общая для админки и кабинета учителя."""
 
 from dataclasses import dataclass, field
 from urllib.parse import urlencode
@@ -18,8 +13,8 @@ from app.web.http import Request
 from app import i18n
 from app.i18n import t
 
-LEFT_ROWS = 6             # строк «слева» в форме задания на соответствие
-TEXT_MAX_LENGTH = 4000    # ограничение длины текстовых полей формы
+LEFT_ROWS = 6
+TEXT_MAX_LENGTH = 4000
 OPTION_MAX_LENGTH = 500
 
 
@@ -37,10 +32,9 @@ class QuestionForm:
     match: list[str] = field(default_factory=lambda: [""] * LEFT_ROWS)
     explanation: str = ""
     topic: str = ""
-    language: str = "ru"  # язык вопроса: ru / kk
+    language: str = "ru"
 
 
-# Подписи языков вопроса в форме и в списках.
 QUESTION_LANGUAGES = i18n.Translated({"ru": "Русский", "kk": "Казахский"})
 
 
@@ -88,7 +82,6 @@ def form_from_request(request: Request) -> QuestionForm:
 
 
 def _trim(values: list[str]) -> list[str]:
-    """Убирает пустые значения в конце списка."""
     values = list(values)
     while values and not values[-1]:
         values.pop()
@@ -153,7 +146,6 @@ def build_question(form: QuestionForm, question_id: int = 0) -> tuple[Question |
 
 
 def _type_switch(base_url: str, current: str, subject: str) -> SafeHTML:
-    """Ссылки выбора типа вопроса (без JavaScript форма перезагружается)."""
     return join(
         fragment(
             '<a class="type-chip$active" href="$href">$name</a>',
@@ -166,7 +158,6 @@ def _type_switch(base_url: str, current: str, subject: str) -> SafeHTML:
 
 
 def _option_rows(form: QuestionForm) -> SafeHTML:
-    """Поля вариантов ответа; рядом — отметка правильного (кроме соответствия)."""
     input_type = {config.MULTIPLE: "checkbox", config.MATCHING: ""}.get(form.qtype, "radio")
     rows = []
     for index, letter in enumerate(config.OPTION_LETTERS):
@@ -189,7 +180,6 @@ def _option_rows(form: QuestionForm) -> SafeHTML:
 
 
 def _matching_rows(form: QuestionForm) -> SafeHTML:
-    """Строки «слева» для соответствия и выбор правильной буквы для каждой."""
     if form.qtype != config.MATCHING:
         return SafeHTML("")
     rows = []
@@ -274,7 +264,6 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
 
 
 def _topic_options(form: QuestionForm) -> SafeHTML:
-    """Темы всех предметов, сгруппированные по предметам (без JavaScript список не фильтруется)."""
     groups = []
     for code, info in config.SUBJECTS.items():
         options = join(

@@ -47,8 +47,6 @@ def nonzero(rng: random.Random, low: int, high: int) -> int:
             return value
 
 
-# ── Задания с одним ответом ──────────────────────────────────────────────────
-
 @topic("05")
 def linear_equation(rng: random.Random) -> dict:
     a = nonzero(rng, -9, 9)
@@ -342,8 +340,6 @@ def triangle_area(rng: random.Random) -> dict:
     return single(rng, text, f"{s} см²", number_distractors(rng, s, wrong, " см²"), expl)
 
 
-# ── Задания по контексту ─────────────────────────────────────────────────────
-
 @topic("13")
 def parabola_vertex(rng: random.Random) -> dict:
     a = rng.choice([-3, -2, -1, 1, 2, 3])
@@ -411,10 +407,7 @@ def garden_plot(rng: random.Random) -> dict:
                   expl, context=context)
 
 
-# ── Задания на соответствие ──────────────────────────────────────────────────
-
 def _derivative_pair(rng: random.Random) -> tuple[str, str, str]:
-    """(функция, производная, типичная ошибка)."""
     kind = rng.choice(["power", "power", "sin", "cos", "exp", "ln"])
     a = rng.randint(2, 9)
     if kind == "power":
@@ -474,8 +467,6 @@ def progression_matching(rng: random.Random) -> dict:
     return matching(rng, text, [(f"a{_sub(n1)}", num(v1)), (f"a{_sub(n2)}", num(v2))], extra, explanation)
 
 
-# ── Задания с несколькими ответами ───────────────────────────────────────────
-
 def _is_prime(n: int) -> bool:
     return n > 1 and all(n % d for d in range(2, int(n ** 0.5) + 1))
 
@@ -518,7 +509,7 @@ def inequality_multiple(rng: random.Random) -> dict:
     a, k = rng.randint(2, 7), rng.randint(-8, 8)
     b = nonzero(rng, -12, 12)
     good = list(range(k + 1, k + 9))
-    bad = list(range(k - 8, k + 1))  # числа рядом с границей, включая саму границу
+    bad = list(range(k - 8, k + 1))
     right = rng.sample(good, rng.randint(1, 3))
     wrong = rng.sample(bad, 6 - len(right))
     text = f"Какие из чисел удовлетворяют неравенству {poly([(a, 1), (b, 0)])} > {num(a * k + b)}?"
@@ -538,8 +529,6 @@ def roots_multiple(rng: random.Random) -> dict:
     return multiple(rng, f"Какие из чисел являются корнями уравнения {eq}?",
                     [num(p), num(q)], [num(v) for v in wrong], explanation)
 
-
-# ── Темы спецификации НЦТ, которых не было в банке ───────────────────────────
 
 _TRIG = {
     "sin": {0: "0", 30: "1/2", 45: "√2/2", 60: "√3/2", 90: "1", 120: "√3/2", 135: "√2/2", 150: "1/2",
@@ -612,7 +601,6 @@ def irrational_equation(rng: random.Random) -> dict:
 
 
 def _power_text(base: int, k: int) -> str:
-    """Запись base^(x + k) надстрочными знаками: 2ˣ⁺³."""
     if k == 0:
         return f"{base}ˣ"
     return f"{base}ˣ{'⁺' if k > 0 else '⁻'}{sup(abs(k))}"

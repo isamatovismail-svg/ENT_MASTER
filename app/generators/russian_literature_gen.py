@@ -4,8 +4,6 @@ from app.generators.common import quiz
 from app.generators.facts import Fact, build, set_topics
 from app.generators.literature import author_categories, author_facts, character_facts, hero_context
 
-# Произведения из спецификации НЦТ (с 2026 года): (автор, произведение, номер темы из app/topics.py).
-# Произведения вне программы ЕНТ сюда не включаются.
 PROGRAM = [
     ("А. С. Пушкин", "Песнь о вещем Олеге", "01"),
     ("А. С. Пушкин", "Сказка о мёртвой царевне и о семи богатырях", "02"),
@@ -141,7 +139,6 @@ WHAT = {"автор": "Какое произведение написал {name}
 CATEGORIES = author_categories(WORKS, "Какие произведения написал {author}",
                                "Нужно знать основные произведения писателя {author}.", WORK_TOPICS)
 
-# Мифы народов мира (тема 05 спецификации) — готовые вопросы.
 EXTRA_QUIZZES = [
     quiz([
         ("Какой герой древнегреческих мифов похитил огонь у богов и отдал его людям?", "Прометей",

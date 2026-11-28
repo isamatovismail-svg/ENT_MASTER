@@ -34,7 +34,6 @@ class BuildTests(DatabaseTestCase):
         self.assertAlmostEqual(
             attempt.deadline - attempt.started_at, config.MOCK_DURATION_MINUTES * 60
         )
-        # Порядок: сначала все задания первого предмета, затем второго и т.д.
         self.assertEqual([aq.subject for aq in questions[:20]], ["kz_history"] * 20)
         self.assertEqual(len({aq.question_id for aq in questions}), 120)
 
@@ -48,7 +47,6 @@ class BuildTests(DatabaseTestCase):
             questions = database.get_attempt_questions(attempt_id)
             orders.append([aq.question_id for aq in questions])
             for aq in questions:
-                # В тестовом банке правильный вариант single — всегда «верно».
                 if aq.qtype == config.SINGLE:
                     self.assertEqual(aq.options[config.OPTION_LETTERS.index(aq.correct[0])], "верно")
                 if aq.qtype == config.MULTIPLE:
@@ -56,9 +54,7 @@ class BuildTests(DatabaseTestCase):
                     self.assertEqual(chosen, {"да 1", "да 2", "да 3"})
             with database.connect() as connection:
                 connection.execute("UPDATE attempts SET status = 'finished'")
-        # Вероятность случайно получить три одинаковых порядка из 120 заданий ничтожна.
         self.assertGreater(len({tuple(order) for order in orders}), 1)
-        # Типы внутри профильного предмета больше не идут блоками «25 single, затем 5 context…».
         math_types = [aq.qtype for aq in questions if aq.subject == "math"]
         self.assertNotEqual(math_types, sorted(math_types, key=config.QUESTION_TYPES.index))
 
@@ -68,11 +64,10 @@ class BuildTests(DatabaseTestCase):
         self.assertEqual(ent_logic.mock_duration_minutes(66), 132)
         self.assertEqual(ent_logic.mock_duration_minutes(7), 14)
         self.assertEqual(ent_logic.mock_duration_minutes(1), 2)
-        # При 240 / 120 результат всегда целый; округление вверх важно, если поменять config.
         original = config.MOCK_DURATION_MINUTES
         config.MOCK_DURATION_MINUTES = 100
         try:
-            self.assertEqual(ent_logic.mock_duration_minutes(7), 6)  # 100 × 7 / 120 = 5,83 → 6
+            self.assertEqual(ent_logic.mock_duration_minutes(7), 6)
         finally:
             config.MOCK_DURATION_MINUTES = original
 
@@ -86,7 +81,6 @@ class BuildTests(DatabaseTestCase):
 
         self.assertEqual(len(database.get_attempt_questions(attempt_id)), 6)
         self.assertEqual(attempt.max_score, 5 * 1 + 1 * 2)
-        # 6 заданий из 120 → 240 × 6 / 120 = 12 минут.
         self.assertAlmostEqual(attempt.deadline - attempt.started_at, 12 * 60)
         history = next(item for item in attempt.shortage if item["subject"] == "kz_history")
         self.assertEqual((history["have"], history["need"]), (5, 20))
@@ -132,14 +126,13 @@ class BuildTests(DatabaseTestCase):
         self.assertTrue(aq.checked)
         self.assertEqual((aq.points, aq.answer), (2, aq.correct))
         self.assertTrue(aq.explanation.startswith("Объяснение к заданию"))
-        # Повторная отправка (например, «Назад» в браузере) ничего не меняет.
         self.assertFalse(ent_logic.check_practice_answer(attempt, aq, {}))
         self.assertEqual(database.get_attempt_questions(attempt_id)[0].points, 2)
 
         ent_logic.finish_attempt(attempt)
         finished = database.get_attempt(attempt_id, self.user_id)
         assert finished is not None
-        self.assertEqual(finished.score, 2)  # второе задание без ответа — 0 баллов
+        self.assertEqual(finished.score, 2)
 
         strengths = ent_logic.subject_strengths(self.user_id)
         self.assertEqual([(s.code, s.percent, s.questions) for s in strengths], [("physics", 50, 2)])
@@ -174,7 +167,7 @@ class MigrationTests(DatabaseTestCase):
 
         database.configure(path)
         database.init_db()
-        database.init_db()  # повторный запуск безопасен
+        database.init_db()
         with database.connect() as connection:
             for table, column in (("users", "email_verified"),
                                   ("questions", "status"),
@@ -189,8 +182,7 @@ class MigrationTests(DatabaseTestCase):
             row = connection.execute("SELECT text, explanation, status FROM questions").fetchone()
             user = connection.execute("SELECT email_verified, phone FROM users").fetchone()
         self.assertEqual((row["text"], row["explanation"], row["status"]),
-                         ("старый вопрос", "", "approved"))  # старые вопросы остаются в банке
-        # Аккаунты, созданные до подтверждения почты, считаются подтверждёнными.
+                         ("старый вопрос", "", "approved"))
         self.assertEqual((user["email_verified"], user["phone"]), (1, None))
 
 
@@ -218,9 +210,9 @@ class FinishTests(DatabaseTestCase):
         for aq in questions:
             if aq.qtype == config.SINGLE:
                 wrong = next(x for x in "ABCD" if x != aq.correct[0])
-                answers[aq.id] = aq.correct if len(answers) < 2 else [wrong]  # 2 верных, 1 неверный
+                answers[aq.id] = aq.correct if len(answers) < 2 else [wrong]
             else:
-                answers[aq.id] = aq.correct[:2]  # пропущен один верный вариант → 1 балл
+                answers[aq.id] = aq.correct[:2]
         database.save_answers(self.attempt_id, answers)
 
         ent_logic.finish_attempt(self.load(), now=1_100.0)
@@ -229,7 +221,6 @@ class FinishTests(DatabaseTestCase):
         self.assertEqual(attempt.score, 2 + 1)
         self.assertEqual(attempt.finished_at, 1_100.0)
 
-        # После завершения ответы менять нельзя.
         database.save_answers(self.attempt_id, {aq.id: None for aq in questions})
         self.assertTrue(all(aq.answer for aq in database.get_attempt_questions(self.attempt_id)))
 
@@ -254,8 +245,6 @@ class ConcurrentMigrationTests(DatabaseTestCase):
         real_connect = database.connect
 
         class Racing:
-            """Обёртка соединения: PRAGMA table_info «не видит» колонку phone, будто её ещё нет."""
-
             def __init__(self, connection):
                 self._c = connection
 
@@ -277,6 +266,6 @@ class ConcurrentMigrationTests(DatabaseTestCase):
 
         database.connect = racing_connect
         try:
-            database.init_db()  # колонка phone уже есть, но проверка её «не видит»
+            database.init_db()
         finally:
             database.connect = real_connect

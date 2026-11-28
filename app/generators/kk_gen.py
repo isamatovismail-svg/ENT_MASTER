@@ -1,8 +1,4 @@
-"""Казахские версии шаблонов: предмет → {тип задания: [функции]}.
-
-Расчётные предметы — app/generators/kk_computed.py, предметы «на знание фактов» —
-app/generators/kk_facts.py (таблицы на казахском, вопросы собирает app/generators/facts.py).
-"""
+"""Казахские версии шаблонов: предмет → {тип задания: [функции]}."""
 
 from app.generators import kk_computed, kk_facts
 

@@ -161,12 +161,12 @@ class AssignmentTests(DatabaseTestCase):
             self.school, self.teacher, "practice", "math", "", "2", TOMORROW, True, [])
         assignment = database.get_assignment(assignment_id, self.school)
         created, deadline = assignment["created_at"], assignment["deadline"]
-        self.practice(self.alice, "math", created - 10)       # до выдачи — не считается
-        self.practice(self.alice, "physics", created + 10)    # другой предмет
+        self.practice(self.alice, "math", created - 10)
+        self.practice(self.alice, "physics", created + 10)
         self.practice(self.alice, "math", created + 20)
         self.practice(self.alice, "math", created + 30)
-        self.practice(self.alice, "math", created + 40)       # лишняя — не больше count
-        self.practice(self.bob, "math", deadline + 10)        # после срока
+        self.practice(self.alice, "math", created + 40)
+        self.practice(self.bob, "math", deadline + 10)
 
         progress = {item.user_id: item for item in schools.assignment_progress(assignment)}
         self.assertEqual((progress[self.alice].done, progress[self.alice].status), (2, "done"))
@@ -177,7 +177,7 @@ class AssignmentTests(DatabaseTestCase):
 
     def test_mock_pair_and_selected_students(self) -> None:
         """Конкретная пара засчитывается только для неё; «выбранным» — только им."""
-        pair = ",".join(config.PROFILE_PAIRS[0])  # математика + физика
+        pair = ",".join(config.PROFILE_PAIRS[0])
         assignment_id = schools.create_assignment(
             self.school, self.teacher, "mock", "", pair, "1", TOMORROW, False, [self.alice, 999])
         assignment = database.get_assignment(assignment_id, self.school)
@@ -189,7 +189,6 @@ class AssignmentTests(DatabaseTestCase):
         self.mock(self.alice, 0, assignment["created_at"] + 20)
         self.assertEqual(schools.assignment_progress(assignment)[0].done, 1)
 
-        # Ученик видит только свои задания; после выхода из школы — ничего.
         self.assertEqual(len(database.list_student_assignments(self.alice)), 1)
         self.assertEqual(database.list_student_assignments(self.bob), [])
         database.set_user_school(self.alice, None, None)
@@ -260,7 +259,7 @@ class TeacherPagesTests(DatabaseTestCase):
         """Браузер, вошедший в аккаунт."""
         browser = Browser(self.base_url)
         status, path, _, _ = browser.post("/login", {"login": email, "password": "password1"})
-        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)  # учитель — в свой кабинет
+        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)
         return browser
 
     csrf = staticmethod(test_pages.PagesTests.csrf)
@@ -281,17 +280,14 @@ class TeacherPagesTests(DatabaseTestCase):
         student_id = database.get_user_credentials("aliya@mail.kz")["id"]
 
         teacher = self.login("teacher@mail.kz")
-        # Учителю кабинет ученика не нужен — он попадает к себе.
         self.assertEqual(teacher.get("/dashboard")[1], f"/teacher/{self.school}")
         status, path, html, _ = teacher.get("/teacher")
         self.assertEqual(path, f"/teacher/{self.school}")
         self.assertIn("Заявки в школу: 1", html)
         self.assertIn("Алия Серикова", html)
-        # До подтверждения результаты не видны.
         card = f"/teacher/{self.school}/students/{student_id}"
         self.assertEqual(teacher.get(card)[0], 404)
 
-        # Без csrf подтвердить нельзя.
         member_url = f"/teacher/{self.school}/members/{student_id}"
         self.assertEqual(teacher.post(member_url, {"action": "approve"})[0], 403)
         status, path, html, _ = teacher.post(
@@ -299,7 +295,6 @@ class TeacherPagesTests(DatabaseTestCase):
         self.assertIn("Ученик подтверждён", html)
         self.assertIn(card, html)
 
-        # Ученик решает тренировку; учитель видит её в карточке.
         _, _, html, _ = student.get("/practice")
         student.post("/practice/start", {"subject": "math", "csrf_token": self.csrf(html)})
         attempt = database.get_in_progress_attempt(student_id, ent_logic.PRACTICE)
@@ -312,7 +307,6 @@ class TeacherPagesTests(DatabaseTestCase):
         self.assertIn(f"{card}/attempts/{attempt.id}", html)
         self.assertEqual(teacher.get(f"{card}/attempts/{attempt.id}")[0], 200)
 
-        # Задание по форме.
         _, _, html, _ = teacher.get(f"/teacher/{self.school}/assignments/new")
         self.assertIn("Алия Серикова", html)
         status, _, html, _ = teacher.post(f"/teacher/{self.school}/assignments/new", {
@@ -337,7 +331,6 @@ class TeacherPagesTests(DatabaseTestCase):
         self.assertIn("0 из 2", html)
         self.assertIn("Пройдите тренировку: Математика", html)
 
-        # Удаление задания.
         _, _, html, _ = teacher.get(assignment_path)
         status, path, html, _ = teacher.post(f"{assignment_path}/delete",
                                              {"csrf_token": self.csrf(html)})
@@ -365,7 +358,6 @@ class TeacherPagesTests(DatabaseTestCase):
         status, _, _, _ = other.post(f"/teacher/{self.school}/members/{student_id}",
                                      {"action": "remove", "csrf_token": self.csrf(html)})
         self.assertEqual(status, 403)
-        # Ученик своей школы через чужой адрес тоже не виден.
         self.assertEqual(
             other.get(f"/teacher/{self.other_school}/students/{student_id}")[0], 404)
         self.assertEqual(
@@ -408,7 +400,6 @@ class TeacherPagesTests(DatabaseTestCase):
         self.assertIn("Вы вышли из школы", html)
         self.assertIsNone(database.get_user_school(student_id))
 
-        # Учитель не может сам сменить школу.
         teacher = self.login("teacher@mail.kz")
         _, _, html, _ = teacher.get("/profile")
         self.assertIn("назначает главный администратор", html)

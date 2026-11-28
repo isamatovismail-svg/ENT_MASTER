@@ -1,8 +1,4 @@
-"""Общие шаблоны литературы: «автор → произведения», «герой → произведение», термины.
-
-Произведения берутся из списка спецификации НЦТ; work_topics — {произведение: номер темы}
-(app/topics.py), по нему каждый вопрос получает тему своего произведения.
-"""
+"""Общие шаблоны литературы: «автор → произведения», «герой → произведение», термины."""
 
 import random
 from typing import Callable
@@ -29,10 +25,7 @@ def character_facts(characters: list[tuple[str, str]], who: str,
 
 def author_categories(works: dict[str, list[str]], question: str, note: str,
                       work_topics: dict[str, str] | None = None) -> list[Category]:
-    """«Выберите произведения автора X»: для каждого автора, у которого больше одного произведения.
-
-    Тема задания — тема первого произведения автора в списке.
-    """
+    """«Выберите произведения автора X»: для каждого автора, у которого больше одного произведения."""
     work_topics = work_topics or {}
     categories = []
     for author, titles in works.items():

@@ -1,20 +1,4 @@
-"""Двуязычный интерфейс: русский (ru) и казахский (kk) — без сторонних библиотек.
-
-Как устроено:
-- исходный текст интерфейса пишется по-русски, он же — ключ словаря KK (русский → казахский);
-- язык текущего запроса хранится в contextvar (у каждого потока сервера — свой):
-  сервер ставит его по пользователю (users.language) или cookie гостя;
-- t("Текст {n}", n=5) — перевод строки из кода Python;
-- текст в HTML-шаблонах и фрагментах (render/fragment) переводится автоматически:
-  каждый текстовый узел и атрибуты placeholder/title/aria-label/alt ищутся в том же словаре
-  (лишние пробелы не важны). Данные пользователя (имена, вопросы) подставляются ПОСЛЕ
-  перевода и поэтому не переводятся никогда;
-- use("kk") — временно сменить язык (письмо, уведомление или сообщение бота другому человеку).
-
-Слова без перевода остаются русскими; tests/test_i18n.py следит, чтобы у каждой строки
-интерфейса был казахский перевод и на казахских страницах не оставалось русского текста.
-Словарь KK_DICT — в app/i18n/kk.py.
-"""
+"""Двуязычный интерфейс: русский (ru) и казахский (kk) — без сторонних библиотек."""
 
 import re
 from collections.abc import Iterator
@@ -28,7 +12,6 @@ RU = "ru"
 KK = "kk"
 LANGUAGES = (RU, KK)
 DEFAULT = RU
-# Подписи переключателя в шапке и названия языков в формах.
 SWITCH_LABELS = {RU: "РУС", KK: "ҚАЗ"}
 LANGUAGE_NAMES = {RU: "Русский", KK: "Қазақ тілі"}
 COOKIE_NAME = "ent_lang"
@@ -80,7 +63,6 @@ def t(text: str, /, **values: object) -> str:
     if translated is None:
         translated = text
     elif translated != text:
-        # пробелы по краям («Текст. » + …) сохраняются, как в исходной строке
         translated = text[: len(text) - len(text.lstrip())] + translated + text[len(text.rstrip()):]
     return translated.format(**values) if values else translated
 
@@ -100,8 +82,6 @@ class Translated(dict):
     def items(self):
         return [(key, self[key]) for key in self]
 
-
-# ── Перевод HTML-шаблонов ───────────────────────────────────────────────────
 
 _CYRILLIC = re.compile("[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]")
 _TEXT_NODE = re.compile(r">([^<>]+)<")
@@ -125,7 +105,7 @@ def translate_markup(source: str, lang: str) -> str:
     """Переводит текстовые узлы и атрибуты HTML-шаблона (до подстановки данных)."""
     if lang == RU:
         return source
-    wrapped = f">{source}<"  # чтобы текст в начале и в конце тоже был «узлом»
+    wrapped = f">{source}<"
     wrapped = _TEXT_NODE.sub(lambda m: f">{_translate_segment(m.group(1), lang)}<", wrapped)
     wrapped = _ATTRIBUTE.sub(lambda m: f'{m.group(1)}="{_translate_segment(m.group(2), lang)}"', wrapped)
     return wrapped[1:-1]

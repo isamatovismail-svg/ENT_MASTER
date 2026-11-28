@@ -1,15 +1,4 @@
-"""Telegram-бот ENT MASTER на чистом Python: urllib + json, long polling Bot API.
-
-Бот работает с той же базой, что и сайт:
-- «Войти на сайт» — одноразовая ссылка /tg/login?token=… (10 минут);
-- «Тренировка» — те же попытки practice, что и на сайте: выбор предмета → вопрос
-  с inline-кнопками → ✅/❌, правильный ответ и объяснение → следующий вопрос;
-- «Мои результаты» — последние попытки и лучший балл.
-
-Состояние выбора хранится прямо в callback_data кнопок (например, отмеченные
-варианты в задании «несколько ответов»), поэтому бот не держит ничего в памяти
-и переживает перезапуск.
-"""
+"""Telegram-бот ENT MASTER на чистом Python: urllib + json, long polling Bot API."""
 
 import json
 import logging
@@ -30,8 +19,8 @@ from app.i18n import t
 logger = logging.getLogger(__name__)
 
 API_URL = "https://api.telegram.org/bot{token}/{method}"
-MESSAGE_LIMIT = 4000          # Telegram ограничивает сообщение 4096 символами
-SKIP = "-"                    # «Пропустить» в callback_data
+MESSAGE_LIMIT = 4000
+SKIP = "-"
 LETTERS = config.OPTION_LETTERS
 STATE_ICONS = {"ok": "✅", "partial": "🟡", "wrong": "❌"}
 
@@ -60,7 +49,6 @@ class TelegramAPI:
             data=json.dumps(params, ensure_ascii=False).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        # Long polling держит запрос до timeout секунд — ждём чуть дольше.
         return self._send(request, int(params.get("timeout", 0)) + 15)
 
     def send_document(self, chat_id: int, filename: str, data: bytes, caption: str = "") -> Any:
@@ -83,12 +71,10 @@ class TelegramAPI:
         return self._send(request, 120)
 
     def _send(self, request: urllib.request.Request, timeout: int) -> Any:
-        """Выполняет запрос к Bot API и возвращает поле result (ошибка — TelegramError)."""
         try:
             with self._opener(request, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
-            # Telegram отвечает JSON с описанием ошибки и на 4xx.
             with error:
                 try:
                     payload = json.loads(error.read().decode("utf-8"))
@@ -102,42 +88,32 @@ class TelegramAPI:
         return payload.get("result")
 
 
-# ── Клавиатуры ───────────────────────────────────────────────────────────────
-
 def _button(text: str, data: str) -> dict:
-    """Inline-кнопка с callback_data (Telegram ограничивает её 64 байтами)."""
     assert len(data.encode("utf-8")) <= 64, data
     return {"text": text, "callback_data": data}
 
 
 def _keyboard(*rows: list[dict]) -> dict:
-    """reply_markup с inline-клавиатурой."""
     return {"inline_keyboard": [row for row in rows if row]}
 
 
 def _chunks(items: list, size: int) -> list[list]:
-    """Делит список кнопок на ряды по size штук."""
     return [items[index:index + size] for index in range(0, len(items), size)]
 
 
 def _is_public_url(url: str) -> bool:
-    """Telegram не принимает в кнопках ссылки на localhost — их отправляем только текстом."""
     host = (urlsplit(url).hostname or "").lower()
     return bool(host) and host not in ("localhost", "0.0.0.0", "::1") and not host.startswith("127.")
 
 
 def _menu_keyboard() -> dict:
-    """Главное меню бота (подписи — на языке собеседника)."""
     return _keyboard(
         [_button(t("🔐 Войти на сайт"), "login")],
         [_button(t("🎯 Тренировка"), "train"), _button(t("📊 Мои результаты"), "results")],
     )
 
 
-# ── Тексты ───────────────────────────────────────────────────────────────────
-
 def _option(aq: AttemptQuestion, letter: str) -> str:
-    """«B) текст» по букве."""
     index = LETTERS.find(letter)
     if letter and 0 <= index < len(aq.options):
         return f"{letter}) {aq.options[index]}"
@@ -145,7 +121,6 @@ def _option(aq: AttemptQuestion, letter: str) -> str:
 
 
 def _answer_text(aq: AttemptQuestion, answer: list[str] | None) -> str:
-    """Ответ в читаемом виде; для соответствия — по строкам."""
     if not answer:
         return t("нет ответа")
     if aq.qtype == config.MATCHING:
@@ -158,7 +133,6 @@ def _answer_text(aq: AttemptQuestion, answer: list[str] | None) -> str:
 
 
 def _fit(text: str) -> str:
-    """Обрезает текст под ограничение Telegram."""
     return text if len(text) <= MESSAGE_LIMIT else text[: MESSAGE_LIMIT - 1] + "…"
 
 
@@ -214,8 +188,6 @@ def question_keyboard(attempt_id: int, aq: AttemptQuestion, state: str = "") -> 
     return _keyboard(*_chunks(buttons, 4), skip)
 
 
-# ── Бот ──────────────────────────────────────────────────────────────────────
-
 class Bot:
     """Обработчик обновлений Telegram. Все данные — в общей базе сайта."""
 
@@ -223,7 +195,6 @@ class Bot:
         """api — клиент Bot API (в тестах — заглушка, записывающая вызовы)."""
         self.api = api
 
-    # ── отправка ─────────────────────────────────────────────────────────────
 
     def send(self, chat_id: int, text: str, keyboard: dict | None = None) -> None:
         """Отправляет сообщение (без превью ссылок)."""
@@ -236,13 +207,11 @@ class Bot:
         self.api.call("sendMessage", **params)
 
     def _edit(self, method: str, **params: Any) -> None:
-        """Редактирует сообщение; ошибка «не изменилось» и т.п. не мешает работе."""
         try:
             self.api.call(method, **params)
         except TelegramError as error:
             logger.info("Не удалось изменить сообщение: %s", error)
 
-    # ── входящие ─────────────────────────────────────────────────────────────
 
     def handle_update(self, update: dict) -> None:
         """Обрабатывает одно обновление getUpdates — на языке собеседника."""
@@ -263,7 +232,6 @@ class Bot:
         return i18n.KK if str(sender.get("language_code", "")).startswith("kk") else i18n.RU
 
     def _on_message(self, message: dict) -> None:
-        """Текстовые команды. Бот отвечает только в личных сообщениях."""
         chat = message.get("chat") or {}
         sender = message.get("from") or {}
         if chat.get("type") != "private" or "id" not in sender:
@@ -281,7 +249,6 @@ class Bot:
             self.send_menu(chat_id, sender)
 
     def _on_callback(self, query: dict) -> None:
-        """Нажатия inline-кнопок."""
         sender = query.get("from") or {}
         message = query.get("message") or {}
         chat_id = (message.get("chat") or {}).get("id")
@@ -291,14 +258,12 @@ class Bot:
             try:
                 notice = self._dispatch(chat_id, message.get("message_id"), sender, data)
             finally:
-                # Всегда отвечаем на нажатие, иначе на кнопке «крутятся часики».
                 self._edit("answerCallbackQuery", callback_query_id=query.get("id"),
                            text=notice or "")
         else:
             self._edit("answerCallbackQuery", callback_query_id=query.get("id"))
 
     def _dispatch(self, chat_id: int, message_id: int | None, sender: dict, data: str) -> str:
-        """Выполняет действие кнопки. Возвращает короткую подсказку для answerCallbackQuery."""
         action, _, rest = data.partition(":")
         if action == "menu":
             self.send_menu(chat_id, sender)
@@ -364,15 +329,12 @@ class Bot:
             return self.answer(chat_id, message_id, attempt, aq, state)
         return t("Кнопка устарела")
 
-    # ── экраны ───────────────────────────────────────────────────────────────
 
     @staticmethod
     def _user(chat_id: int, sender: dict) -> User | None:
-        """Пользователь сайта, привязанный к этому Telegram."""
         return database.get_user_by_telegram(int(sender["id"]))
 
     def _need_login(self, chat_id: int) -> None:
-        """Подсказка: без привязки результаты некуда сохранять."""
         self.send(
             chat_id,
             t("Чтобы тренироваться и сохранять результаты, войдите на сайт через бота — "
@@ -574,8 +536,6 @@ class Bot:
                   _keyboard([_button(t("🎯 Тренировка"), "train"), _button(t("🏠 Меню"), "menu")]))
 
 
-# ── Long polling ─────────────────────────────────────────────────────────────
-
 _BOT_COMMANDS = (
     ("start", "Главное меню"),
     ("train", "Тренировка по предмету"),
@@ -595,18 +555,13 @@ BOT_COMMANDS = bot_commands(i18n.RU)
 
 def run_polling(api: TelegramAPI, max_cycles: int | None = None,
                 sleep: Callable[[float], None] = time.sleep) -> None:
-    """Получает обновления через getUpdates и обрабатывает их по одному.
-
-    Сетевые ошибки не останавливают бота: пауза растёт до 30 секунд, затем повтор.
-    max_cycles и sleep нужны для тестов.
-    """
+    """Получает обновления через getUpdates и обрабатывает их по одному."""
     bot = Bot(api)
     offset: int | None = None
     delay = 1.0
     cycles = 0
     while max_cycles is None or cycles < max_cycles:
         cycles += 1
-        # Напоминания «до срока задания меньше суток» (сама функция не чаще раза в 10 минут).
         notifications.check_due_throttled()
         params: dict[str, Any] = {"timeout": config.TELEGRAM_POLL_TIMEOUT,
                                   "allowed_updates": ["message", "callback_query"]}
@@ -616,7 +571,7 @@ def run_polling(api: TelegramAPI, max_cycles: int | None = None,
             updates = api.call("getUpdates", **params)
         except TelegramError as error:
             if error.code == 401:
-                raise  # неверный токен — продолжать бессмысленно
+                raise
             logger.warning("Telegram вернул ошибку: %s. Повтор через %.0f с.", error, delay)
             sleep(delay)
             delay = min(delay * 2, 30)
@@ -632,7 +587,7 @@ def run_polling(api: TelegramAPI, max_cycles: int | None = None,
             offset = int(update["update_id"]) + 1
             try:
                 bot.handle_update(update)
-            except Exception:  # одно сломанное обновление не должно ронять бота
+            except Exception:
                 logger.exception("Ошибка при обработке обновления %s", update.get("update_id"))
 
 

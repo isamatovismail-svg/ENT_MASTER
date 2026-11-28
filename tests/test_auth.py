@@ -103,7 +103,6 @@ class PhoneTests(DatabaseTestCase):
         """Зарегистрировался в одном виде — входит в любом другом; дубликат не пройдёт."""
         user_id = auth.register_user("Данияр", "Ким", "dan@mail.kz", "8 705 967 84 20",
                                      "password1", "password1")
-        # Старый аккаунт, где телефон был логином, тоже находится по любому виду номера.
         old_id = auth.create_account("Старый", "+77011234567", "password1")
         self.assertEqual(auth.authenticate("8 701 123 45 67", "password1").id, old_id)
         for raw in ("+7 (705) 967-84-20", "87059678420", "77059678420", "7059678420"):

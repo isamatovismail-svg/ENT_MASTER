@@ -1,5 +1,4 @@
-"""Этап 9: двуязычный интерфейс — словарь полный, переключатель работает, на казахских
-страницах не остаётся русского текста интерфейса."""
+"""Этап 9: словарь полный, переключатель работает, на казахских страницах нет русского текста."""
 
 import re
 import threading
@@ -20,7 +19,6 @@ PASSWORD = "password1"
 NEXT_WEEK = (date.today() + timedelta(days=7)).isoformat()
 PLACEHOLDER = re.compile(r"\$\w+|\{\w*\}")
 KAZAKH_LETTERS = re.compile("[ӘәҒғҚқҢңӨөҰұҮүҺһІі]")
-# Служебные слова русского языка, которых нет в казахском тексте интерфейса.
 RUSSIAN_WORDS = {
     "и", "в", "во", "на", "для", "или", "что", "это", "вы", "ваш", "ваши", "вам", "по", "из", "от",
     "до", "как", "все", "всё", "нет", "есть", "если", "при", "без", "чтобы", "уже", "только", "ещё",
@@ -30,7 +28,6 @@ RUSSIAN_WORDS = {
 TAG = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.S)
 TEXT_NODE = re.compile(r">([^<>]+)<")
 ATTRIBUTE = re.compile(r'\b(?:placeholder|title|aria-label|alt)="([^"]*)"')
-# Содержимое, а не интерфейс: тексты вопросов и вариантов, имена, названия школ.
 CONTENT = re.compile(
     r'<(p|span|div|td|li|strong|label)[^>]*class="(?:q-text|option-text|context|q-context)[^"]*"[^>]*>.*?</\1>',
     re.S)
@@ -45,10 +42,10 @@ def russian_strings(html: str) -> list[str]:
         if not re.search("[А-Яа-яЁё]", text):
             continue
         if text in i18n.LANGUAGE_NAMES.values():
-            continue  # названия языков в переключателе — на своём языке («Русский», «Қазақ тілі»)
+            continue
         translation = i18n.KK_DICT.get(text)
         if translation is not None and translation != text:
-            found.append(text)   # строка из словаря осталась непереведённой
+            found.append(text)
             continue
         words = set(re.findall(r"[а-яё]+", text.lower()))
         if not KAZAKH_LETTERS.search(text) and words & RUSSIAN_WORDS:
@@ -88,7 +85,7 @@ class KazakhPagesTests(DatabaseTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        for number in range(12):  # вопросы-«содержимое» без совпадений со строками интерфейса
+        for number in range(12):
             database.upsert_question("math", config.SINGLE, f"{number + 2} + 2 = ?", "",
                                      [str(number + 4), str(number + 5), str(number + 6), str(number + 7)],
                                      [], ["A"], explanation=f"{number + 2} + 2 = {number + 4}.", topic="01",
@@ -138,7 +135,6 @@ class KazakhPagesTests(DatabaseTestCase):
         self.assertEqual(path, "/register")
         for page in ("/", "/login", "/register", "/forgot", "/verify?email=a@b.kz", "/no-such-page"):
             self.assert_kazakh(guest, page)
-        # Переключатель обратно на русский.
         _, _, html, _ = guest.get("/lang/ru?next=/")
         self.assertIn('<html lang="ru">', html)
         self.assertIn("Регистрация", html)
@@ -176,7 +172,7 @@ class KazakhPagesTests(DatabaseTestCase):
             "password": "password123", "password2": "password123"})
         user = database.get_user_credentials("dana@mail.kz")
         self.assertEqual(user["language"], "kk")
-        self.assertIn("Сәлеметсіз бе!", self.mail.messages[-1][2])   # письмо на казахском
+        self.assertIn("Сәлеметсіз бе!", self.mail.messages[-1][2])
 
     def test_notifications_and_telegram_in_recipient_language(self) -> None:
         database.bind_telegram(self.student_id, 555)

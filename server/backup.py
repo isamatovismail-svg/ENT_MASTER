@@ -1,18 +1,4 @@
-"""Резервная копия базы данных SQLite.
-
-Запуск: python -m server.backup              — копия на этом компьютере (сервере)
-        python -m server.backup --telegram   — копия и отправка файла главному администратору в Telegram
-    Делает копию ent_master.sqlite3 в папку backups/ (BACKUP_DIR в .env) с датой в имени,
-    проверяет её (PRAGMA integrity_check), сжимает gzip и оставляет только последние
-    BACKUP_KEEP копий (по умолчанию 14). На сервере запускается раз в сутки таймером systemd
-    (server/systemd/ent-master-backup.timer).
-
-Копия делается встроенным механизмом sqlite3 (Connection.backup): она согласована даже если
-сайт и бот в этот момент пишут в базу, в отличие от простого копирования файла.
-
-Восстановление (сайт и бот на это время останавливают):
-    gunzip -c backups/ent_master-ГГГГММДД-ЧЧММСС.sqlite3.gz > ent_master.sqlite3
-"""
+"""Резервная копия базы данных SQLite."""
 
 import gzip
 import shutil
@@ -42,7 +28,6 @@ def make_backup(source: Path = config.DATABASE_PATH, target_dir: Path = config.B
     plain = target_dir / f"{PREFIX}{stamp}.sqlite3"
     packed = target_dir / f"{PREFIX}{stamp}{SUFFIX}"
 
-    # closing: соединения закрываются сразу (with sqlite3.connect только фиксирует транзакцию).
     with closing(sqlite3.connect(source, timeout=30)) as src, closing(sqlite3.connect(plain)) as dst:
         src.backup(dst)
     with closing(sqlite3.connect(plain)) as check:
@@ -83,7 +68,6 @@ def main(argv: list[str] | None = None) -> int:
     size_kb = path.stat().st_size // 1024
     print(f"Резервная копия: {path} ({size_kb} КБ). Хранится копий: {len(list_backups(path.parent))}.")
     if "--telegram" in argv:
-        # Импорт здесь: обычной копии на компьютере модули бота не нужны.
         from server import alerts
 
         sent = alerts.send_backup(path)

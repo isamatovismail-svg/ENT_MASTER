@@ -14,7 +14,6 @@ from tests import test_pages
 from tests.base import DatabaseTestCase
 from tests.test_pages import Browser
 
-# Число тем в спецификациях НЦТ (с 2026 года) — каталог должен совпадать с документами.
 SPEC_TOPIC_COUNTS = {
     "kz_history": 55, "math_literacy": 10, "reading_literacy": 14, "math": 18, "physics": 25,
     "informatics": 13, "geography": 21, "biology": 12, "chemistry": 19, "world_history": 41, "law": 19,
@@ -22,8 +21,6 @@ SPEC_TOPIC_COUNTS = {
     "foreign_language": 7,
 }
 
-# Темы, по которым в банке пока нет вопросов. Это задания-форматы («история в документах»,
-# «работа с текстом»), для них нужны авторские тексты и источники. Список можно только сокращать.
 KNOWN_GAPS = {
     "kz_history": {"53", "54", "55"},
     "world_history": {"41"},
@@ -149,7 +146,7 @@ class WeakTopicsTests(DatabaseTestCase):
         weak = ent_logic.weak_topics(user_id)
         self.assertIn(("math", "12"), [(w.subject, w.topic) for w in weak])
         self.assertNotIn(("math", "05"), [(w.subject, w.topic) for w in weak])
-        if ("math", "03") in strengths:  # одно задание — слишком мало, чтобы судить
+        if ("math", "03") in strengths:
             self.assertLess(strengths[("math", "03")].questions, ent_logic.MIN_TOPIC_QUESTIONS)
             self.assertNotIn(("math", "03"), [(w.subject, w.topic) for w in weak])
         self.assertEqual(weak[0].label, "12. Арифметическая и геометрическая прогрессии")
@@ -186,7 +183,7 @@ class TopicPagesTests(DatabaseTestCase):
         """Браузер, вошедший в аккаунт."""
         browser = Browser(self.base_url)
         _, path, _, _ = browser.post("/login", {"login": email, "password": "password1"})
-        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)  # учитель — в свой кабинет
+        self.assertTrue(path == "/dashboard" or path.startswith("/teacher"), path)
         return browser
 
     def test_topics_report(self) -> None:

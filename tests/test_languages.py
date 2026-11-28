@@ -86,7 +86,6 @@ class LanguageSelectionTests(DatabaseTestCase):
             texts = {aq.text for aq in database.get_attempt_questions(attempt_id)}
             self.assertTrue(texts)
             self.assertTrue(all(text.startswith(language) for text in texts), texts)
-            # Иностранный язык — общие вопросы для всех.
             shared = ent_logic.build_practice(user_id, "foreign_language")
             self.assertTrue(database.get_attempt_questions(shared))
 

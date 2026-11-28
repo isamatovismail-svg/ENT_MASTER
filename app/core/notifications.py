@@ -1,14 +1,4 @@
-"""Уведомления: колокольчик в меню, страница /notifications и копия в Telegram.
-
-Кому и о чём:
-- учителю — новая заявка в школу, ученик выполнил задание;
-- ученику — заявку приняли/отклонили, новое задание, до срока меньше суток, а задание не сделано.
-
-В базе хранится вид уведомления (kind) и его параметры, а текст собирается при показе —
-так его можно показать на языке пользователя. Если к аккаунту привязан Telegram-бот,
-уведомление дублируется туда (в фоне). Ошибка Telegram только пишется в лог и никогда
-не ломает действие на сайте.
-"""
+"""Уведомления: колокольчик в меню, страница /notifications и копия в Telegram."""
 
 import json
 import logging
@@ -25,20 +15,20 @@ from app.i18n import t
 
 logger = logging.getLogger(__name__)
 
-SCHOOL_REQUEST = "school_request"        # учителю: новая заявка
-ASSIGNMENT_DONE = "assignment_done"      # учителю: ученик выполнил задание
-REQUEST_APPROVED = "request_approved"    # ученику: заявку приняли
-REQUEST_REJECTED = "request_rejected"    # ученику: заявку отклонили
-ASSIGNMENT_NEW = "assignment_new"        # ученику: новое задание
-ASSIGNMENT_DUE = "assignment_due"        # ученику: до срока меньше суток
+SCHOOL_REQUEST = "school_request"
+ASSIGNMENT_DONE = "assignment_done"
+REQUEST_APPROVED = "request_approved"
+REQUEST_REJECTED = "request_rejected"
+ASSIGNMENT_NEW = "assignment_new"
+ASSIGNMENT_DUE = "assignment_due"
 
 ICONS = {
     SCHOOL_REQUEST: "🙋", ASSIGNMENT_DONE: "✅", REQUEST_APPROVED: "🏫", REQUEST_REJECTED: "🚫",
     ASSIGNMENT_NEW: "📋", ASSIGNMENT_DUE: "⏰",
 }
 
-DUE_SOON_SECONDS = 24 * 60 * 60       # «до срока меньше суток»
-DUE_CHECK_INTERVAL_SECONDS = 10 * 60  # проверка сроков по всем заданиям — не чаще раза в 10 минут
+DUE_SOON_SECONDS = 24 * 60 * 60
+DUE_CHECK_INTERVAL_SECONDS = 10 * 60
 
 
 class Sender(Protocol):
@@ -48,7 +38,6 @@ class Sender(Protocol):
         """Метод Bot API."""
 
 
-# Подменяется в тестах (set_sender): тогда отправка идёт сразу, без фонового потока.
 _sender: Sender | None = None
 _due_lock = threading.Lock()
 _due_checked_at = 0.0
@@ -72,8 +61,6 @@ class Notification:
     created_at: float
     read: bool
 
-
-# ── Тексты ───────────────────────────────────────────────────────────────────
 
 def _assignment_title(params: dict) -> str:
     return schools.assignment_title(params.get("mode", ""), params.get("target", ""),
@@ -120,32 +107,29 @@ def for_user(user_id: int) -> list[Notification]:
     return [_from_row(row) for row in database.list_notifications(user_id)]
 
 
-# ── Отправка ─────────────────────────────────────────────────────────────────
-
 def _telegram_send(chat_id: int, text: str) -> None:
-    """Отправляет сообщение в Telegram; любая ошибка только пишется в лог."""
     try:
         sender = _sender
         if sender is None:
             if not config.TELEGRAM_BOT_TOKEN:
                 return
-            from app.telegram_bot import TelegramAPI  # импорт здесь: избегаем цикла модулей
+            from app.telegram_bot import TelegramAPI
 
             sender = TelegramAPI(config.TELEGRAM_BOT_TOKEN)
         sender.call("sendMessage", chat_id=chat_id, text=text, disable_web_page_preview=True)
-    except Exception:  # noqa: BLE001 — Telegram не должен ломать действие на сайте
+    except Exception:
         logger.warning("Не удалось отправить уведомление в Telegram (chat %s)", chat_id, exc_info=True)
 
 
 def _to_telegram(user_id: int, kind: str, params: dict, link: str) -> None:
     try:
         chat_id = database.get_telegram_id(user_id)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Не удалось прочитать Telegram пользователя %s", user_id)
         return
     if not chat_id or (_sender is None and not config.TELEGRAM_BOT_TOKEN):
         return
-    with i18n.use(database.get_user_language(user_id)):  # Telegram — на языке получателя
+    with i18n.use(database.get_user_language(user_id)):
         text = f"{ICONS.get(kind, '🔔')} {render_text(kind, params)}"
     if link:
         text += f"\n{config.SITE_URL}{link}"
@@ -157,15 +141,12 @@ def _to_telegram(user_id: int, kind: str, params: dict, link: str) -> None:
 
 def notify(user_id: int, kind: str, params: dict, link: str = "", dedup_key: str | None = None,
            now: float | None = None) -> bool:
-    """Создаёт уведомление (и копию в Telegram). False — такое уже было (dedup_key).
-
-    Никогда не выбрасывает исключение: уведомление — дополнение к действию, а не его часть.
-    """
+    """Создаёт уведомление (и копию в Telegram). False — такое уже было (dedup_key)."""
     now = time.time() if now is None else now
     try:
         created = database.add_notification(
             user_id, kind, json.dumps(params, ensure_ascii=False), link, now, dedup_key)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Не удалось сохранить уведомление %s для %s", kind, user_id)
         return False
     if created is None:
@@ -179,8 +160,6 @@ def _assignment_params(assignment) -> dict:
             "target": assignment["target"], "count": assignment["count"],
             "deadline": assignment["deadline"]}
 
-
-# ── События ──────────────────────────────────────────────────────────────────
 
 def school_request(school_id: int, student_name: str, student_id: int) -> None:
     """Ученик подал заявку в школу — уведомить её учителей."""
@@ -225,16 +204,12 @@ def attempt_finished(user_id: int, now: float | None = None) -> None:
                 notify(teacher_id, ASSIGNMENT_DONE, params,
                        f"/teacher/{assignment['school_id']}/assignments/{assignment['id']}",
                        dedup_key=f"done:{assignment['id']}:{user_id}")
-    except Exception:  # noqa: BLE001 — завершение попытки важнее уведомления
+    except Exception:
         logger.exception("Не удалось проверить задания ученика %s", user_id)
 
 
 def check_due(now: float | None = None, user_id: int | None = None) -> int:
-    """«До срока меньше суток, а задание не выполнено» — по одному уведомлению на ученика и задание.
-
-    user_id — проверить только этого ученика (его кабинет), иначе — всех (бот, раз в 10 минут).
-    Возвращает, сколько уведомлений создано.
-    """
+    """«До срока меньше суток, а задание не выполнено» — по одному уведомлению на ученика и задание."""
     now = time.time() if now is None else now
     created = 0
     try:
@@ -244,7 +219,6 @@ def check_due(now: float | None = None, user_id: int | None = None) -> int:
         else:
             assignments = database.active_assignments(now, now + DUE_SOON_SECONDS)
         for assignment in assignments:
-            # Задание, выданное меньше чем за сутки до срока, уже пришло как «новое задание».
             if assignment["deadline"] - assignment["created_at"] <= DUE_SOON_SECONDS:
                 continue
             for progress in schools.assignment_progress(assignment, now):
@@ -256,7 +230,7 @@ def check_due(now: float | None = None, user_id: int | None = None) -> int:
                 if notify(progress.user_id, ASSIGNMENT_DUE, params, "/dashboard",
                           dedup_key=f"due:{assignment['id']}", now=now):
                     created += 1
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Не удалось проверить сроки заданий")
     return created
 

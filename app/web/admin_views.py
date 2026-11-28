@@ -1,9 +1,4 @@
-"""Админ-панель: статистика, банк вопросов (добавить / изменить / удалить) и пользователи.
-
-Все страницы доступны только пользователям с ролью admin (см. manage_admin.py).
-Все POST-формы проверяют csrf-токен (декоратор views.login_required).
-Без JavaScript: тип вопроса выбирается ссылкой, форма для каждого типа своя.
-"""
+"""Админ-панель: статистика, банк вопросов (добавить / изменить / удалить) и пользователи."""
 
 import sqlite3
 import time
@@ -22,7 +17,7 @@ from app.i18n import t
 
 View = Callable[..., Response]
 
-PAGE_SIZE = 30            # вопросов на странице списка
+PAGE_SIZE = 30
 
 
 def admin_required(view: View) -> View:
@@ -30,7 +25,6 @@ def admin_required(view: View) -> View:
 
     @wraps(view)
     def wrapper(request: Request, **kwargs: object) -> Response:
-        """Проверяет роль после проверки входа и csrf."""
         assert request.user is not None
         if not request.user.is_admin:
             return views.error_page(request, 403, t("Эта страница доступна только администраторам."))
@@ -41,7 +35,6 @@ def admin_required(view: View) -> View:
 
 def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
                 status: int = 200) -> Response:
-    """Страница админки: подменю разделов + содержимое."""
     pending = database.count_pending_questions()
     links = (("/admin", t("📊 Обзор"), "home"), ("/admin/questions", t("📚 Вопросы"), "questions"),
              ("/admin/review", t("🔎 Проверка ({n})", n=pending) if pending else t("🔎 Проверка"), "review"),
@@ -61,10 +54,7 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
     return views.page(request, t("Админка — {title}", title=title), body, status)
 
 
-# ── Обзор ────────────────────────────────────────────────────────────────────
-
 def _bank_rows(counts: dict[tuple[str, str], int]) -> tuple[SafeHTML, int]:
-    """Строки таблицы «вопросов по предметам» и число предметов ниже нормы ЕНТ."""
     rows = []
     below = 0
     for subject in config.SUBJECTS.values():
@@ -139,16 +129,12 @@ def dashboard(request: Request) -> Response:
     return _admin_page(request, t("Обзор"), "home", content)
 
 
-# ── Список вопросов ──────────────────────────────────────────────────────────
-
 def _short(text: str, limit: int = 140) -> str:
-    """Обрезает длинный текст для таблицы."""
     text = " ".join(text.split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _matches(question: Question, needle: str) -> bool:
-    """Поиск без учёта регистра по тексту, контексту, вариантам и объяснению."""
     haystack = " ".join(
         [question.text, question.context, question.explanation, *question.options, *question.left]
     )
@@ -205,7 +191,6 @@ def questions(request: Request) -> Response:
         )
 
     def page_link(number: int, label: str) -> SafeHTML:
-        """Ссылка на страницу списка с теми же фильтрами."""
         query = urlencode({key: value for key, value in
                            (("subject", subject), ("q", search), ("page", number)) if value})
         return fragment('<a class="btn btn-ghost btn-sm" href="/admin/questions?$q">$label</a>',
@@ -243,7 +228,6 @@ def questions(request: Request) -> Response:
 def _form_page(request: Request, form: question_form.QuestionForm, action: str, base_url: str, title: str,
                errors: list[str], status: int = 200, note: SafeHTML | None = None,
                back_url: str = "/admin/questions", submit: str = "💾 Сохранить вопрос") -> Response:
-    """Отрисовывает страницу формы вопроса в админке."""
     content = question_form.form_content(
         request, form, action, base_url, title, errors, note,
         back_url=back_url, back_label=t("← К списку вопросов"), submit_label=t(submit),
@@ -252,7 +236,6 @@ def _form_page(request: Request, form: question_form.QuestionForm, action: str, 
 
 
 def _back_to_list(subject: str, message: str) -> Response:
-    """Перенаправление к списку вопросов предмета с сообщением."""
     return redirect("/admin/questions?" + urlencode({"subject": subject, "msg": message}))
 
 
@@ -344,12 +327,9 @@ def question_delete(request: Request, question_id: int) -> Response:
     return _admin_page(request, t("Удалить вопрос"), "questions", content)
 
 
-# ── Покрытие тем спецификации НЦТ ────────────────────────────────────────────
-
 @admin_required
 def topics_report(request: Request) -> Response:
     """GET /admin/topics?subject=… — темы спецификации и сколько вопросов банка на каждую."""
-    # Покрытие считается отдельно для каждого языка: так видно, каких казахских вопросов не хватает.
     by_language = {lang: database.topic_counts(lang) for lang in config.LANGUAGES}
     ru, kk = by_language["ru"], by_language["kk"]
     subject = request.query_value("subject")
@@ -420,8 +400,6 @@ def topics_report(request: Request) -> Response:
     return _admin_page(request, t("Темы НЦТ"), "topics", content)
 
 
-# ── Рекламные баннеры ────────────────────────────────────────────────────────
-
 BANNER_STATUS_BADGE = {"показывается": "badge-ok", "запланирован": "badge-warn",
                        "закончился": "badge", "выключен": "badge-wrong"}
 
@@ -470,7 +448,6 @@ def banners(request: Request) -> Response:
 
 def _banner_form(request: Request, url: str, title: str, values: dict, errors: list[str],
                  banner_id: int = 0, status: int = 200) -> Response:
-    """Форма баннера (новый или изменение)."""
     chosen = set(values.get("placements", []))
     boxes = join(
         fragment('<label class="check"><input type="checkbox" name="placements" value="$code"$c> $name</label>',
@@ -496,7 +473,6 @@ def _banner_form(request: Request, url: str, title: str, values: dict, errors: l
 
 
 def _banner_values(request: Request) -> dict:
-    """Значения формы баннера из запроса."""
     return {"title": request.form_value("title"), "link_url": request.form_value("link_url"),
             "placements": request.form.get("placements", []), "starts_on": request.form_value("starts_on"),
             "ends_on": request.form_value("ends_on"), "active": request.form_value("active") == "1"}
@@ -556,8 +532,6 @@ def banner_delete(request: Request, banner_id: int) -> Response:
         return views.not_found(request)
     return redirect("/admin/banners?msg=banner_deleted")
 
-
-# ── Проверка вопросов учителей ───────────────────────────────────────────────
 
 REVIEW_EDITED_COMMENT = "Одобрено с исправлениями администратора."
 
@@ -650,7 +624,6 @@ def review_edit(request: Request, question_id: int) -> Response:
 
 def _review_form(request: Request, form, url: str, title: str, errors: list[str],
                  status: int = 200) -> Response:
-    """Форма «Исправить и одобрить» в разделе проверки."""
     content = question_form.form_content(
         request, form, url, url, title, errors,
         views._notice("info", t("После сохранения вопрос будет одобрен и попадёт в общий банк. "
@@ -661,10 +634,7 @@ def _review_form(request: Request, form, url: str, title: str, errors: list[str]
     return _admin_page(request, title, "review", content, status)
 
 
-# ── Пользователи ─────────────────────────────────────────────────────────────
-
 def _role_badge(role: str) -> SafeHTML:
-    """Плашка роли пользователя."""
     if role == database.ROLE_ADMIN:
         return fragment('<span class="badge badge-partial">⚙️ админ</span>')
     if role == database.ROLE_TEACHER:
@@ -674,11 +644,7 @@ def _role_badge(role: str) -> SafeHTML:
 
 @admin_required
 def users(request: Request) -> Response:
-    """GET /admin/users — все пользователи со сводкой попыток и поиском по имени или логину.
-
-    Телефон в поиске можно набрать в любом виде («8 705 …», «+7 (705) …»):
-    он приводится к +7XXXXXXXXXX так же, как при входе.
-    """
+    """GET /admin/users — все пользователи со сводкой попыток и поиском по имени или логину."""
     search = request.query_value("q").strip()[:200]
     rows = database.list_users_with_stats()
     if search:

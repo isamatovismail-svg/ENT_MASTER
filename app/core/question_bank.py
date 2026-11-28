@@ -1,10 +1,4 @@
-"""Проверка вопроса банка — общая для seed.py (JSON-файлы) и форм админки.
-
-Вопрос описывается словарём в формате data/questions/*.json:
-type, text, context (для «по контексту»), options, left (для соответствия),
-correct (буквы правильных вариантов), explanation и, по желанию, topic —
-номер темы спецификации НЦТ из app/topics.py.
-"""
+"""Проверка вопроса банка — общая для seed.py (JSON-файлы) и форм админки."""
 
 from app import config
 from app.core import topics
@@ -14,10 +8,7 @@ MIN_OPTIONS = 2
 
 
 def validate_question(question: dict, subject: str | None = None) -> list[str]:
-    """Проверяет один вопрос из JSON. Возвращает список ошибок (пустой — всё в порядке).
-
-    Если передан subject, тема topic (если указана) должна быть темой этого предмета.
-    """
+    """Проверяет один вопрос из JSON. Возвращает список ошибок (пустой — всё в порядке)."""
     errors: list[str] = []
     topic = question.get("topic", "")
     if not isinstance(topic, str):
