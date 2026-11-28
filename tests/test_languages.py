@@ -141,7 +141,7 @@ class TeacherQuestionLanguageTests(DatabaseTestCase):
             admin = Browser(base)
             admin.post("/login", {"login": "a@mail.kz", "password": "password1"})
             with i18n.use("ru"):
-                self.assertIn("🇰🇿 Казахский", admin.get("/admin/review")[2])
+                self.assertIn("Казахский", admin.get("/admin/review")[2])
             self.assertIn("Казахский", admin.get("/admin/topics?subject=math")[2])
         finally:
             server.shutdown()

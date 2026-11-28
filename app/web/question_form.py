@@ -213,7 +213,7 @@ def form_content(request: Request, form: QuestionForm, action: str, base_url: st
     """Содержимое страницы формы вопроса (общее для админки и кабинета учителя)."""
     subject_options = join(
         [fragment('<option value="">— выберите предмет —</option>')] + [
-            fragment('<option value="$code" $sel>$icon $name</option>', code=code, icon=info.icon,
+            fragment('<option value="$code" $sel>$name</option>', code=code,
                      name=info.name, sel=SafeHTML("selected" if code == form.subject else ""))
             for code, info in config.SUBJECTS.items()
         ]
@@ -290,10 +290,10 @@ def duplicate_error() -> list[str]:
 
 
 def language_label(question: Question) -> str:
-    """«🇰🇿 Казахский» / «Русский» / «English» — язык вопроса для списков и проверки."""
+    """«Казахский» / «Русский» / «English» — язык вопроса для списков и проверки."""
     if question.subject in config.SHARED_LANGUAGE_SUBJECTS:
         return "English"
-    return ("🇰🇿 " if question.language == "kk" else "") + QUESTION_LANGUAGES.get(question.language, question.language)
+    return QUESTION_LANGUAGES.get(question.language, question.language)
 
 
 def preview(question: Question) -> SafeHTML:
@@ -309,11 +309,9 @@ def preview(question: Question) -> SafeHTML:
         )
     options = join(
         fragment('<li class="$cls"><b>$letter.</b> $text$mark</li>', letter=letter, text=text,
-                 cls="preview-correct" if (letter in question.correct
-                                           and question.qtype != config.MATCHING) else "",
-                 mark=SafeHTML(" ✅" if letter in question.correct
-                               and question.qtype != config.MATCHING else ""))
+                 cls="preview-correct" if correct else "", mark=SafeHTML(" ✓" if correct else ""))
         for letter, text in zip(config.OPTION_LETTERS, question.options)
+        for correct in [letter in question.correct and question.qtype != config.MATCHING]
     )
     return fragment(
         '<div class="question-preview">'

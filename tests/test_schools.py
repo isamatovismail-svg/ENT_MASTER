@@ -374,7 +374,7 @@ class TeacherPagesTests(DatabaseTestCase):
         self.assertIn("Астана, школа №5", html)
         for page in pages:
             self.assertEqual(admin.get(page)[0], 200, page)
-        self.assertIn("🏫 учитель", admin.get("/admin/users")[2])
+        self.assertIn(">учитель<", admin.get("/admin/users")[2])
 
     def test_profile_change_and_leave_school(self) -> None:
         """В профиле ученик выбирает школу, меняет её (нужно подтверждение) и выходит."""

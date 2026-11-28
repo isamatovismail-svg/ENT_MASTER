@@ -156,7 +156,7 @@ class PagesTests(DatabaseTestCase):
         status, _, css, headers = browser.get("/static/style.css")
         self.assertEqual(status, 200)
         self.assertIn("text/css", headers["Content-Type"])
-        self.assertIn("--color-primary", css)
+        self.assertIn("--accent", css)
         self.assertIn("prefers-color-scheme: dark", css)
 
         self.assertEqual(browser.get("/static/../config.py")[0], 404)

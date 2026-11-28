@@ -36,11 +36,11 @@ def admin_required(view: View) -> View:
 def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
                 status: int = 200) -> Response:
     pending = database.count_pending_questions()
-    links = (("/admin", t("📊 Обзор"), "home"), ("/admin/questions", t("📚 Вопросы"), "questions"),
-             ("/admin/review", t("🔎 Проверка ({n})", n=pending) if pending else t("🔎 Проверка"), "review"),
-             ("/admin/topics", t("🧭 Темы НЦТ"), "topics"),
-             ("/admin/banners", t("📢 Реклама"), "banners"),
-             ("/admin/users", t("👥 Пользователи"), "users"), ("/teacher", t("🏫 Школы"), "schools"))
+    links = (("/admin", t("Обзор"), "home"), ("/admin/questions", t("Вопросы"), "questions"),
+             ("/admin/review", t("Проверка ({n})", n=pending) if pending else t("Проверка"), "review"),
+             ("/admin/topics", t("Темы НЦТ"), "topics"),
+             ("/admin/banners", t("Реклама"), "banners"),
+             ("/admin/users", t("Пользователи"), "users"), ("/teacher", t("Школы"), "schools"))
     menu = join(
         fragment('<a href="$href" class="admin-tab$active">$label</a>', href=href, label=label,
                  active=SafeHTML(" admin-tab-active" if key == current else ""))
@@ -48,7 +48,7 @@ def _admin_page(request: Request, title: str, current: str, content: SafeHTML,
     )
     body = fragment(
         '<nav class="admin-menu" aria-label="Разделы админки">'
-        '<span class="admin-badge">⚙️ Админка</span>$menu</nav>$content',
+        '<span class="admin-badge">Админка</span>$menu</nav>$content',
         menu=menu, content=content,
     )
     return views.page(request, t("Админка — {title}", title=title), body, status)
@@ -77,11 +77,11 @@ def _bank_rows(counts: dict[tuple[str, str], int]) -> tuple[SafeHTML, int]:
         if missing:
             below += 1
             status = fragment(
-                '<span class="badge badge-warn">⚠ меньше нормы</span>'
+                '<span class="badge badge-warn">меньше нормы</span>'
                 '<small class="status-note">не хватает $n</small>', n=missing
             )
         else:
-            status = fragment('<span class="badge badge-ok">✅ норма ЕНТ</span>')
+            status = fragment('<span class="badge badge-ok">норма ЕНТ</span>')
         rows.append(fragment(
             '<tr><td><a class="subject-link" href="/admin/questions?$query">$icon $name</a></td>'
             "$cells<td><strong>$total</strong> / $norm</td><td>$status</td></tr>",
@@ -105,13 +105,13 @@ def dashboard(request: Request) -> Response:
     avg_mock = round(stats["avg_mock_score"]) if stats["avg_mock_score"] is not None else "—"
     avg_percent = round(stats["avg_percent"]) if stats["avg_percent"] is not None else "—"
     cards = join((
-        views._stat_card("👥", "total", t("Пользователи"), stats["users"], "",
+        views._stat_card(t("Пользователи"), stats["users"], "",
                          t("администраторов: {n}", n=stats["admins"])),
-        views._stat_card("📝", "last", t("Завершённых попыток"), stats["attempts"], "",
+        views._stat_card(t("Завершённых попыток"), stats["attempts"], "",
                          t("пробных: {mocks} · тренировок: {practices}", mocks=stats["mocks"], practices=stats["practices"])),
-        views._stat_card("⭐", "best", t("Средний балл"), avg_mock, t("из {n}", n=config.MOCK_MAX_SCORE),
+        views._stat_card(t("Средний балл"), avg_mock, t("из {n}", n=config.MOCK_MAX_SCORE),
                          t("по всем пробным ЕНТ")),
-        views._stat_card("🎯", "avg", t("Средний результат"), avg_percent,
+        views._stat_card(t("Средний результат"), avg_percent,
                          "%" if stats["avg_percent"] is not None else "",
                          t("доля баллов во всех попытках")),
     ))
@@ -207,9 +207,8 @@ def questions(request: Request) -> Response:
 
     subject_options = join(
         [fragment('<option value="">Все предметы</option>')] + [
-            fragment('<option value="$code" $sel>$icon $name</option>', code=code,
-                     sel=SafeHTML("selected" if code == subject else ""),
-                     icon=info.icon, name=info.name)
+            fragment('<option value="$code" $sel>$name</option>', code=code,
+                     sel=SafeHTML("selected" if code == subject else ""), name=info.name)
             for code, info in config.SUBJECTS.items()
         ]
     )
@@ -227,7 +226,7 @@ def questions(request: Request) -> Response:
 
 def _form_page(request: Request, form: question_form.QuestionForm, action: str, base_url: str, title: str,
                errors: list[str], status: int = 200, note: SafeHTML | None = None,
-               back_url: str = "/admin/questions", submit: str = "💾 Сохранить вопрос") -> Response:
+               back_url: str = "/admin/questions", submit: str = "Сохранить вопрос") -> Response:
     content = question_form.form_content(
         request, form, action, base_url, title, errors, note,
         back_url=back_url, back_label=t("← К списку вопросов"), submit_label=t(submit),
@@ -389,7 +388,7 @@ def topics_report(request: Request) -> Response:
 
     content = fragment(
         '<section class="page-head"><span class="eyebrow">Спецификация НЦТ</span>'
-        "<h1>🧭 Темы ЕНТ и покрытие банка</h1>"
+        "<h1>Темы ЕНТ и покрытие банка</h1>"
         '<p class="muted">Разделы и темы — из официальных спецификаций НЦТ «для использования '
         'с $year года» (<a class="link" href="$source">testcenter.kz</a>). НЦТ не указывает, сколько '
         "заданий приходится на каждую тему, поэтому здесь показана доля темы в нашем банке. "
@@ -437,7 +436,7 @@ def banners(request: Request) -> Response:
         table = fragment('<div class="card empty">Баннеров пока нет.</div>')
     content = fragment(
         '<section class="page-head admin-head"><div><span class="eyebrow">Монетизация</span>'
-        "<h1>📢 Рекламные баннеры</h1>"
+        "<h1>Рекламные баннеры</h1>"
         '<p class="muted">Свои баннеры без JavaScript: картинка и ссылка. Показы считаются при выводе '
         "баннера, клики — при переходе. На страницах теста реклама не показывается.</p></div>"
         '<a class="btn btn-primary" href="/admin/banners/new">＋ Добавить баннер</a></section>$table',
@@ -550,14 +549,14 @@ def review_queue(request: Request) -> Response:
                 '<div class="review-actions">'
                 '<form method="post" action="/admin/review/$id" class="inline-form">$csrf'
                 '<button type="submit" name="action" value="approve" class="btn btn-primary btn-sm">'
-                "✅ Одобрить</button></form>"
-                '<a class="btn btn-secondary btn-sm" href="/admin/review/$id/edit">✏️ Исправить и одобрить</a>'
+                "Одобрить</button></form>"
+                '<a class="btn btn-secondary btn-sm" href="/admin/review/$id/edit">Исправить и одобрить</a>'
                 "</div>"
                 '<form method="post" action="/admin/review/$id" class="form review-reject">$csrf'
                 '<label class="field"><span>Комментарий для учителя (обязателен при отклонении)</span>'
                 '<textarea name="comment" rows="2" maxlength="1000"></textarea></label>'
                 '<button type="submit" name="action" value="reject" class="btn btn-ghost btn-sm">'
-                "❌ Отклонить</button></form></article>",
+                "Отклонить</button></form></article>",
                 id=question.id, preview=question_form.preview(question), csrf=csrf,
                 author=row["author_name"] or t("автор удалён"),
                 school=(schools.school_title(row["school_city"], row["school_name"])
@@ -567,10 +566,10 @@ def review_queue(request: Request) -> Response:
             for question, row in items
         )
     else:
-        cards = fragment('<div class="card empty">Очередь пуста — все вопросы проверены. 🎉</div>')
+        cards = fragment('<div class="card empty">Очередь пуста — все вопросы проверены.</div>')
     content = fragment(
         '<section class="page-head"><span class="eyebrow">Проверка</span>'
-        "<h1>🔎 Вопросы учителей на проверке: $count</h1>"
+        "<h1>Вопросы учителей на проверке: $count</h1>"
         '<p class="muted">Одобренный вопрос сразу попадает в общий банк (для всех школ). '
         "Отклонённый возвращается учителю с вашим комментарием.</p></section>$cards",
         count=len(items), cards=cards,
@@ -629,16 +628,16 @@ def _review_form(request: Request, form, url: str, title: str, errors: list[str]
         views._notice("info", t("После сохранения вопрос будет одобрен и попадёт в общий банк. "
                               "Учитель увидит пометку «одобрено с исправлениями».")),
         back_url="/admin/review", back_label=t("← К очереди проверки"),
-        submit_label=t("✅ Сохранить и одобрить"),
+        submit_label=t("Сохранить и одобрить"),
     )
     return _admin_page(request, title, "review", content, status)
 
 
 def _role_badge(role: str) -> SafeHTML:
     if role == database.ROLE_ADMIN:
-        return fragment('<span class="badge badge-partial">⚙️ админ</span>')
+        return fragment('<span class="badge badge-partial">админ</span>')
     if role == database.ROLE_TEACHER:
-        return fragment('<span class="badge badge-ok">🏫 учитель</span>')
+        return fragment('<span class="badge badge-ok">учитель</span>')
     return fragment('<span class="badge">ученик</span>')
 
 

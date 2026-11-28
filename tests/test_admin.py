@@ -336,7 +336,7 @@ class AdminPagesTests(DatabaseTestCase):
 
         _, _, html, _ = self.admin.get("/admin/users")
         self.assertIn("student@mail.kz", html)
-        self.assertIn("⚙️ админ", html)
+        self.assertIn(">админ<", html)
 
         test_pages.PagesTests().register_and_login(
             Browser(self.base_url), "phone@mail.kz", name="Телефон", phone="8 705 967 84 20")

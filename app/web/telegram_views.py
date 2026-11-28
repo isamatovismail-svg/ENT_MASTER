@@ -39,7 +39,7 @@ def _page(request: Request, token: str, info, errors: list[str], login: str = ""
             '<form method="post" action="/tg/login" class="tg-option">'
             '<input type="hidden" name="token" value="$token">'
             '<button type="submit" name="action" value="new" class="btn btn-primary btn-block btn-lg">'
-            "🚀 Создать аккаунт и войти</button>"
+            "Создать аккаунт и войти</button>"
             '<p class="muted small">Новый аккаунт, вход в него — через бота.</p></form>',
             token=token,
         )

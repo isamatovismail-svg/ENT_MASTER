@@ -169,11 +169,11 @@ class TeacherQuestionPagesTests(DatabaseTestCase):
 
         admin = self.login("admin@mail.kz")
         _, _, html, _ = admin.get("/admin/review")
-        self.assertIn("🔎 Проверка (1)", html)
+        self.assertIn("Проверка (1)", html)
         self.assertIn("Вопросы учителей на проверке: 1", html)
         self.assertIn("Учитель Айгуль", html)
         self.assertIn("Алматы, школа №12", html)
-        self.assertIn("✅", html)
+        self.assertIn("✓", html)
         review_url = f"/admin/review/{question_id}"
         self.assertEqual(admin.post(review_url, {"action": "reject"})[0], 403)
         _, path, _, _ = admin.post(review_url, {"action": "reject", "comment": " ",

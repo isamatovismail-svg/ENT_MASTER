@@ -1,5 +1,6 @@
 """Обработчики страниц: каждая функция получает Request и возвращает Response."""
 
+import re
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -135,20 +136,40 @@ def _errors_block(errors: list[str]) -> SafeHTML:
     )
 
 
+def subject_mark(name: str) -> str:
+    """Короткая буквенная метка предмета: «Ма», «ИК», «МГ»."""
+    words = [word for word in re.findall(r"[^\W\d_]+", name) if len(word) > 2]
+    if len(words) == 1:
+        return words[0][:2].capitalize()
+    return "".join(word[0].upper() for word in words[:2])
+
+
+def _subject_marks() -> dict[str, str]:
+    marks: dict[str, str] = {}
+    for code, info in config.SUBJECTS.items():
+        mark = subject_mark(info.name)
+        if mark in marks.values():
+            words = [word for word in re.findall(r"[^\W\d_]+", info.name) if len(word) > 2]
+            mark = words[0][0].upper() + words[-1][:2].capitalize()
+        marks[code] = mark
+    return marks
+
+
+def _mark(text: str, extra: str = "") -> SafeHTML:
+    return fragment('<span class="subj-icon$extra" data-mark="$text" aria-hidden="true"></span>',
+                    text=text, extra=SafeHTML(f" {extra}" if extra else ""))
+
+
 def _icon(code: str, extra: str = "") -> SafeHTML:
-    return fragment(
-        '<span class="subj-icon subj-$code$extra" aria-hidden="true">$icon</span>',
-        code=code,
-        extra=SafeHTML(f" {extra}" if extra else ""),
-        icon=config.SUBJECTS[code].icon,
-    )
+    return _mark(_subject_marks()[code], extra)
 
 
 def _bell(request: Request) -> SafeHTML:
     assert request.user is not None
     unread = database.unread_notifications(request.user.id)
     return fragment(
-        '<a class="bell$cls" href="/notifications" aria-label="Уведомления: $count">🔔$badge</a>',
+        '<a class="bell$cls" href="/notifications" aria-label="Уведомления: $count">'
+        '<span>Уведомления</span>$badge</a>',
         cls=" bell-unread" if unread else "", count=unread,
         badge=fragment('<span class="bell-count">$n</span>', n=unread if unread < 100 else "99+")
         if unread else SafeHTML(""),
@@ -166,23 +187,23 @@ def _nav(request: Request) -> SafeHTML:
     )
     if request.user.is_teacher:
         return fragment(
-            '<a href="/teacher">👥 Ученики</a>'
-            '<a href="/teacher/assignments">📋 Задания</a>'
-            '<a href="/teacher/questions">📝 Мои вопросы</a>'
+            '<a href="/teacher">Ученики</a>'
+            '<a href="/teacher/assignments">Задания</a>'
+            '<a href="/teacher/questions">Мои вопросы</a>'
             "$bell"
-            '<a href="/profile">👤 Профиль</a>$logout',
+            '<a href="/profile">Профиль</a>$logout',
             bell=_bell(request), logout=logout,
         )
     return fragment(
-        '<a href="/dashboard">🏠 Кабинет</a>'
-        '<a href="/mock">📝 Пробный ЕНТ</a>'
-        '<a href="/practice">🎯 Тренировка</a>'
-        '<a href="/history">📈 История</a>'
+        '<a href="/dashboard">Кабинет</a>'
+        '<a href="/mock">Пробный ЕНТ</a>'
+        '<a href="/practice">Тренировка</a>'
+        '<a href="/history">История</a>'
         "$bell"
-        '<a href="/profile">👤 Профиль</a>'
+        '<a href="/profile">Профиль</a>'
         "$admin$logout",
         bell=_bell(request),
-        admin=(fragment('<a class="nav-admin" href="/admin">⚙️ Админка</a>') if request.user.is_admin else SafeHTML("")),
+        admin=(fragment('<a class="nav-admin" href="/admin">Админка</a>') if request.user.is_admin else SafeHTML("")),
         logout=logout,
     )
 
@@ -327,9 +348,8 @@ def landing(request: Request) -> Response:
     """Главная: первый экран, устройство ЕНТ и объяснение профильной пары."""
     compulsory_cards = join(
         fragment(
-            '<article class="exam-card subj-$code">$icon<span class="tag">Обязательный</span>'
+            '<article class="exam-card">$icon<span class="tag">Обязательный</span>'
             "<h3>$name</h3><p><b>$count</b> заданий · <b>$score</b> баллов</p></article>",
-            code=code,
             icon=_icon(code),
             name=config.SUBJECTS[code].name,
             count=config.SUBJECTS[code].question_count,
@@ -341,9 +361,9 @@ def landing(request: Request) -> Response:
     profile_cards = join(
         fragment(
             '<article class="exam-card exam-card-profile">'
-            '<span class="subj-icon subj-profile" aria-hidden="true">⭐</span>'
-            '<span class="tag">Профильный</span><h3>Профильный предмет $number</h3>'
+            '$icon<span class="tag">Профильный</span><h3>Профильный предмет $number</h3>'
             "<p><b>$count</b> заданий · <b>$score</b> баллов</p></article>",
+            icon=_mark(subject_mark(t("Профильный предмет"))),
             number=number, count=profile.question_count, score=profile.max_score,
         )
         for number in (1, 2)
@@ -499,7 +519,7 @@ def _attempt_title(attempt: Attempt) -> str:
 def _attempt_icon(attempt: Attempt) -> SafeHTML:
     if attempt.mode == ent_logic.PRACTICE:
         return _icon(attempt.subjects[0])
-    return SafeHTML('<span class="subj-icon subj-mock" aria-hidden="true">📝</span>')
+    return _mark(t("ЕНТ"))
 
 
 def _attempt_url(attempt: Attempt) -> str:
@@ -508,13 +528,12 @@ def _attempt_url(attempt: Attempt) -> str:
     return f"/attempt/{attempt.id}/{attempt.subjects[0]}"
 
 
-def _stat_card(icon: str, kind: str, title: str, value: object, unit: str, note: str) -> SafeHTML:
+def _stat_card(title: str, value: object, unit: str, note: str) -> SafeHTML:
     return fragment(
-        '<article class="stat-card stat-$kind"><span class="stat-icon" aria-hidden="true">$icon</span>'
-        '<p class="stat-title">$title</p>'
+        '<article class="stat-card"><p class="stat-title">$title</p>'
         '<p class="stat-value">$value <span>$unit</span></p>'
         '<p class="stat-note">$note</p></article>',
-        icon=icon, kind=kind, title=title, value=value, unit=unit, note=note,
+        title=title, value=value, unit=unit, note=note,
     )
 
 
@@ -525,7 +544,7 @@ def _strength_rows(items: list[ent_logic.SubjectStrength], empty: str) -> SafeHT
         '<ul class="strength-list">$rows</ul>',
         rows=join(
             fragment(
-                '<li class="subj-$code">$icon<div class="strength-body">'
+                '<li>$icon<div class="strength-body">'
                 '<div class="strength-top"><span>$name</span><b>$percent%</b></div>'
                 '<progress max="100" value="$percent">$percent%</progress>'
                 '<small class="muted">заданий решено: $count</small></div></li>',
@@ -545,7 +564,7 @@ def topic_rows(items: list[ent_logic.TopicStrength], empty: str) -> SafeHTML:
         '<ul class="strength-list">$rows</ul>',
         rows=join(
             fragment(
-                '<li class="subj-$code">$icon<div class="strength-body">'
+                '<li>$icon<div class="strength-body">'
                 '<div class="strength-top"><span>$label <small class="muted">· $subject</small></span>'
                 "<b>$percent%</b></div>"
                 '<progress max="100" value="$percent">$percent%</progress>'
@@ -590,7 +609,7 @@ def _continue_blocks(user_id: int) -> SafeHTML:
     if mock is not None:
         blocks.append(fragment(
             '<div class="notice notice-warning continue">'
-            "<div><strong>📝 У вас есть незавершённый пробный ЕНТ.</strong> "
+            "<div><strong>У вас есть незавершённый пробный ЕНТ.</strong> "
             "Осталось времени: $left.</div>"
             '<a class="btn btn-primary" href="$href">Продолжить</a></div>',
             left=_format_duration(ent_logic.remaining_seconds(mock)),
@@ -600,7 +619,7 @@ def _continue_blocks(user_id: int) -> SafeHTML:
     if practice is not None:
         blocks.append(fragment(
             '<div class="notice notice-info continue">'
-            "<div><strong>🎯 Незавершённая тренировка:</strong> $name.</div>"
+            "<div><strong>Незавершённая тренировка:</strong> $name.</div>"
             '<a class="btn btn-secondary" href="$href">Продолжить</a></div>',
             name=config.SUBJECTS[practice.subjects[0]].name,
             href=_attempt_url(practice),
@@ -621,7 +640,7 @@ def school_status_text(row) -> SafeHTML:
             database.SCHOOL_PENDING: fragment('<span class="badge badge-warn">ждёт подтверждения учителя</span>'),
             database.SCHOOL_REJECTED: fragment('<span class="badge badge-wrong">заявка отклонена</span>'),
         }.get(row["school_status"], "")
-    return fragment("<p><strong>🏫 $title</strong> $badge</p>", title=title, badge=badge or SafeHTML(""))
+    return fragment("<p><strong>$title</strong> $badge</p>", title=title, badge=badge or SafeHTML(""))
 
 
 def _deadline_text(deadline: float) -> str:
@@ -633,7 +652,7 @@ def _date_only(timestamp: float) -> str:
 
 
 ASSIGNMENT_STATUS = {
-    "done": ('<span class="badge badge-ok">✅ выполнено</span>'),
+    "done": ('<span class="badge badge-ok">выполнено</span>'),
     "overdue": ('<span class="badge badge-wrong">не выполнено</span>'),
     "active": ('<span class="badge badge-warn">в процессе</span>'),
 }
@@ -672,7 +691,7 @@ def _assignments_block(request: Request, user_id: int) -> SafeHTML:
     if not items:
         return SafeHTML("")
     return fragment(
-        '<section class="card tasks-card"><h2>📋 Задания учителя: $n</h2><ul class="task-list">$items</ul>'
+        '<section class="card tasks-card"><h2>Задания учителя: $n</h2><ul class="task-list">$items</ul>'
         "</section>",
         n=len(items), items=join(items),
     )
@@ -682,7 +701,7 @@ def _school_block(user_id: int) -> SafeHTML:
     row = database.get_user_school(user_id)
     assignments = database.list_student_assignments(user_id)
     if row is None and not assignments:
-        return fragment('<section class="card school-card"><div class="card-title-row"><h2>🏫 Школа</h2>'
+        return fragment('<section class="card school-card"><div class="card-title-row"><h2>Школа</h2>'
             '<a class="link" href="/profile">Указать школу →</a></div>'
             '<p class="muted">Укажите школу — учитель сможет давать задания и видеть ваш прогресс.'
             "</p></section>")
@@ -706,7 +725,7 @@ def _school_block(user_id: int) -> SafeHTML:
         if items else SafeHTML("")
     )
     return fragment(
-        '<section class="card school-card"><div class="card-title-row"><h2>🏫 Школа</h2>'
+        '<section class="card school-card"><div class="card-title-row"><h2>Школа</h2>'
         '<a class="link" href="/profile">Изменить →</a></div>$status$tasks</section>',
         status=school_status_text(row), tasks=tasks,
     )
@@ -742,10 +761,9 @@ def notifications_page(request: Request) -> Response:
     unread = sum(not item.read for item in items)
     rows = join(
         fragment(
-            '<li class="notification$cls"><span class="notification-icon" aria-hidden="true">$icon</span>'
-            '<div><a class="link" href="/notifications/$id">$text</a>'
+            '<li class="notification$cls"><div><a class="link" href="/notifications/$id">$text</a>'
             '<small class="muted">$date$status</small></div></li>',
-            cls="" if item.read else " notification-unread", icon=item.icon, id=item.id, text=item.text,
+            cls="" if item.read else " notification-unread", id=item.id, text=item.text,
             date=_format_datetime(item.created_at), status=t(" · новое") if not item.read else "",
         )
         for item in items
@@ -757,7 +775,7 @@ def notifications_page(request: Request) -> Response:
     ) if unread else SafeHTML("")
     content = fragment(
         '<section class="page-head admin-head"><div><span class="eyebrow">Уведомления</span>'
-        "<h1>🔔 Уведомления</h1><p class=\"muted\">Непрочитанных: $unread. Если к аккаунту привязан "
+        "<h1>Уведомления</h1><p class=\"muted\">Непрочитанных: $unread. Если к аккаунту привязан "
         "Telegram-бот, уведомления приходят и туда.</p></div>$mark_all</section>$list",
         unread=unread, mark_all=mark_all,
         list=fragment('<ul class="notification-list card">$rows</ul>', rows=rows) if items
@@ -788,30 +806,30 @@ def _stat_cards(attempts: list[Attempt], mocks: list[Attempt], best: Attempt | N
                 last: Attempt | None) -> tuple[SafeHTML, SafeHTML, SafeHTML, SafeHTML]:
     practices = len(attempts) - len(mocks)
     best_card = _stat_card(
-        "🏆", "best", t("Лучший балл"),
+        t("Лучший балл"),
         best.score if best else "—", t("из {n}", n=config.MOCK_MAX_SCORE),
         t("лучший пробный ЕНТ") if best else t("пройдите пробный ЕНТ"),
     )
     last_card = _stat_card(
-        "🕒", "last", t("Последний балл"),
+        t("Последний балл"),
         last.score if last else "—", t("из {n}", n=last.max_score) if last else "",
         _attempt_title(last) if last else t("здесь появится последний тест"),
     )
     total_card = _stat_card(
-        "📊", "total", t("Всего попыток"), len(attempts), "",
+        t("Всего попыток"), len(attempts), "",
         t("пробных: {mocks} · тренировок: {practices}", mocks=len(mocks), practices=practices),
     )
     if mocks:
         average = round(sum(a.score for a in mocks) / len(mocks))
         average_card = _stat_card(
-            "⭐", "avg", t("Средний балл"), average, t("из {n}", n=config.MOCK_MAX_SCORE),
+        t("Средний балл"), average, t("из {n}", n=config.MOCK_MAX_SCORE),
             t("среднее по пробным ЕНТ"),
         )
     elif attempts:
         average = round(sum(_percent(a.score, a.max_score) for a in attempts) / len(attempts))
-        average_card = _stat_card("⭐", "avg", t("Средний балл"), average, "%", t("среднее по тренировкам"))
+        average_card = _stat_card(t("Средний балл"), average, "%", t("среднее по тренировкам"))
     else:
-        average_card = _stat_card("⭐", "avg", t("Средний балл"), "—", "", t("пока нет попыток"))
+        average_card = _stat_card(t("Средний балл"), "—", "", t("пока нет попыток"))
     return best_card, last_card, total_card, average_card
 
 
@@ -820,7 +838,7 @@ def _goal_text(best: Attempt | None) -> str:
     if best is None:
         goal_text = t("Пройдите пробный ЕНТ — и здесь будет видно, сколько осталось до 140.")
     elif left == 0:
-        goal_text = t("Максимальный балл! Так держать 🎉")
+        goal_text = t("Максимальный балл! Так держать")
     else:
         goal_text = t("До максимума осталось {left} баллов.", left=left)
     if best is not None and best.max_score < config.MOCK_MAX_SCORE:
@@ -989,7 +1007,7 @@ def _pair_card(request: Request, index: int, pair: tuple[str, str], counts: dict
     minutes = ent_logic.mock_duration_minutes(total)
     complete = total >= config.MOCK_TOTAL_QUESTIONS
     status = (
-        fragment('<p class="pair-status ok">✅ Полный тест, как на ЕНТ</p>')
+        fragment('<p class="pair-status ok">Полный тест, как на ЕНТ</p>')
         if complete else
         fragment(
             '<p class="pair-status warn">В банке пока $have из $need заданий — '
@@ -1002,8 +1020,8 @@ def _pair_card(request: Request, index: int, pair: tuple[str, str], counts: dict
         '<input type="hidden" name="pair" value="$index">'
         '<div class="pair-icons">$icon1$icon2</div>'
         "<h3>$title</h3><ul class=\"avail-list\">$subjects</ul>"
-        '<p class="pair-facts"><span>📝 <b>$total</b> заданий</span>'
-        "<span>⏱ <b>$time</b></span></p>$status"
+        '<p class="pair-facts"><span><b>$total</b> заданий</span>'
+        "<span><b>$time</b></span></p>$status"
         '<button type="submit" class="btn btn-primary btn-block" $disabled>'
         "Начать тест</button>"
         "</form>",
@@ -1056,7 +1074,7 @@ def choose_pair(request: Request) -> Response:
 
     time_note = (
         fragment(
-            '<div class="notice notice-info"><strong>⏱ Как считается время.</strong> '
+            '<div class="notice notice-info"><strong>Как считается время.</strong> '
             "Полный тест — $full_q заданий за $full_min минут. Если в банке заданий меньше, "
             "время сокращается пропорционально: $full_min мин × (заданий в тесте / $full_q), "
             "с округлением вверх до минуты.</div>",
@@ -1265,7 +1283,7 @@ def _explanation(aq: AttemptQuestion) -> SafeHTML:
     if not aq.explanation:
         return SafeHTML("")
     return fragment(
-        '<div class="explain"><p class="explain-title">💡 Почему так</p><p>$text</p></div>',
+        '<div class="explain"><p class="explain-title">Почему так</p><p>$text</p></div>',
         text=aq.explanation,
     )
 
@@ -1292,14 +1310,13 @@ def choose_practice(request: Request) -> Response:
         groups[subject.compulsory].append(fragment(
             '<form method="post" action="/practice/start">$csrf'
             '<input type="hidden" name="subject" value="$code">'
-            '<button type="submit" class="subject-card subj-$code" $disabled>'
-            '<span class="subject-emoji" aria-hidden="true">$icon</span>'
+            '<button type="submit" class="subject-card" $disabled>$icon'
             '<span class="subject-name">$name</span>'
             '<span class="subject-count">$total заданий в банке</span>'
             '<span class="subject-go">Начать →</span></button></form>',
             csrf=_csrf_field(request),
             code=subject.code,
-            icon=subject.icon,
+            icon=_icon(subject.code, "big"),
             name=subject.name,
             total=total,
             disabled=SafeHTML("" if total else "disabled"),
@@ -1307,7 +1324,7 @@ def choose_practice(request: Request) -> Response:
     practice = database.get_in_progress_attempt(_user_id(request), ent_logic.PRACTICE)
     resume = (
         fragment(
-            '<div class="notice notice-info continue"><div><strong>🎯 Незавершённая тренировка:'
+            '<div class="notice notice-info continue"><div><strong>Незавершённая тренировка:'
             "</strong> $name.</div>"
             '<a class="btn btn-secondary" href="$href">Продолжить</a></div>',
             name=config.SUBJECTS[practice.subjects[0]].name, href=_attempt_url(practice),
@@ -1360,13 +1377,12 @@ def _practice_head(attempt: Attempt, questions: list[AttemptQuestion], current: 
         ))
     checked = [aq for aq in questions if aq.checked]
     return fragment(
-        '<section class="practice-head subj-$code">'
+        '<section class="practice-head">'
         '<div class="practice-title">$icon<div><span class="eyebrow">Тренировка</span>'
         "<h1>$name</h1></div></div>"
         '<div class="practice-meta"><span>Вопрос <b>$current</b> из $total</span>'
         "<span>Баллы: <b>$score</b> из $score_max</span></div>"
         '<ol class="steps" aria-label="Прогресс тренировки">$steps</ol></section>',
-        code=code,
         icon=_icon(code, "big"),
         name=config.SUBJECTS[code].name,
         current=current,
@@ -1460,7 +1476,7 @@ def practice_review(request: Request, attempt_id: int, number: int) -> Response:
     else:
         next_block = fragment(
             '<form method="post" action="/attempt/$id/finish">$csrf'
-            '<button type="submit" class="btn btn-primary btn-lg">Посмотреть итог 🏁</button></form>',
+            '<button type="submit" class="btn btn-primary btn-lg">Посмотреть итог</button></form>',
             id=attempt.id, csrf=_csrf_field(request),
         )
 
@@ -1508,7 +1524,7 @@ def _timer(attempt: Attempt) -> SafeHTML:
     kind = " timer-low" if left < 15 * 60 else ""
     return fragment(
         '<div class="timer$kind">'
-        '<div class="timer-row"><span>⏱ Осталось времени</span><strong>$left</strong></div>'
+        '<div class="timer-row"><span>Осталось времени</span><strong>$left</strong></div>'
         '<progress max="$total" value="$used"></progress>'
         '<p class="timer-hint">Время считает сервер и обновляется при каждом переходе. '
         "Тест завершится автоматически в $end.</p></div>",
@@ -1526,13 +1542,12 @@ def _section_tabs(attempt: Attempt, questions: list[AttemptQuestion], current: s
         subject_questions = [aq for aq in questions if aq.subject == code]
         answered = sum(1 for aq in subject_questions if aq.answer)
         tabs.append(fragment(
-            '<button type="submit" name="goto" value="$code" class="tab subj-$code$active" $aria>'
-            '<span class="tab-icon" aria-hidden="true">$icon</span>'
+            '<button type="submit" name="goto" value="$code" class="tab$active" $aria>$icon'
             '<span>$name</span><small>$answered/$total</small></button>',
             code=code,
             active=SafeHTML(" tab-active" if code == current else ""),
             aria=SafeHTML('aria-current="step"' if code == current else ""),
-            icon=config.SUBJECTS[code].icon,
+            icon=_icon(code),
             name=config.SUBJECTS[code].name,
             answered=answered,
             total=len(subject_questions),
@@ -1552,7 +1567,7 @@ def _section_buttons(attempt: Attempt, current: str) -> SafeHTML:
         ))
     buttons.append(fragment(
         '<button type="submit" name="goto" value="$code" class="btn btn-secondary">'
-        "💾 Сохранить ответы</button>",
+        "Сохранить ответы</button>",
         code=current,
     ))
     if index < len(attempt.subjects) - 1:
@@ -1716,7 +1731,7 @@ def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
 
     score_rows = join(
         fragment(
-            '<li class="subj-$code">$icon<div class="strength-body">'
+            '<li>$icon<div class="strength-body">'
             '<div class="strength-top"><span>$name</span>'
             '<span class="subject-score"><strong>$score</strong> из $max</span></div>'
             '<progress max="$max_bar" value="$score"></progress></div></li>',
@@ -1731,7 +1746,7 @@ def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
         subject_questions = [aq for aq in questions if aq.subject == item.code]
         mistakes = sum(1 for aq in subject_questions if ent_logic.question_state(aq) != "ok")
         review_sections.append(fragment(
-            '<details class="review-section subj-$code" $open><summary>$icon'
+            '<details class="review-section" $open><summary>$icon'
             '<span class="rs-name">$name</span>'
             '<span class="rs-meta">$score из $max · ошибок: $mistakes</span></summary>'
             '<div class="review-items">$items</div></details>',
@@ -1753,13 +1768,13 @@ def result_content(attempt: Attempt, actions: SafeHTML) -> SafeHTML:
         )
 
     if percent >= 85:
-        cheer = t("Отличный результат! 🎉")
+        cheer = t("Отличный результат!")
     elif percent >= STRONG_PERCENT:
-        cheer = t("Хороший результат — ещё немного до максимума 💪")
+        cheer = t("Хороший результат — ещё немного до максимума")
     elif percent >= 40:
-        cheer = t("Неплохо! Разберите ошибки ниже — это самый быстрый рост 📈")
+        cheer = t("Неплохо! Разберите ошибки ниже — это самый быстрый рост")
     else:
-        cheer = t("Не сдавайтесь: прочитайте объяснения и попробуйте ещё раз 🌱")
+        cheer = t("Не сдавайтесь: прочитайте объяснения и попробуйте ещё раз")
 
     duration = int((attempt.finished_at or attempt.started_at) - attempt.started_at)
     return render(
@@ -1801,7 +1816,7 @@ def result_page(request: Request, attempt_id: int) -> Response:
         fragment(
             '<form method="post" action="/practice/start">$csrf'
             '<input type="hidden" name="subject" value="$code">'
-            '<button type="submit" class="btn btn-secondary">🔁 Ещё 10 вопросов</button></form>',
+            '<button type="submit" class="btn btn-secondary">Ещё 10 вопросов</button></form>',
             csrf=_csrf_field(request), code=attempt.subjects[0],
         )
     )

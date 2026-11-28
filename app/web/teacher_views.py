@@ -47,12 +47,12 @@ def _page(request: Request, school, title: str, content: SafeHTML, status: int =
     is_admin = request.user is not None and request.user.is_admin
     head = fragment(
         '<nav class="admin-menu" aria-label="Кабинет учителя">'
-        '<span class="admin-badge">🏫 $school</span>$tabs</nav>$content',
+        '<span class="admin-badge">$school</span>$tabs</nav>$content',
         school=schools.school_title(school["city"], school["name"]),
         tabs=fragment(
-            '<a class="admin-tab" href="/teacher/$id">👥 Ученики</a>'
-            '<a class="admin-tab" href="/teacher/$id/assignments">📋 Задания</a>'
-            '<a class="admin-tab" href="/teacher">🗂 Все школы</a>', id=school["id"],
+            '<a class="admin-tab" href="/teacher/$id">Ученики</a>'
+            '<a class="admin-tab" href="/teacher/$id/assignments">Задания</a>'
+            '<a class="admin-tab" href="/teacher">Все школы</a>', id=school["id"],
         ) if is_admin else SafeHTML(""),
         content=content,
     )
@@ -90,7 +90,7 @@ def teacher_home(request: Request) -> Response:
             )
         content = fragment(
             '<section class="page-head"><span class="eyebrow">Кабинет учителя</span>'
-            "<h1>🗂 Все школы: $count</h1><p class=\"muted\">Назначить учителя: "
+            "<h1>Все школы: $count</h1><p class=\"muted\">Назначить учителя: "
             "<code>python manage_admin.py &lt;логин&gt; --teacher &lt;город&gt; &lt;школа&gt;</code>"
             "</p></section>$table",
             count=len(rows), table=table,
@@ -117,7 +117,7 @@ def _requests_block(request: Request, school_id: int) -> SafeHTML:
         return SafeHTML("")
     csrf = views._csrf_field(request)
     return fragment(
-        '<section class="card requests-card"><h2>🙋 Заявки в школу: $count</h2>'
+        '<section class="card requests-card"><h2>Заявки в школу: $count</h2>'
         '<ul class="member-list">$rows</ul></section>',
         count=len(pending),
         rows=join(
@@ -178,8 +178,7 @@ def _weak_cell(weak: list) -> SafeHTML:
     if not weak:
         return SafeHTML('<span class="muted">—</span>')
     return join(
-        fragment('<span class="weak-chip subj-$code">$icon $name $p%</span>', code=item.code,
-                 icon=config.SUBJECTS[item.code].icon, name=config.SUBJECTS[item.code].name, p=item.percent)
+        fragment('<span class="weak-chip">$name $p%</span>', name=config.SUBJECTS[item.code].name, p=item.percent)
         for item in weak
     )
 
@@ -297,7 +296,7 @@ def assignments_page(request: Request, school) -> Response:
         table = fragment('<div class="card empty">Заданий пока нет. Нажмите «Выдать задание».</div>')
     content = fragment(
         '<section class="page-head admin-head"><div><span class="eyebrow">Задания</span>'
-        "<h1>📋 Задания школы: $count</h1>"
+        "<h1>Задания школы: $count</h1>"
         '<p class="muted">Ученик получает уведомление о новом задании и напоминание за сутки до срока. '
         "Засчитываются попытки, завершённые после выдачи задания и до конца дня срока.</p></div>"
         '<a class="btn btn-primary" href="/teacher/$sid/assignments/new">＋ Выдать задание</a></section>$table',
@@ -353,8 +352,8 @@ def _timeline_block(school_id: int, user_id: int) -> SafeHTML:
                 mode=views.MODE_NAMES[item.attempt.mode], score=item.attempt.score,
                 max=item.attempt.max_score, percent=item.percent,
                 subjects=join(
-                    fragment('<span class="weak-chip subj-$code">$icon $name: $p / $m</span>', code=code,
-                             icon=config.SUBJECTS[code].icon, name=config.SUBJECTS[code].name, p=points, m=most)
+                    fragment('<span class="weak-chip">$name: $p / $m</span>',
+                             name=config.SUBJECTS[code].name, p=points, m=most)
                     for code, points, most in item.subjects
                 ),
                 sid=school_id, uid=user_id, aid=item.attempt.id,
@@ -504,7 +503,7 @@ def assignment_page(request: Request, school, assignment_id: int) -> Response:
         table = fragment('<div class="card empty">Задание пока некому выполнять.</div>')
     done = sum(item.status == "done" for item in progress)
     content = fragment(
-        '<section class="page-head"><span class="eyebrow">Задание</span><h1>📋 $title</h1>'
+        '<section class="page-head"><span class="eyebrow">Задание</span><h1>$title</h1>'
         '<p class="muted">Выдано $created · срок $deadline · $who · выполнили $done из $total. '
         "Засчитываются попытки, завершённые после выдачи задания и до конца дня срока.</p>"
         "</section>$table"
@@ -529,9 +528,9 @@ def assignment_delete(request: Request, school, assignment_id: int) -> Response:
 
 
 QUESTION_STATUS = {
-    database.Q_PENDING: '<span class="badge badge-warn">⏳ на проверке</span>',
-    database.Q_APPROVED: '<span class="badge badge-ok">✅ одобрен</span>',
-    database.Q_REJECTED: '<span class="badge badge-wrong">❌ отклонён</span>',
+    database.Q_PENDING: '<span class="badge badge-warn">на проверке</span>',
+    database.Q_APPROVED: '<span class="badge badge-ok">одобрен</span>',
+    database.Q_REJECTED: '<span class="badge badge-wrong">отклонён</span>',
 }
 
 
@@ -559,7 +558,7 @@ def my_questions(request: Request, school) -> Response:
     csrf = views._csrf_field(request)
     rows = []
     for question in items:
-        comment = (fragment('<p class="review-comment">💬 $comment</p>', comment=t(question.review_comment))
+        comment = (fragment('<p class="review-comment">$comment</p>', comment=t(question.review_comment))
                    if question.review_comment else SafeHTML(""))
         if question.status == database.Q_APPROVED:
             actions = fragment('<span class="muted small">в общем банке</span>')
@@ -583,7 +582,7 @@ def my_questions(request: Request, school) -> Response:
     counts = {status: sum(q.status == status for q in items) for status in QUESTION_STATUS}
     content = fragment(
         '<section class="page-head admin-head"><div><span class="eyebrow">Мои вопросы</span>'
-        "<h1>📝 Вопросы для общего банка</h1>"
+        "<h1>Вопросы для общего банка</h1>"
         '<p class="muted">На проверке: $pending · одобрено: $approved · отклонено: $rejected. '
         "Новый вопрос попадает в тесты только после одобрения администратором — тогда он "
         "доступен ученикам всех школ. Отклонённый вопрос можно исправить и отправить снова.</p>"
@@ -601,7 +600,7 @@ def _question_page(request: Request, school, form, url: str, title: str, errors:
     content = question_form.form_content(
         request, form, url, url, title, errors, note,
         back_url="/teacher/questions", back_label=t("← К моим вопросам"),
-        submit_label=t("📨 Отправить на проверку"),
+        submit_label=t("Отправить на проверку"),
     )
     return _page(request, school, title, content, status)
 
